@@ -22,11 +22,19 @@
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core_reportbuilder\system_report_factory;
+use local_assign_ai\assign_submission;
+use local_assign_ai\output\header_logo;
+use local_assign_ai\reportbuilder\systemreports\history as history_report;
+
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
-require_once($CFG->dirroot . '/user/lib.php');
 
 $cmid = required_param('id', PARAM_INT);
+$logid = optional_param('logid', null, PARAM_INT);
+$download = optional_param('download', false, PARAM_BOOL);
+$retry = optional_param('retry', 0, PARAM_INT);
+$retryall = optional_param('retryall', 0, PARAM_BOOL);
 
 $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
@@ -45,6 +53,149 @@ if (!has_capability('local/assign_ai:review', $context)) {
     );
 }
 
+$reviewurl = new moodle_url('/local/assign_ai/review.php', ['id' => $cmid]);
+
+// Retry a single review (re-queue as an ad-hoc task). Available on every history row.
+if ($retry) {
+    require_sesskey();
+    $record = $DB->get_record('local_assign_ai_pending', ['id' => $retry], '*', MUST_EXIST);
+    if ((int) $record->assignmentid !== (int) $cm->id) {
+        throw new moodle_exception('invalidrecord', 'error');
+    }
+
+    if ((string) $record->status === assign_submission::STATUS_APPROVED) {
+        // Do not replace a successful record: create a new attempt as a new log row.
+        $newid = assign_submission::create_pending_submission((object) [
+            'courseid' => $record->courseid,
+            'assignmentid' => $record->assignmentid,
+            'userid' => $record->userid,
+            'title' => $record->title,
+            'message' => null,
+            'grade' => null,
+            'status' => assign_submission::STATUS_QUEUED,
+        ]);
+        assign_submission::queue_ai_review((int) $cm->id, (int) $course->id, (int) $record->userid, (int) $newid);
+    } else {
+        // Failed (or any other) record: re-queue the same row (manual retry resets the counter).
+        assign_submission::queue_ai_review((int) $cm->id, (int) $course->id, (int) $record->userid, (int) $record->id, true);
+    }
+
+    redirect($reviewurl, get_string('retryqueued', 'local_assign_ai'), null,
+        \core\output\notification::NOTIFY_SUCCESS);
+}
+
+// Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task).
+if ($retryall) {
+    require_sesskey();
+    $failed = $DB->get_records('local_assign_ai_pending', [
+        'assignmentid' => $cm->id,
+        'status' => assign_submission::STATUS_FAILED,
+    ]);
+    $count = count($failed);
+
+    if ($count > 0) {
+        foreach ($failed as $failedrecord) {
+            // update_pending_submission refreshes timemodified so the reaper won't re-fail them.
+            // Manual retry resets the auto-retry counter.
+            assign_submission::update_pending_submission((int) $failedrecord->id, [
+                'status' => assign_submission::STATUS_QUEUED,
+                'retries' => 0,
+            ]);
+        }
+
+        $task = new \local_assign_ai\task\process_all_submissions();
+        $task->set_custom_data([
+            'cmid' => (int) $cm->id,
+            'courseid' => (int) $course->id,
+            'pendingcount' => $count,
+        ]);
+        \core\task\manager::queue_adhoc_task($task);
+    }
+
+    redirect($reviewurl, get_string('retryallqueued', 'local_assign_ai', $count), null,
+        \core\output\notification::NOTIFY_SUCCESS);
+}
+
+// View or download a single AI processing log (mirrors /admin/tasklogs.php).
+if ($logid !== null) {
+    $record = $DB->get_record('local_assign_ai_pending', ['id' => $logid], '*', MUST_EXIST);
+
+    // Ensure the record belongs to this assignment to avoid cross-task leakage.
+    if ((int) $record->assignmentid !== (int) $cm->id) {
+        throw new moodle_exception('invalidrecord', 'error');
+    }
+
+    $student = $DB->get_record('user', ['id' => $record->userid]);
+    $studentname = $student ? fullname($student) : (string) $record->userid;
+    $statuslabel = match ((string) $record->status) {
+        assign_submission::STATUS_APPROVED => get_string('statusapprove', 'local_assign_ai'),
+        assign_submission::STATUS_FAILED, assign_submission::STATUS_REJECTED =>
+            get_string('statuserror', 'local_assign_ai'),
+        default => get_string('statuspending', 'local_assign_ai'),
+    };
+    $gradetext = $record->grade !== null ? (string) $record->grade : '-';
+    $datetext = !empty($record->timemodified) ? userdate((int) $record->timemodified) : '-';
+
+    // Build the log text once, reused for both the on-screen view and the download.
+    $lines = [
+        get_string('fullname', 'local_assign_ai') . ': ' . $studentname,
+        get_string('status', 'local_assign_ai') . ': ' . $statuslabel,
+        get_string('grade', 'local_assign_ai') . ': ' . $gradetext,
+        get_string('lastmodified', 'local_assign_ai') . ': ' . $datetext,
+        '',
+        get_string('modaltitle', 'local_assign_ai') . ':',
+        trim(html_to_text((string) $record->message)),
+    ];
+    if (!empty($record->errormessage)) {
+        $lines[] = '';
+        $lines[] = get_string('logerror', 'local_assign_ai') . ':';
+        $lines[] = (string) $record->errormessage;
+    }
+    $logtext = implode("\n", $lines);
+
+    if ($download) {
+        $filename = "assign_ai_log-{$record->id}.txt";
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        readstring_accel($logtext, 'text/plain; charset=utf-8');
+        exit;
+    }
+
+    $title = get_string('logdetails', 'local_assign_ai') . " ({$record->id})";
+    $PAGE->set_url(new moodle_url('/local/assign_ai/history.php', ['id' => $cmid, 'logid' => $logid]));
+    $PAGE->set_course($course);
+    $PAGE->set_context($context);
+    $PAGE->set_title($title);
+    $PAGE->set_heading(format_string($course->fullname));
+    $PAGE->activityheader->disable();
+    $PAGE->navbar->add($title, null);
+
+    echo $OUTPUT->header();
+
+    echo html_writer::tag('pre', s($logtext), [
+        'class' => 'task-output border rounded p-3',
+        'style' => 'min-height: 24lh; white-space: pre-wrap; background: #333; color: #fff;',
+    ]);
+
+    echo $OUTPUT->action_link(
+        new moodle_url('/local/assign_ai/history.php', ['id' => $cmid]),
+        get_string('backtoreview', 'local_assign_ai'),
+        null,
+        null,
+        new pix_icon('i/log', '')
+    );
+    echo ' ';
+    echo $OUTPUT->action_link(
+        new moodle_url('/local/assign_ai/history.php', ['id' => $cmid, 'logid' => $logid, 'download' => true]),
+        get_string('downloadlog', 'local_assign_ai'),
+        null,
+        null,
+        new pix_icon('t/download', '')
+    );
+
+    echo $OUTPUT->footer();
+    exit;
+}
+
 $PAGE->set_url(new moodle_url('/local/assign_ai/history.php', ['id' => $cmid]));
 $PAGE->set_course($course);
 $PAGE->set_context($context);
@@ -53,89 +204,44 @@ $PAGE->set_heading(format_string($course->fullname));
 $PAGE->requires->css('/local/assign_ai/styles/review.css');
 $PAGE->activityheader->disable();
 
-$assign = new assign($context, $cm, $course);
-$records = $DB->get_records('local_assign_ai_pending', [
+$report = system_report_factory::create(history_report::class, $context, '', '', 0, [
+    'courseid' => $course->id,
     'assignmentid' => $cm->id,
-], 'timemodified DESC');
-
-$rows = [];
-if ($records) {
-    $userids = array_unique(array_map(fn($record) => $record->userid, $records));
-    $users = user_get_users_by_id($userids);
-
-    foreach ($records as $record) {
-        if (empty($record->userid) || !isset($users[$record->userid])) {
-            continue;
-        }
-
-        $user = $users[$record->userid];
-
-        // Only show approved or rejected (error) statuses.
-        if (!in_array($record->status, ['approve', 'rejected'])) {
-            continue;
-        }
-
-        switch ($record->status) {
-            case 'approve':
-                $status = get_string('statusapprove', 'local_assign_ai');
-                break;
-            case 'rejected':
-                $status = get_string('statuserror', 'local_assign_ai');
-                break;
-            case 'pending':
-            default:
-                $status = get_string('statuspending', 'local_assign_ai');
-        }
-
-        $grade = $record->grade !== null ? $record->grade : '-';
-        $lastmodified = !empty($record->timemodified) ? userdate($record->timemodified) : '-';
-
-        if (!empty($record->message)) {
-            $formattedmessage = format_text($record->message, FORMAT_HTML);
-            $messagetext = shorten_text(strip_tags($formattedmessage), 180);
-        } else {
-            $formattedmessage = '';
-            $messagetext = '-';
-        }
-
-        // Build direct grader URL for this user and assignment.
-        $graderurl = new moodle_url('/mod/assign/view.php', [
-            'id' => $cmid,
-            'action' => 'grader',
-            'userid' => $record->userid,
-        ]);
-
-        $rows[] = [
-            'rowid' => (int)$record->id,
-            'fullname' => fullname($user),
-            'email' => s($user->email),
-            'status' => $status,
-            'grade' => $grade,
-            'lastmodified' => $lastmodified,
-            'message' => $messagetext,
-            'messagehtml' => $formattedmessage,
-            'graderurl' => $graderurl->out(false),
-        ];
-    }
-}
+]);
 
 echo $OUTPUT->header();
 
-$backurl = new moodle_url('/local/assign_ai/review.php', ['id' => $cmid]);
 echo html_writer::link(
-    $backurl,
+    $reviewurl,
     get_string('backtoreview', 'local_assign_ai'),
     ['class' => 'btn btn-secondary mb-3']
 );
 
-$renderer = $PAGE->get_renderer('core');
-$headerlogo = new \local_assign_ai\output\header_logo();
-$logocontext = $headerlogo->export_for_template($renderer);
+// "Retry all failed" button: always shown, disabled when there are no failed reviews
+// (mirrors the "Review all" button in review.php).
+$failedcount = $DB->count_records('local_assign_ai_pending', [
+    'assignmentid' => $cm->id,
+    'status' => assign_submission::STATUS_FAILED,
+]);
+if ($failedcount > 0) {
+    echo html_writer::link(
+        new moodle_url('/local/assign_ai/history.php', ['id' => $cmid, 'retryall' => 1, 'sesskey' => sesskey()]),
+        get_string('retryallfailed', 'local_assign_ai'),
+        ['class' => 'btn btn-warning mb-3 ml-2']
+    );
+} else {
+    // Match the disabled look of the "Review all" button in review.php (a real disabled <button>).
+    echo html_writer::tag('button', get_string('retryallfailed', 'local_assign_ai'), [
+        'class' => 'btn btn-warning mb-3 ml-2',
+        'type' => 'button',
+        'disabled' => 'disabled',
+    ]);
+}
 
 $templatecontext = [
-    'rows' => $rows,
-    'headerlogo' => $logocontext,
+    'headerlogo' => (new header_logo())->export_for_template($OUTPUT),
     'alttext' => get_string('altlogo', 'local_assign_ai'),
+    'tablehtml' => $report->output(),
 ];
 
 echo $OUTPUT->heading(get_string('reviewhistory', 'local_assign_ai'), 2);

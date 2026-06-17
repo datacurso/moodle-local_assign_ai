@@ -154,6 +154,9 @@ function updateRow(row, progress, status, grade) {
             // Keep disabled while waiting for processing to start.
             row.querySelectorAll('button').forEach(b => b.setAttribute('disabled', 'disabled'));
             setLinkDisabled(btnGrade, true);
+        } else if (status === 'rejected') {
+            row.querySelectorAll('button').forEach(b => b.removeAttribute('disabled'));
+            setLinkDisabled(btnGrade, false);
         } else {
             row.querySelectorAll('button').forEach(b => b.removeAttribute('disabled'));
             setLinkDisabled(btnGrade, false);
@@ -178,6 +181,10 @@ function updateRow(row, progress, status, grade) {
             badge.className = 'badge bg-info js-state-badge';
             getString('aistatus_pending_short', 'local_assign_ai').then(t => { badge.textContent = t; }).catch(() => { });
             getString('aistatus_pending_help', 'local_assign_ai').then(t => { hint.textContent = t; }).catch(() => { });
+        } else if (status === 'rejected') {
+            badge.className = 'badge bg-danger js-state-badge';
+            getString('statusrejected', 'local_assign_ai').then(t => { badge.textContent = t; }).catch(() => { });
+            getString('statusrejected', 'local_assign_ai').then(t => { hint.textContent = t; }).catch(() => { });
         }
     }
 
@@ -203,11 +210,15 @@ function updateRow(row, progress, status, grade) {
  * @returns {number[]}
  */
 function collectPendingIds() {
-    const rows = document.querySelectorAll('tr[data-pendingid]');
+    const markers = document.querySelectorAll('.js-pending-marker[data-pendingid]');
     const ids = [];
-    rows.forEach(row => {
-        const pid = parseInt(row.getAttribute('data-pendingid'), 10);
+    markers.forEach(marker => {
+        const pid = parseInt(marker.getAttribute('data-pendingid'), 10);
         if (!pid) {
+            return;
+        }
+        const row = marker.closest('tr');
+        if (!row) {
             return;
         }
         const status = (row.getAttribute('data-status') || '').toLowerCase();
@@ -229,7 +240,8 @@ function collectPendingIds() {
 function applyProgress(entries) {
     const now = Date.now();
     entries.forEach(entry => {
-        const row = document.querySelector('tr[data-pendingid="' + entry.id + '"]');
+        const marker = document.querySelector('.js-pending-marker[data-pendingid="' + entry.id + '"]');
+        const row = marker ? marker.closest('tr') : null;
         if (!row) {
             return;
         }

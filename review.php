@@ -22,7 +22,8 @@
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-use local_assign_ai\assign_submission;
+use local_assign_ai\output\header_logo;
+use local_assign_ai\table\review_table;
 
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
@@ -74,13 +75,10 @@ try {
 
     echo $OUTPUT->header();
 
-    // Get the list of enrolled users with submission capability.
-    $students = get_enrolled_users($context, 'mod/assign:submit');
-
     $pendingcount = $DB->count_records('local_assign_ai_pending', [
         'courseid' => $course->id,
         'assignmentid' => $cm->id,
-        'status' => assign_submission::STATUS_INITIAL,
+        'status' => 'initial',
     ]);
     $allblocked = ($pendingcount === 0);
     $hasinitial = ($pendingcount > 0);
@@ -88,179 +86,31 @@ try {
     $pendingforapprove = $DB->count_records('local_assign_ai_pending', [
         'courseid' => $course->id,
         'assignmentid' => $cm->id,
-        'status' => assign_submission::STATUS_PENDING,
+        'status' => 'pending',
     ]);
     $haspending = ($pendingforapprove > 0);
-
-    $rows = [];
-
-    // Build table from records with statuses relevant to the workflow.
-    $statuses = [
-        assign_submission::STATUS_INITIAL,
-        assign_submission::STATUS_QUEUED,
-        assign_submission::STATUS_PROCESSING,
-        assign_submission::STATUS_PENDING,
-    ];
-    [$insql, $inparams] = $DB->get_in_or_equal($statuses, SQL_PARAMS_NAMED, 'st');
-    $select = "courseid = :courseid AND assignmentid = :assignmentid AND status $insql";
-    $inparams['courseid'] = $course->id;
-    $inparams['assignmentid'] = $cm->id;
-    $pendings = $DB->get_records_select('local_assign_ai_pending', $select, $inparams, 'timemodified DESC, id DESC');
-
-    foreach ($pendings as $record) {
-        $student = $DB->get_record('user', ['id' => $record->userid], '*', MUST_EXIST);
-
-        // Submission info.
-        $submission = $assign->get_user_submission($student->id, false);
-        if ($submission) {
-            switch ($submission->status) {
-                case 'submitted':
-                    $status = get_string('submission_submitted', 'local_assign_ai');
-                    break;
-                case 'draft':
-                    $status = get_string('submission_draft', 'local_assign_ai');
-                    break;
-                case 'new':
-                    $status = get_string('submission_new', 'local_assign_ai');
-                    break;
-                default:
-                    $status = get_string('submission_none', 'local_assign_ai');
-            }
-        } else {
-            $status = get_string('submission_none', 'local_assign_ai');
-        }
-
-        $lastmodified = '-';
-        $filesout = [];
-        if ($submission) {
-            if (!empty($submission->timemodified)) {
-                $lastmodified = userdate($submission->timemodified);
-            }
-            $fs = get_file_storage();
-            $files = $fs->get_area_files(
-                $assign->get_context()->id,
-                'assignsubmission_file',
-                'submission_files',
-                $submission->id,
-                'id',
-                false
-            );
-            if ($files) {
-                foreach ($files as $file) {
-                    $url = moodle_url::make_pluginfile_url(
-                        $file->get_contextid(),
-                        $file->get_component(),
-                        $file->get_filearea(),
-                        $file->get_itemid(),
-                        $file->get_filepath(),
-                        $file->get_filename()
-                    );
-                    $filesout[] = [
-                        'url' => $url->out(false),
-                        'name' => $file->get_filename(),
-                    ];
-                }
-            }
-        }
-
-        $grade = $record->grade !== null ? $record->grade : '-';
-        $inprogress = $record->status === assign_submission::STATUS_PROCESSING;
-        $isinitial = ($record->status === assign_submission::STATUS_INITIAL);
-        $isqueued = ($record->status === assign_submission::STATUS_QUEUED);
-        $isprocessing = ($record->status === assign_submission::STATUS_PROCESSING);
-        $ispending = ($record->status === assign_submission::STATUS_PENDING);
-
-        if ($isinitial) {
-            $statebadge = get_string('aistatus_initial_short', 'local_assign_ai');
-            $statehint = get_string('aistatus_initial_help', 'local_assign_ai');
-            $statebadgeclass = 'badge bg-secondary';
-            $canrequestai = true;
-            $canapproveai = false;
-        } else if ($isqueued) {
-            // Short badge label + longer hint below.
-            $statebadge = get_string('aistatus_queued_short', 'local_assign_ai');
-            $statehint = get_string('aistatus_queued_help', 'local_assign_ai');
-            $statebadgeclass = 'badge bg-warning';
-            $canrequestai = false;
-            $canapproveai = false;
-        } else if ($isprocessing) {
-            // Short badge label + longer hint below.
-            $statebadge = get_string('processing', 'local_assign_ai');
-            $statehint = get_string('aistatus_processing_help', 'local_assign_ai');
-            $statebadgeclass = 'badge bg-warning';
-            $canrequestai = false;
-            $canapproveai = false;
-        } else {
-            $statebadge = get_string('aistatus_pending_short', 'local_assign_ai');
-            $statehint = get_string('aistatus_pending_help', 'local_assign_ai');
-            $statebadgeclass = 'badge bg-info';
-            $canrequestai = false;
-            $canapproveai = true;
-        }
-
-        $graderurl = new moodle_url('/mod/assign/view.php', [
-            'id' => $cmid,
-            'action' => 'grader',
-            'userid' => $student->id,
-        ]);
-
-        // Verify capabilities for this user to control button visibility.
-        $usercanchangestatus = has_capability('local/assign_ai:changestatus', $context);
-        $usercanviewdetails = has_capability('local/assign_ai:viewdetails', $context);
-
-        // showviewdetails: show "view details" button if the user has permission to view details AND the status is pending (i.e. there's something to view).
-        $showviewdetails = $canapproveai && $usercanviewdetails;
-
-        // showapprovebuttons: show approval buttons if the status allows and the user has permission.
-        $showapprovebuttons = $canapproveai && $usercanchangestatus;
-
-        $rows[] = [
-            'fullname' => fullname($student),
-            'email' => $student->email,
-            'status' => $status,
-            'lastmodified' => $lastmodified,
-            'files' => $filesout,
-            'grade' => $grade,
-            'isinitial' => $isinitial,
-            'ispending' => $ispending,
-            'isqueued' => $isqueued,
-            'inprogress' => $inprogress,
-            'aistatus' => $record->status,
-            'canrequestai' => $canrequestai,
-            'canapproveai' => $canapproveai,
-            'showviewdetails' => $showviewdetails,
-            'showapprovebuttons' => $showapprovebuttons,
-            'statebadge' => $statebadge,
-            'statehint' => $statehint,
-            'statebadgeclass' => $statebadgeclass,
-            'courseid' => $course->id,
-            'cmid' => $cmid,
-            'userid' => $student->id,
-            'pendingid' => $record->id,
-            'graderurl' => $graderurl->out(false),
-        ];
-    }
-
-    $renderer = $PAGE->get_renderer('core');
-    $headerlogo = new \local_assign_ai\output\header_logo();
-    $logocontext = $headerlogo->export_for_template($renderer);
 
     // Verify capabilities for this user to control button visibility.
     $canchangestatus = has_capability('local/assign_ai:changestatus', $context);
     $canviewdetails = has_capability('local/assign_ai:viewdetails', $context);
 
+    $table = new review_table('local_assign_ai_review_' . $cmid, $assign);
+    ob_start();
+    $table->out(20, false);
+    $tablehtml = ob_get_clean();
+
     $templatecontext = [
         'backurl' => (new moodle_url('/course/view.php', ['id' => $course->id]))->out(false),
-        'rows' => $rows,
         'allblocked' => $allblocked,
         'hasinitial' => $hasinitial,
         'haspending' => $haspending,
         'cmid' => $cmid,
         'courseid' => $course->id,
-        'headerlogo' => $logocontext,
         'alttext' => get_string('altlogo', 'local_assign_ai'),
         'canchangestatus' => $canchangestatus,
         'canviewdetails' => $canviewdetails,
+        'tablehtml' => $tablehtml,
+        'headerlogo' => (new header_logo())->export_for_template($OUTPUT),
     ];
 
     echo $OUTPUT->render_from_template('local_assign_ai/review_page', $templatecontext);

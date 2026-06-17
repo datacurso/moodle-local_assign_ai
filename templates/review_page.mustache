@@ -25,19 +25,19 @@
             data-cmid="{{cmid}}" data-all="1" {{^hasinitial}}disabled{{/hasinitial}}>
             {{#str}} reviewall, local_assign_ai {{/str}}
         </button>
-        {{#canchangestatus}}
-        <button class="btn btn-success js-approve-all" type="button"
-            data-cmid="{{cmid}}" data-courseid="{{courseid}}" {{^haspending}}disabled{{/haspending}}>
-            {{#str}} approveall, local_assign_ai {{/str}}
-        </button>
-        {{/canchangestatus}}
+{{#canchangestatus}}
+<button class="btn btn-success js-approve-all" type="button"
+    data-cmid="{{cmid}}" data-courseid="{{courseid}}" {{^haspending}}disabled{{/haspending}}>
+    {{#str}} approveall, local_assign_ai {{/str}}
+</button>
+{{/canchangestatus}}
     </div>
 </div>
-
-{{> local_assign_ai/review_table }}
 
 {{#headerlogo}}
 <a class="local_assign_ai-logo-wrapper" href="https://datacurso.com/" target="_blank" rel="noopener noreferrer">
     <img src="{{logourl}}" alt="{{alttext}}" class="local_assign_ai-pluginlogo">
 </a>
 {{/headerlogo}}
+
+{{{tablehtml}}}

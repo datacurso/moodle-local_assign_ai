@@ -25,7 +25,6 @@ use external_api;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
-use local_assign_ai\api\client;
 
 /**
  * External function for processing assignment submissions with AI.
@@ -82,7 +81,6 @@ class process_submission extends external_api {
         self::validate_context($context);
         require_capability('local/assign_ai:review', $context);
 
-        $assign = new \assign($context, $cm, $course);
         $processed = 0;
 
         // If processing all submissions → queue background task.
@@ -121,17 +119,17 @@ class process_submission extends external_api {
             ];
         }
 
-        // Process a single user submission directly using assign_submission logic.
-        if ($userid) {
+        // Process a single user submission asynchronously via an ad-hoc task (like "Review all").
+        if ($userid && $pendingid) {
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
-            $proc = new \local_assign_ai\assign_submission($student->id, $assign);
-            if ($pendingid) {
-                \local_assign_ai\assign_submission::update_pending_submission($pendingid, [
-                    'status' => \local_assign_ai\assign_submission::STATUS_PROCESSING,
-                ]);
-            }
-            $proc->process_submission_ai_review($pendingid);
-            $processed++;
+
+            // Mark as queued and enqueue the ad-hoc review task. The UI then shows 'en cola'.
+            \local_assign_ai\assign_submission::queue_ai_review($cmid, (int) $course->id, (int) $student->id, $pendingid);
+
+            return [
+                'status' => 'queued',
+                'processed' => 0,
+            ];
         }
 
         return [

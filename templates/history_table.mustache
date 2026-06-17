@@ -20,16 +20,7 @@
 
     Example context (json):
     {
-        "rows": [
-            {
-                "fullname": "Jane Doe",
-                "email": "jane@example.com",
-                "status": "Approved",
-                "grade": 85,
-                "lastmodified": "2025-11-15 12:34",
-                "message": "Good structure and clear arguments."
-            }
-        ],
+        "tablehtml": "<table>...</table>",
         "headerlogo": {
             "logourl": "https://example.com/logo.svg",
             "alttext": "Datacurso logo"
@@ -37,73 +28,10 @@
     }
 }}
 
-<table class="table table-bordered table-striped w-100 text-center mb-0">
-    <thead>
-        <tr>
-            <th>{{#str}} fullname, local_assign_ai {{/str}}</th>
-            <th>{{#str}} email, local_assign_ai {{/str}}</th>
-            <th>{{#str}} aistatus, local_assign_ai {{/str}}</th>
-            <th>{{#str}} grade, local_assign_ai {{/str}}</th>
-            <th>{{#str}} lastmodified, local_assign_ai {{/str}}</th>
-            <th>{{#str}} actions, local_assign_ai {{/str}}</th>
-        </tr>
-    </thead>
-    <tbody>
-        {{#rows}}
-        <tr>
-            <td>{{fullname}}</td>
-            <td>{{email}}</td>
-            <td>{{status}}</td>
-            <td>{{grade}}</td>
-            <td>{{lastmodified}}</td>
-            <td>
-                <div class="btn-group" role="group" aria-label="{{#str}} actions, local_assign_ai {{/str}}">
-                    <a href="{{graderurl}}" class="btn btn-primary btn-sm mr-2">
-                        {{#str}} editgrade, local_assign_ai {{/str}}
-                    </a>
-                    {{#messagehtml}}
-                    <button class="btn btn-secondary btn-sm" type="button" data-toggle="modal" data-target="#feedback-{{rowid}}">
-                        {{#str}} viewaifeedback, local_assign_ai {{/str}}
-                    </button>
-                    {{/messagehtml}}
-                </div>
-            </td>
-        </tr>
-        {{#messagehtml}}
-        <tr>
-            <td colspan="6" class="p-0 border-0">
-                <div class="modal fade" id="feedback-{{rowid}}" tabindex="-1" role="dialog" aria-labelledby="feedback-label-{{rowid}}" aria-hidden="true">
-                    <div class="modal-dialog modal-lg" role="document">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="feedback-label-{{rowid}}">{{#str}} modaltitle, local_assign_ai {{/str}}</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="{{#str}} closebuttontitle, core {{/str}}">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body text-start">
-                                {{{messagehtml}}}
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}} closebuttontitle, core {{/str}}</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </td>
-        </tr>
-        {{/messagehtml}}
-        {{/rows}}
-        {{^rows}}
-        <tr>
-            <td colspan="6" class="text-center">{{#str}} norecords, local_assign_ai {{/str}}</td>
-        </tr>
-        {{/rows}}
-    </tbody>
-</table>
-
 {{#headerlogo}}
 <a class="local_assign_ai-logo-wrapper" href="https://datacurso.com/" target="_blank" rel="noopener noreferrer">
     <img src="{{logourl}}" alt="{{alttext}}" class="local_assign_ai-pluginlogo">
 </a>
 {{/headerlogo}}
+
+{{{tablehtml}}}

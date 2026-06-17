@@ -311,5 +311,33 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026110302, 'local', 'assign_ai');
     }
 
+    if ($oldversion < 2026110308) {
+        // Define field errormessage to be added to local_assign_ai_pending.
+        $table = new xmldb_table('local_assign_ai_pending');
+        $field = new xmldb_field('errormessage', XMLDB_TYPE_TEXT, null, null, null, null, null, 'assessment_guide_response');
+
+        // Conditionally launch add field errormessage.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110308, 'local', 'assign_ai');
+    }
+
+    if ($oldversion < 2026110310) {
+        // Define field retries to be added to local_assign_ai_pending.
+        $table = new xmldb_table('local_assign_ai_pending');
+        $field = new xmldb_field('retries', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'errormessage');
+
+        // Conditionally launch add field retries.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110310, 'local', 'assign_ai');
+    }
+
     return true;
 }
