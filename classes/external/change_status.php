@@ -25,6 +25,7 @@ use external_api;
 use external_function_parameters;
 use external_value;
 use external_single_structure;
+use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
 
 /**
@@ -68,10 +69,13 @@ class change_status extends external_api {
             'action' => $action,
         ]);
 
+        // Target the active record under review (status = pending). A user may also have
+        // older approved rows kept as history log entries, so we must filter by status.
         $record = $DB->get_record('local_assign_ai_pending', [
             'courseid' => $params['courseid'],
             'assignmentid' => $params['cmid'],
             'userid' => $params['userid'],
+            'status' => assign_submission::STATUS_PENDING,
         ], '*', MUST_EXIST);
 
         $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
@@ -80,17 +84,23 @@ class change_status extends external_api {
         self::validate_context($context);
         require_capability('local/assign_ai:changestatus', $context);
 
-        $record->status = $params['action'];
-        $record->timemodified = time();
-        $record->usermodified = $USER->id ?? $record->usermodified;
-        $DB->update_record('local_assign_ai_pending', $record);
+        try {
+            $record->status = $params['action'];
+            $record->timemodified = time();
+            $record->usermodified = $USER->id ?? $record->usermodified;
+            $DB->update_record('local_assign_ai_pending', $record);
 
-        if ($params['action'] === 'approve') {
-            $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
-            $context = \context_module::instance($cm->id);
-            $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-            $assign = new \assign($context, $cm, $course);
-            feedback_applier::apply_ai_feedback($assign, $record, $USER->id);
+            if ($params['action'] === 'approve') {
+                $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
+                $context = \context_module::instance($cm->id);
+                $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
+                $assign = new \assign($context, $cm, $course);
+                feedback_applier::apply_ai_feedback($assign, $record, $USER->id);
+            }
+        } catch (\Throwable $e) {
+            // Log the failure (marks the record as failed) and surface it to the caller.
+            assign_submission::register_failure($e, (int) $record->id);
+            throw $e;
         }
 
         return [

@@ -141,6 +141,7 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                 $record->message = $recorddata->message;
                 $record->grade = $recorddata->grade;
                 $record->rubric_response = $recorddata->rubric_response;
+                $record->errormessage = $recorddata->errormessage ?? null;
                 $record->status = $recorddata->status;
 
                 // Always generate a new approval token to avoid duplicates with the original backup.

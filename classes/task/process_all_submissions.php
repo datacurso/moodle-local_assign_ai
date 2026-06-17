@@ -76,19 +76,32 @@ class process_all_submissions extends adhoc_task {
         ]);
 
         foreach ($pendings as $pending) {
-            // Move to processing state.
-            \local_assign_ai\assign_submission::update_pending_submission($pending->id, [
-                'status' => \local_assign_ai\assign_submission::STATUS_PROCESSING,
-            ]);
-            $proc = new \local_assign_ai\assign_submission($pending->userid, $assign);
-            $proc->process_submission_ai_review($pending->id);
+            try {
+                // Skip if it is no longer queued (e.g. cancelled in the meantime).
+                $current = $DB->get_record('local_assign_ai_pending', ['id' => $pending->id], 'id, status');
+                if (!$current || (string) $current->status !== \local_assign_ai\assign_submission::STATUS_QUEUED) {
+                    mtrace('Assign AI: skipping pending ' . $pending->id . ' (no longer queued).');
+                    continue;
+                }
 
-            $processed++;
-            $params = [
-                'id' => $pending->userid,
-                'name' => $pending->userid,
-            ];
-            mtrace(get_string('aitaskuserqueued', 'local_assign_ai', $params));
+                // Move to processing state.
+                \local_assign_ai\assign_submission::update_pending_submission($pending->id, [
+                    'status' => \local_assign_ai\assign_submission::STATUS_PROCESSING,
+                ]);
+                $proc = new \local_assign_ai\assign_submission($pending->userid, $assign);
+                $proc->process_submission_ai_review($pending->id);
+
+                $processed++;
+                $params = [
+                    'id' => $pending->userid,
+                    'name' => $pending->userid,
+                ];
+                mtrace(get_string('aitaskuserqueued', 'local_assign_ai', $params));
+            } catch (\Throwable $e) {
+                // Log the failure (marks the record as failed) and keep processing the rest.
+                \local_assign_ai\assign_submission::register_failure($e, (int) $pending->id);
+                mtrace('Assign AI: error processing pending ' . $pending->id . ': ' . $e->getMessage());
+            }
         }
 
         mtrace(get_string('aitaskdone', 'local_assign_ai', $processed));

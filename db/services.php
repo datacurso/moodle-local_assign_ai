@@ -57,6 +57,14 @@ $functions = [
         'ajax' => true,
         'capabilities' => 'local/assign_ai:review',
     ],
+    'local_assign_ai_cancel_review' => [
+        'classname' => 'local_assign_ai\external\cancel_review',
+        'methodname' => 'execute',
+        'description' => 'Cancel a stuck (queued/processing) AI review, returning it to the initial state.',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => 'local/assign_ai:review',
+    ],
     'local_assign_ai_approve_all_pending' => [
         'classname' => 'local_assign_ai\external\approve_all_pending',
         'methodname' => 'execute',

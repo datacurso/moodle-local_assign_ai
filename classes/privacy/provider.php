@@ -54,6 +54,7 @@ class provider implements
                 'message'          => 'privacy:metadata:local_assign_ai_pending:message',
                 'grade'            => 'privacy:metadata:local_assign_ai_pending:grade',
                 'rubric_response'  => 'privacy:metadata:local_assign_ai_pending:rubric_response',
+                'errormessage'     => 'privacy:metadata:local_assign_ai_pending:errormessage',
                 'status'           => 'privacy:metadata:local_assign_ai_pending:status',
                 'approval_token'   => 'privacy:metadata:local_assign_ai_pending:approval_token',
             ],

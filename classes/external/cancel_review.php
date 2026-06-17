@@ -19,22 +19,26 @@ namespace local_assign_ai\external;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
+require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 use external_api;
 use external_function_parameters;
-use external_value;
 use external_single_structure;
+use external_value;
 use local_assign_ai\assign_submission;
 
 /**
- * External function to update the response message of a pending approval.
+ * External function to cancel a stuck AI review (queued/processing) from the review page.
+ *
+ * Runs synchronously in the web request, so it works even when cron is down (the usual
+ * cause of submissions getting stuck because the ad-hoc task never runs).
  *
  * @package     local_assign_ai
  * @category    external
  * @copyright   2025 Datacurso
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class update_response extends external_api {
+class cancel_review extends external_api {
     /**
      * Returns the description of the parameters for this external function.
      *
@@ -42,56 +46,52 @@ class update_response extends external_api {
      */
     public static function execute_parameters() {
         return new external_function_parameters([
-            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
             'cmid' => new external_value(PARAM_INT, 'Course module ID', VALUE_REQUIRED),
-            'userid' => new external_value(PARAM_INT, 'User ID', VALUE_REQUIRED),
-            'message' => new external_value(PARAM_RAW, 'Updated message', VALUE_REQUIRED),
+            'pendingid' => new external_value(PARAM_INT, 'Pending record ID', VALUE_REQUIRED),
         ]);
     }
 
     /**
-     * Executes the external function to update a pending approval response.
+     * Cancel a queued/processing review, returning it to the initial state.
      *
-     * @param int $courseid Course ID.
      * @param int $cmid Course module ID.
-     * @param int $userid User ID.
-     * @param string $message The updated message.
+     * @param int $pendingid Pending record ID.
      * @return array The result of the operation.
      */
-    public static function execute($courseid, $cmid, $userid, $message) {
-        global $DB, $USER;
+    public static function execute($cmid, $pendingid) {
+        global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'courseid' => $courseid,
             'cmid' => $cmid,
-            'userid' => $userid,
-            'message' => $message,
+            'pendingid' => $pendingid,
         ]);
 
-        // Target the active record under review (status = pending); older approved rows may
-        // also exist for this user as history log entries.
-        $record = $DB->get_record('local_assign_ai_pending', [
-            'courseid' => $params['courseid'],
-            'assignmentid' => $params['cmid'],
-            'userid' => $params['userid'],
-            'status' => assign_submission::STATUS_PENDING,
-        ], '*', MUST_EXIST);
-
-        $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
+        $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
         $context = \context_module::instance($cm->id);
 
         self::validate_context($context);
-        require_capability('local/assign_ai:changestatus', $context);
+        require_capability('local/assign_ai:review', $context);
 
-        $record->message = $params['message'];
-        $record->timemodified = time();
-        $record->usermodified = $USER->id ?? $record->usermodified;
-        $DB->update_record('local_assign_ai_pending', $record);
+        $record = $DB->get_record('local_assign_ai_pending', ['id' => $params['pendingid']], '*', MUST_EXIST);
+        if ((int) $record->assignmentid !== (int) $cm->id) {
+            throw new \moodle_exception('invalidrecord', 'error');
+        }
 
-        return [
-            'status' => 'ok',
-            'message' => $record->message,
-        ];
+        // Only cancel records that are actually stuck (queued/processing).
+        $cancellable = [assign_submission::STATUS_QUEUED, assign_submission::STATUS_PROCESSING];
+        if (!in_array((string) $record->status, $cancellable, true)) {
+            return ['status' => 'skipped'];
+        }
+
+        // Return it to the initial state so it can be reviewed again. Any in-flight ad-hoc
+        // task is made inert by the status guard in the task itself.
+        assign_submission::update_pending_submission((int) $record->id, [
+            'status' => assign_submission::STATUS_INITIAL,
+            'errormessage' => null,
+            'retries' => 0,
+        ]);
+
+        return ['status' => 'ok'];
     }
 
     /**
@@ -101,8 +101,7 @@ class update_response extends external_api {
      */
     public static function execute_returns() {
         return new external_single_structure([
-            'status' => new external_value(PARAM_TEXT, 'Operation status'),
-            'message' => new external_value(PARAM_RAW, 'Updated message'),
+            'status' => new external_value(PARAM_TEXT, 'Operation status (ok or skipped)'),
         ]);
     }
 }

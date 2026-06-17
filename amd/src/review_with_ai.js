@@ -41,6 +41,7 @@ export const init = async () => {
         strConfirmReviewAll,
         strConfirmTitle,
         strContinue,
+        strConfirmCancel,
     ] = await Promise.all([
         getString('processing', 'local_assign_ai'),
         getString('aistatus_queued_short', 'local_assign_ai'),
@@ -51,7 +52,34 @@ export const init = async () => {
         getString('confirm_review_all', 'local_assign_ai'),
         getString('confirm', 'moodle'),
         getString('continue', 'moodle'),
+        getString('confirm_cancel_review', 'local_assign_ai'),
     ]);
+
+    // Reflect a row as 'queued' immediately so the user sees feedback before polling kicks in.
+    const markRowQueued = row => {
+        if (!row) {
+            return;
+        }
+        row.setAttribute('data-status', 'queued');
+        row.classList.add('js-row-queued');
+        row.classList.remove('js-row-initial');
+        const badge = row.querySelector('.js-state-badge');
+        if (badge) {
+            badge.className = 'badge bg-warning text-dark js-state-badge';
+            badge.textContent = strQueuedShort;
+        }
+        const hint = row.querySelector('.js-state-hint');
+        if (hint) {
+            getString('aistatus_queued_help', 'local_assign_ai').then(txt => {
+                hint.textContent = txt;
+            }).catch(() => {});
+        }
+        row.querySelectorAll('button').forEach(b => b.setAttribute('disabled', 'disabled'));
+        const btnDetails = row.querySelector('.js-btn-details');
+        if (btnDetails) {
+            btnDetails.classList.add('d-none');
+        }
+    };
 
     document.querySelectorAll('.js-review-ai').forEach(button => {
         button.addEventListener('click', e => {
@@ -84,43 +112,20 @@ export const init = async () => {
                             type: 'info',
                         });
                         button.innerHTML = originalHTML;
-                        // Keep the bulk button disabled while progress polling runs.
+                        // Soft trigger: add a body class so the progress module (if present) may start earlier.
+                        document.body.classList.add('assign-ai-progress-running');
+
                         if (all) {
+                            // Keep the bulk button disabled while progress polling runs.
                             button.disabled = true;
-                            // Soft trigger: add a body class so the progress module (if present) may start earlier.
-                            document.body.classList.add('assign-ai-progress-running');
-
                             // Immediately reflect UI as queued for all rows in this CM.
-                            const rows = document.querySelectorAll('tr[data-cmid="' + cmid + '"]');
-                            rows.forEach(row => {
-                                row.setAttribute('data-status', 'queued');
-                                row.classList.add('js-row-queued');
-                                // Badge short label.
-                                const badge = row.querySelector('.js-state-badge');
-                                if (badge) {
-                                    badge.className = 'badge bg-warning text-dark js-state-badge';
-                                    badge.textContent = strQueuedShort; // Short text.
-                                }
-                                // Longer hint under badge.
-                                const hint = row.querySelector('.js-state-hint');
-                                if (hint) {
-                                    getString('aistatus_queued_help', 'local_assign_ai').then(txt => {
-                                        hint.textContent = txt;
-                                    }).catch(() => {});
-                                }
-                                // Disable all row actions while queued.
-                                row.querySelectorAll('button').forEach(b => b.setAttribute('disabled', 'disabled'));
-                                // Ensure review/details visibility is consistent: hide details while not pending.
-                                const btnDetails = row.querySelector('.js-btn-details');
-                                if (btnDetails) {
-                                    btnDetails.classList.add('d-none');
-                                }
-                            });
-
-                            ensurePolling();
+                            document.querySelectorAll('tr.js-row-initial').forEach(markRowQueued);
                         } else {
-                            button.disabled = false;
+                            // Individual review: reflect just this row as queued.
+                            markRowQueued(button.closest('tr'));
                         }
+
+                        ensurePolling();
                         return;
                     }
 
@@ -161,6 +166,36 @@ export const init = async () => {
             }
 
             processRequest();
+        });
+    });
+
+    // Cancel a stuck review (queued/processing) and return it to the initial state.
+    document.querySelectorAll('.js-btn-cancel').forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+
+            const cmid = parseInt(button.dataset.cmid, 10);
+            const pendingid = parseInt(button.dataset.pendingid, 10);
+
+            const doCancel = () => {
+                button.disabled = true;
+                Ajax.call([{
+                    methodname: 'local_assign_ai_cancel_review',
+                    args: { cmid: cmid, pendingid: pendingid },
+                }])[0].done(() => {
+                    window.location.reload();
+                }).fail(err => {
+                    Notification.exception(err);
+                    button.disabled = false;
+                });
+            };
+
+            Notification.saveCancelPromise(
+                strConfirmTitle,
+                strConfirmCancel,
+                strContinue,
+                {triggerElement: button}
+            ).then(doCancel).catch(() => {});
         });
     });
 };

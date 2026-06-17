@@ -25,6 +25,7 @@ use external_api;
 use external_function_parameters;
 use external_value;
 use external_single_structure;
+use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
 
 /**
@@ -80,14 +81,19 @@ class approve_all_pending extends external_api {
 
         $approved = 0;
         foreach ($pendings as $record) {
-            $record->status = 'approve';
-            $record->timemodified = time();
-            $record->usermodified = $USER->id ?? $record->usermodified;
-            $DB->update_record('local_assign_ai_pending', $record);
+            try {
+                $record->status = 'approve';
+                $record->timemodified = time();
+                $record->usermodified = $USER->id ?? $record->usermodified;
+                $DB->update_record('local_assign_ai_pending', $record);
 
-            // Apply feedback on approve.
-            feedback_applier::apply_ai_feedback($assign, $record, $USER->id);
-            $approved++;
+                // Apply feedback on approve.
+                feedback_applier::apply_ai_feedback($assign, $record, $USER->id);
+                $approved++;
+            } catch (\Throwable $e) {
+                // Log the failure (marks the record as failed) and keep approving the rest.
+                assign_submission::register_failure($e, (int) $record->id);
+            }
         }
 
         return [

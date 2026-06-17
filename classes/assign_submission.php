@@ -42,6 +42,8 @@ class assign_submission {
     public const STATUS_APPROVED = 'approve';
     /** Rejected status after human review. */
     public const STATUS_REJECTED = 'rejected';
+    /** Failed status when AI processing raised an error. */
+    public const STATUS_FAILED = 'failed';
 
     /** @var stdClass User ID of the author of the submission. */
     private stdClass $user;
@@ -118,48 +120,63 @@ class assign_submission {
             return;
         }
 
-        $payload = $this->build_payload();
-        $response = client::send_to_ai($payload);
+        // Capture any error across the whole pipeline (payload/files, AI call, response
+        // parsing, record creation and feedback application) into the log.
+        $recordid = null;
+        try {
+            $payload = $this->build_payload();
+            $response = client::send_to_ai($payload);
 
-        $message = $response['reply'] ?? null;
-        $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
+            $message = $response['reply'] ?? null;
+            $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
-        // Determine correct advanced grading response (rubric or assessment_guide).
-        $rawadvanced = !empty($response['rubric']) ? $response['rubric'] : ($response['assessment_guide'] ?? null);
-        $rubricresponse = null;
-        $assessmentguideresponse = null;
+            // Determine correct advanced grading response (rubric or assessment_guide).
+            $rawadvanced = !empty($response['rubric']) ? $response['rubric'] : ($response['assessment_guide'] ?? null);
+            $rubricresponse = null;
+            $assessmentguideresponse = null;
 
-        if ($rawadvanced) {
-            $advanceddata = $rawadvanced;
-            if (is_array($rawadvanced) && isset($rawadvanced['criteria'])) {
-                $advanceddata = $rawadvanced['criteria'];
+            if ($rawadvanced) {
+                $advanceddata = $rawadvanced;
+                if (is_array($rawadvanced) && isset($rawadvanced['criteria'])) {
+                    $advanceddata = $rawadvanced['criteria'];
+                }
+                $jsonresponse = json_encode($advanceddata, JSON_UNESCAPED_UNICODE);
+
+                if (!empty($response['rubric'])) {
+                    $rubricresponse = $jsonresponse;
+                } else {
+                    $assessmentguideresponse = $jsonresponse;
+                }
             }
-            $jsonresponse = json_encode($advanceddata, JSON_UNESCAPED_UNICODE);
 
-            if (!empty($response['rubric'])) {
-                $rubricresponse = $jsonresponse;
-            } else {
-                $assessmentguideresponse = $jsonresponse;
+            $record = (object) [
+                'courseid' => $this->course->id,
+                'assignmentid' => $cmid,
+                'userid' => $this->user->id,
+                'title' => $assignment->name,
+                'message' => $message,
+                'grade' => $grade !== null ? (int) round($grade) : null,
+                'rubric_response' => $rubricresponse,
+                'assessment_guide_response' => $assessmentguideresponse,
+                'status' => self::STATUS_APPROVED,
+            ];
+            $recordid = self::create_pending_submission($record);
+
+            $record = $DB->get_record('local_assign_ai_pending', ['id' => $recordid]);
+            $config = assignment_config::get($this->assigninstance->id);
+            if ($record && !empty($config) && !empty($config->graderid)) {
+                feedback_applier::apply_ai_feedback($this->assign, $record, $config->graderid);
             }
-        }
-
-        $record = (object) [
-            'courseid' => $this->course->id,
-            'assignmentid' => $cmid,
-            'userid' => $this->user->id,
-            'title' => $assignment->name,
-            'message' => $message,
-            'grade' => $grade !== null ? (int) round($grade) : null,
-            'rubric_response' => $rubricresponse,
-            'assessment_guide_response' => $assessmentguideresponse,
-            'status' => self::STATUS_APPROVED,
-        ];
-        $recordid = self::create_pending_submission($record);
-
-        $record = $DB->get_record('local_assign_ai_pending', ['id' => $recordid]);
-        $config = assignment_config::get($this->assigninstance->id);
-        if ($record && !empty($config) && !empty($config->graderid)) {
-            feedback_applier::apply_ai_feedback($this->assign, $record, $config->graderid);
+        } catch (\Throwable $e) {
+            // If a record was already created, mark it failed; otherwise create a failed one.
+            self::register_failure($e, $recordid, $recordid ? null : (object) [
+                'courseid' => $this->course->id,
+                'assignmentid' => $cmid,
+                'userid' => $this->user->id,
+                'title' => $assignment->name,
+                'message' => null,
+                'grade' => null,
+            ]);
         }
     }
 
@@ -194,39 +211,46 @@ class assign_submission {
         // Find existing pending record to update.
         $existing = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
 
-        $payload = $this->build_payload();
-        $response = client::send_to_ai($payload);
+        // Capture any error across the whole pipeline (payload/files, AI call, response
+        // parsing and record update) into the log.
+        try {
+            $payload = $this->build_payload();
+            $response = client::send_to_ai($payload);
 
-        $message = $response['reply'] ?? null;
-        $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
+            $message = $response['reply'] ?? null;
+            $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
-        // Determine correct advanced grading response (rubric or assessment_guide).
-        $rawadvanced = !empty($response['rubric']) ? $response['rubric'] : ($response['assessment_guide'] ?? null);
-        $rubricresponse = null;
-        $assessmentguideresponse = null;
+            // Determine correct advanced grading response (rubric or assessment_guide).
+            $rawadvanced = !empty($response['rubric']) ? $response['rubric'] : ($response['assessment_guide'] ?? null);
+            $rubricresponse = null;
+            $assessmentguideresponse = null;
 
-        if ($rawadvanced) {
-            $advanceddata = $rawadvanced;
-            if (is_array($rawadvanced) && isset($rawadvanced['criteria'])) {
-                $advanceddata = $rawadvanced['criteria'];
+            if ($rawadvanced) {
+                $advanceddata = $rawadvanced;
+                if (is_array($rawadvanced) && isset($rawadvanced['criteria'])) {
+                    $advanceddata = $rawadvanced['criteria'];
+                }
+                $jsonresponse = json_encode($advanceddata, JSON_UNESCAPED_UNICODE);
+
+                if (!empty($response['rubric'])) {
+                    $rubricresponse = $jsonresponse;
+                } else {
+                    $assessmentguideresponse = $jsonresponse;
+                }
             }
-            $jsonresponse = json_encode($advanceddata, JSON_UNESCAPED_UNICODE);
 
-            if (!empty($response['rubric'])) {
-                $rubricresponse = $jsonresponse;
-            } else {
-                $assessmentguideresponse = $jsonresponse;
-            }
+            $data = [
+                'message' => $message,
+                'grade' => $grade !== null ? (int) round($grade) : null,
+                'rubric_response' => $rubricresponse,
+                'assessment_guide_response' => $assessmentguideresponse,
+                'status' => self::STATUS_PENDING,
+                'errormessage' => null,
+            ];
+            self::update_pending_submission($existing->id, $data);
+        } catch (\Throwable $e) {
+            self::register_failure($e, $existing->id);
         }
-
-        $data = [
-            'message' => $message,
-            'grade' => $grade !== null ? (int) round($grade) : null,
-            'rubric_response' => $rubricresponse,
-            'assessment_guide_response' => $assessmentguideresponse,
-            'status' => self::STATUS_PENDING,
-        ];
-        self::update_pending_submission($existing->id, $data);
     }
 
     /**
@@ -305,6 +329,74 @@ class assign_submission {
             $transaction->rollback($e);
             throw $e;
         }
+    }
+
+    /**
+     * Record a processing failure in the AI log.
+     *
+     * Always emits a developer debugging message and, when possible, persists the failure
+     * to the pending record so it shows up in the AI history report (status = failed +
+     * errormessage). This method never throws.
+     *
+     * @param \Throwable $e The error that occurred.
+     * @param int|null $pendingid Existing pending record to mark as failed, if known.
+     * @param stdClass|null $recorddata Data to create a failed record when none exists yet
+     *                                  (courseid, assignmentid, userid, title, ...).
+     * @return void
+     */
+    public static function register_failure(\Throwable $e, ?int $pendingid = null, ?stdClass $recorddata = null): void {
+        debugging('local_assign_ai processing failure: ' . $e->getMessage(), DEBUG_DEVELOPER);
+
+        try {
+            if ($pendingid) {
+                self::update_pending_submission($pendingid, [
+                    'status' => self::STATUS_FAILED,
+                    'errormessage' => $e->getMessage(),
+                ]);
+            } else if ($recorddata !== null) {
+                $recorddata->status = self::STATUS_FAILED;
+                $recorddata->errormessage = $e->getMessage();
+                self::create_pending_submission($recorddata);
+            }
+        } catch (\Throwable $inner) {
+            debugging('local_assign_ai could not persist failure: ' . $inner->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Queue an AI review for a single pending record as an ad-hoc task.
+     *
+     * Marks the record as queued and schedules {@see \local_assign_ai\task\process_review_submission},
+     * which moves it to processing and runs the review asynchronously.
+     *
+     * @param int $cmid Assignment course module id.
+     * @param int $courseid Course id.
+     * @param int $userid Student user id.
+     * @param int $pendingid Pending record id to (re)process.
+     * @param bool $resetretries When true, reset the auto-retry counter (manual retries).
+     * @return void
+     */
+    public static function queue_ai_review(
+        int $cmid,
+        int $courseid,
+        int $userid,
+        int $pendingid,
+        bool $resetretries = false
+    ): void {
+        $update = ['status' => self::STATUS_QUEUED];
+        if ($resetretries) {
+            $update['retries'] = 0;
+        }
+        self::update_pending_submission($pendingid, $update);
+
+        $task = new \local_assign_ai\task\process_review_submission();
+        $task->set_custom_data([
+            'cmid' => $cmid,
+            'courseid' => $courseid,
+            'userid' => $userid,
+            'pendingid' => $pendingid,
+        ]);
+        \core\task\manager::queue_adhoc_task($task);
     }
 
     /**
