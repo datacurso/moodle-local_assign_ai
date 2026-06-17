@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_assign_ai';
-$plugin->release = '1.1.2';
+$plugin->release = '1.1.3';
 $plugin->version = 2026110310;
 $plugin->requires = 2024100700;
 $plugin->maturity = MATURITY_STABLE;
