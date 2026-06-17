@@ -80,8 +80,7 @@ if ($retry) {
         assign_submission::queue_ai_review((int) $cm->id, (int) $course->id, (int) $record->userid, (int) $record->id, true);
     }
 
-    redirect($reviewurl, get_string('retryqueued', 'local_assign_ai'), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect($reviewurl, get_string('retryqueued', 'local_assign_ai'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 // Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task).
@@ -95,8 +94,7 @@ if ($retryall) {
 
     if ($count > 0) {
         foreach ($failed as $failedrecord) {
-            // update_pending_submission refreshes timemodified so the reaper won't re-fail them.
-            // Manual retry resets the auto-retry counter.
+            // Refresh timemodified (so the reaper won't re-fail them) and reset the auto-retry counter.
             assign_submission::update_pending_submission((int) $failedrecord->id, [
                 'status' => assign_submission::STATUS_QUEUED,
                 'retries' => 0,
@@ -112,8 +110,7 @@ if ($retryall) {
         \core\task\manager::queue_adhoc_task($task);
     }
 
-    redirect($reviewurl, get_string('retryallqueued', 'local_assign_ai', $count), null,
-        \core\output\notification::NOTIFY_SUCCESS);
+    redirect($reviewurl, get_string('retryallqueued', 'local_assign_ai', $count), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 // View or download a single AI processing log (mirrors /admin/tasklogs.php).
@@ -217,7 +214,7 @@ echo html_writer::link(
     ['class' => 'btn btn-secondary mb-3']
 );
 
-// "Retry all failed" button: always shown, disabled when there are no failed reviews
+// The "Retry all failed" button is always shown, disabled when there are no failed reviews
 // (mirrors the "Review all" button in review.php).
 $failedcount = $DB->count_records('local_assign_ai_pending', [
     'assignmentid' => $cm->id,

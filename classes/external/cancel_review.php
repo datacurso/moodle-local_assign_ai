@@ -78,10 +78,8 @@ class cancel_review extends external_api {
         }
 
         // Only cancel records that are actually stuck (queued/processing).
-        if (!in_array((string) $record->status, [
-            assign_submission::STATUS_QUEUED,
-            assign_submission::STATUS_PROCESSING,
-        ], true)) {
+        $cancellable = [assign_submission::STATUS_QUEUED, assign_submission::STATUS_PROCESSING];
+        if (!in_array((string) $record->status, $cancellable, true)) {
             return ['status' => 'skipped'];
         }
 

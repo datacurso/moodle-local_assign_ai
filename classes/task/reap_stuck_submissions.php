@@ -69,7 +69,7 @@ class reap_stuck_submissions extends \core\task\scheduled_task {
         $message = get_string('error_processing_timeout', 'local_assign_ai');
         $count = 0;
         foreach ($stuck as $record) {
-            // update_pending_submission refreshes timemodified, so it won't be reaped again.
+            // Updating refreshes timemodified, so it won't be reaped again.
             assign_submission::update_pending_submission((int) $record->id, [
                 'status' => assign_submission::STATUS_FAILED,
                 'errormessage' => $message,

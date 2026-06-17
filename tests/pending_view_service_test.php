@@ -29,16 +29,32 @@ use local_assign_ai\assign_submission;
 use local_assign_ai\local\service\pending_view_service;
 
 /**
+ * Unit tests for the pending view service.
+ *
  * @coversDefaultClass \local_assign_ai\local\service\pending_view_service
  * @group local_assign_ai
  */
 final class pending_view_service_test extends \advanced_testcase {
-
     /**
+     * Review state mappings return the expected flags per status.
+     *
      * @dataProvider review_state_provider
      * @covers ::get_review_state
+     * @param string $status Pending record status.
+     * @param string $expectedstatekey Expected state key.
+     * @param bool $canrequestai Whether AI can be requested.
+     * @param bool $canapproveai Whether AI can be approved.
+     * @param string $badgeclass Expected badge CSS class.
+     * @param bool $inprogress Whether it is in progress.
      */
-    public function test_get_review_state(string $status, string $expectedstatekey, bool $canrequestai, bool $canapproveai, string $badgeclass, bool $inprogress): void {
+    public function test_get_review_state(
+        string $status,
+        string $expectedstatekey,
+        bool $canrequestai,
+        bool $canapproveai,
+        string $badgeclass,
+        bool $inprogress
+    ): void {
         $state = pending_view_service::get_review_state($status);
 
         $this->assertSame($expectedstatekey, $state['statekey']);
@@ -55,10 +71,22 @@ final class pending_view_service_test extends \advanced_testcase {
      */
     public static function review_state_provider(): array {
         return [
-            'initial' => [assign_submission::STATUS_INITIAL, assign_submission::STATUS_INITIAL, true, false, 'badge bg-secondary', false],
-            'queued' => [assign_submission::STATUS_QUEUED, assign_submission::STATUS_QUEUED, false, false, 'badge bg-warning', false],
-            'processing' => [assign_submission::STATUS_PROCESSING, assign_submission::STATUS_PROCESSING, false, false, 'badge bg-warning', true],
-            'pending' => [assign_submission::STATUS_PENDING, assign_submission::STATUS_PENDING, false, true, 'badge bg-info', false],
+            'initial' => [
+                assign_submission::STATUS_INITIAL, assign_submission::STATUS_INITIAL,
+                true, false, 'badge bg-secondary', false,
+            ],
+            'queued' => [
+                assign_submission::STATUS_QUEUED, assign_submission::STATUS_QUEUED,
+                false, false, 'badge bg-warning', false,
+            ],
+            'processing' => [
+                assign_submission::STATUS_PROCESSING, assign_submission::STATUS_PROCESSING,
+                false, false, 'badge bg-warning', true,
+            ],
+            'pending' => [
+                assign_submission::STATUS_PENDING, assign_submission::STATUS_PENDING,
+                false, true, 'badge bg-info', false,
+            ],
         ];
     }
 }

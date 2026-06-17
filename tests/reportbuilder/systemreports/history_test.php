@@ -31,7 +31,11 @@ use local_assign_ai\reportbuilder\systemreports\history as history_report;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class history_test extends advanced_testcase {
-
+    /**
+     * The report restricts results to the given course/assignment and approved/failed statuses.
+     *
+     * @covers \local_assign_ai\reportbuilder\systemreports\history
+     */
     public function test_filters_to_current_assignment_and_course(): void {
         $this->resetAfterTest();
         $this->setAdminUser();

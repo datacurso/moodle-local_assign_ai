@@ -231,11 +231,19 @@ class review_table extends \table_sql {
         $status = (string) ($row->aistatus ?? '');
 
         if ($status === assign_submission::STATUS_INITIAL) {
-            return $this->render_state('badge bg-secondary', get_string('aistatus_initial_short', 'local_assign_ai'), get_string('aistatus_initial_help', 'local_assign_ai'));
+            return $this->render_state(
+                'badge bg-secondary',
+                get_string('aistatus_initial_short', 'local_assign_ai'),
+                get_string('aistatus_initial_help', 'local_assign_ai')
+            );
         }
 
         if ($status === assign_submission::STATUS_QUEUED) {
-            return $this->render_state('badge bg-warning', get_string('aistatus_queued_short', 'local_assign_ai'), get_string('aistatus_queued_help', 'local_assign_ai'));
+            return $this->render_state(
+                'badge bg-warning',
+                get_string('aistatus_queued_short', 'local_assign_ai'),
+                get_string('aistatus_queued_help', 'local_assign_ai')
+            );
         }
 
         if ($status === assign_submission::STATUS_PROCESSING) {
@@ -255,7 +263,11 @@ class review_table extends \table_sql {
             );
         }
 
-        return $this->render_state('badge bg-info', get_string('aistatus_pending_short', 'local_assign_ai'), get_string('aistatus_pending_help', 'local_assign_ai'));
+        return $this->render_state(
+            'badge bg-info',
+            get_string('aistatus_pending_short', 'local_assign_ai'),
+            get_string('aistatus_pending_help', 'local_assign_ai')
+        );
     }
 
     /**

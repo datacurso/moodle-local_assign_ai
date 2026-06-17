@@ -376,8 +376,13 @@ class assign_submission {
      * @param bool $resetretries When true, reset the auto-retry counter (manual retries).
      * @return void
      */
-    public static function queue_ai_review(int $cmid, int $courseid, int $userid, int $pendingid,
-            bool $resetretries = false): void {
+    public static function queue_ai_review(
+        int $cmid,
+        int $courseid,
+        int $userid,
+        int $pendingid,
+        bool $resetretries = false
+    ): void {
         $update = ['status' => self::STATUS_QUEUED];
         if ($resetretries) {
             $update['retries'] = 0;

@@ -16,8 +16,6 @@
 
 namespace local_assign_ai\reportbuilder\entities;
 
-defined('MOODLE_INTERNAL') || die();
-
 use core_reportbuilder\local\entities\base;
 use core_reportbuilder\local\report\column;
 use html_writer;
@@ -58,8 +56,11 @@ class history extends base {
         $this->add_column(
             (new column('fullname', new lang_string('fullname', 'local_assign_ai'), $this->get_entity_name()))
                 ->add_joins($this->get_joins())
-                ->add_fields("{$user}.firstname, {$user}.lastname, {$user}.firstnamephonetic, {$user}.lastnamephonetic, {$user}.middlename, {$user}.alternatename")
-                ->add_callback(static function($value, \stdClass $row): string {
+                ->add_fields(
+                    "{$user}.firstname, {$user}.lastname, {$user}.firstnamephonetic, " .
+                    "{$user}.lastnamephonetic, {$user}.middlename, {$user}.alternatename"
+                )
+                ->add_callback(static function ($value, \stdClass $row): string {
                     return fullname($row);
                 })
         );
@@ -68,7 +69,7 @@ class history extends base {
             (new column('email', new lang_string('email', 'local_assign_ai'), $this->get_entity_name()))
                 ->add_joins($this->get_joins())
                 ->add_field("{$user}.email")
-                ->add_callback(static function($value): string {
+                ->add_callback(static function ($value): string {
                     return s((string) $value);
                 })
         );
@@ -77,7 +78,7 @@ class history extends base {
             (new column('status', new lang_string('status', 'local_assign_ai'), $this->get_entity_name()))
                 ->add_joins($this->get_joins())
                 ->add_field("{$pending}.status")
-                ->add_callback(static function($value): string {
+                ->add_callback(static function ($value): string {
                     return match ((string) $value) {
                         assign_submission::STATUS_APPROVED => get_string('statusapprove', 'local_assign_ai'),
                         assign_submission::STATUS_FAILED,
@@ -91,7 +92,7 @@ class history extends base {
             (new column('log', new lang_string('log', 'local_assign_ai'), $this->get_entity_name()))
                 ->add_joins($this->get_joins())
                 ->add_fields("{$pending}.status, {$pending}.errormessage")
-                ->add_callback(static function($value, \stdClass $row): string {
+                ->add_callback(static function ($value, \stdClass $row): string {
                     if ((string) ($row->status ?? '') === assign_submission::STATUS_FAILED) {
                         $output = html_writer::span(
                             get_string('logfailed', 'local_assign_ai'),
@@ -115,7 +116,7 @@ class history extends base {
             (new column('grade', new lang_string('grade', 'local_assign_ai'), $this->get_entity_name()))
                 ->add_joins($this->get_joins())
                 ->add_field("{$pending}.grade")
-                ->add_callback(static function($value): string {
+                ->add_callback(static function ($value): string {
                     return $value !== null ? (string) $value : '-';
                 })
         );
@@ -124,7 +125,7 @@ class history extends base {
             (new column('lastmodified', new lang_string('lastmodified', 'local_assign_ai'), $this->get_entity_name()))
                 ->add_joins($this->get_joins())
                 ->add_field("{$pending}.timemodified")
-                ->add_callback(static function($value): string {
+                ->add_callback(static function ($value): string {
                     return !empty($value) ? userdate((int) $value) : '-';
                 })
         );

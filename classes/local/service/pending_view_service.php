@@ -18,8 +18,6 @@ namespace local_assign_ai\local\service;
 
 use local_assign_ai\assign_submission;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Prepare data for the AI review and history tables.
  *
