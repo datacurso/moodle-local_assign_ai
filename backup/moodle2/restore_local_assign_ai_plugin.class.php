@@ -135,12 +135,23 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                     $newcmid = $recorddata->assignmentid;
                 }
 
+                // Map the submission attempt id (only available when user data is restored).
+                $newsubmissionid = null;
+                if (!empty($recorddata->submissionid)) {
+                    $mapped = $this->get_mappingid('submission', $recorddata->submissionid);
+                    $newsubmissionid = !empty($mapped) ? $mapped : null;
+                }
+
                 // Create restored record.
                 $record = new stdClass();
                 $record->courseid = $newcourseid;
                 $record->assignmentid = $newcmid;
                 $record->title = $recorddata->title;
                 $record->userid = $newuserid;
+                $record->submissionid = $newsubmissionid;
+                $record->attemptnumber = isset($recorddata->attemptnumber) ? (int) $recorddata->attemptnumber : 0;
+                $record->submissionmodified = isset($recorddata->submissionmodified) ? (int) $recorddata->submissionmodified : 0;
+                $record->edited = isset($recorddata->edited) ? (int) $recorddata->edited : 0;
                 $record->usermodified = $this->map_userid($recorddata->usermodified ?? null);
                 $record->message = $recorddata->message;
                 $record->grade = $recorddata->grade;

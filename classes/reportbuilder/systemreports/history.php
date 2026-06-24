@@ -60,6 +60,7 @@ class history extends system_report {
         $this->add_base_condition_sql("{$pending}.status {$insql}", $inparams);
         $this->set_default_per_page(20);
         $this->add_columns_from_entity($entity->get_entity_name());
+        $this->add_filters_from_entity($entity->get_entity_name());
         $this->set_initial_sort_column('history:lastmodified', SORT_DESC);
 
         $this->add_actions();

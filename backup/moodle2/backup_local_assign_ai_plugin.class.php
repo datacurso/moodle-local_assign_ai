@@ -43,6 +43,10 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
             'assignmentid',
             'title',
             'userid',
+            'submissionid',
+            'attemptnumber',
+            'submissionmodified',
+            'edited',
             'message',
             'grade',
             'rubric_response',
@@ -62,7 +66,8 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
              WHERE p.courseid = ?
         ', [backup::VAR_COURSEID]);
 
-        // Map dependent entities.
+        // Map dependent entities. (submissionid is mapped on restore via the 'submission' mapping
+        // registered by mod_assign when user data is included; it has no inforef annotation handler.)
         $pending->annotate_ids('assign', 'assignmentid');
         $pending->annotate_ids('user', 'userid');
         $pending->annotate_ids('user', 'usermodified');

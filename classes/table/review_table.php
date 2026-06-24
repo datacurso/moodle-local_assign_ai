@@ -79,7 +79,10 @@ class review_table extends \table_sql {
             'p.id, p.courseid, p.assignmentid, p.userid, p.message, p.grade, p.status AS aistatus, p.timemodified, '
             . 'u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename, u.email',
             '{local_assign_ai_pending} p JOIN {user} u ON u.id = p.userid',
-            'p.courseid = :courseid AND p.assignmentid = :assignmentid AND p.status ' . $insql,
+            'p.courseid = :courseid AND p.assignmentid = :assignmentid AND p.status ' . $insql
+            . ' AND NOT EXISTS (SELECT 1 FROM {local_assign_ai_pending} p2'
+            . ' WHERE p2.assignmentid = p.assignmentid AND p2.userid = p.userid'
+            . ' AND p2.attemptnumber > p.attemptnumber)',
             [
                 'courseid' => $assign->get_course()->id,
                 'assignmentid' => $assign->get_course_module()->id,

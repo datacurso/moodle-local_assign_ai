@@ -88,7 +88,11 @@ class process_all_submissions extends adhoc_task {
                 \local_assign_ai\assign_submission::update_pending_submission($pending->id, [
                     'status' => \local_assign_ai\assign_submission::STATUS_PROCESSING,
                 ]);
-                $proc = new \local_assign_ai\assign_submission($pending->userid, $assign);
+                $proc = new \local_assign_ai\assign_submission(
+                    $pending->userid,
+                    $assign,
+                    !empty($pending->submissionid) ? (int) $pending->submissionid : null
+                );
                 $proc->process_submission_ai_review($pending->id);
 
                 $processed++;
