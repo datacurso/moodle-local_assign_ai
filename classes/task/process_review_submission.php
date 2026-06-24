@@ -64,7 +64,7 @@ class process_review_submission extends adhoc_task {
 
         try {
             // Skip if the record is no longer queued (e.g. it was cancelled in the meantime).
-            $current = $DB->get_record('local_assign_ai_pending', ['id' => (int) $data->pendingid], 'id, status');
+            $current = $DB->get_record('local_assign_ai_pending', ['id' => (int) $data->pendingid], 'id, status, submissionid');
             if (!$current || (string) $current->status !== assign_submission::STATUS_QUEUED) {
                 mtrace('Assign AI: skipping pending ' . $data->pendingid . ' (no longer queued).');
                 return;
@@ -75,7 +75,9 @@ class process_review_submission extends adhoc_task {
                 'status' => assign_submission::STATUS_PROCESSING,
             ]);
 
-            $proc = new assign_submission((int) $data->userid, $assign);
+            // Review the attempt this record belongs to (not necessarily the latest submission).
+            $targetsid = $current->submissionid ? (int) $current->submissionid : null;
+            $proc = new assign_submission((int) $data->userid, $assign, $targetsid);
             $proc->process_submission_ai_review((int) $data->pendingid);
         } catch (\Throwable $e) {
             // Log the failure (marks the record as failed) so it shows in the AI history report.

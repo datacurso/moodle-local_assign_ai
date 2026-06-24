@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 use mod_assign\event\submission_created;
 use mod_assign\event\submission_updated;
-use mod_assign\event\submission_status_updated;
+use mod_assign\event\submission_removed;
 use mod_assign\event\submission_graded;
 use mod_assign\event\assessable_submitted;
 use local_assign_ai\task\process_submission_ai;
@@ -190,14 +190,16 @@ class submission {
     }
 
     /**
-     * Resets AI pending records when a student edits a submission and multiple attempts are allowed.
+     * Queues AI processing when a submitted submission is edited (no-drafts assignments).
+     *
+     * Per-attempt deduplication and the superseding of previous attempts are handled later in
+     * {@see \local_assign_ai\assign_submission::upsert_attempt_record()}, keyed by submissionid, so
+     * this observer only needs to enqueue processing for the current attempt.
      *
      * @param submission_updated $event The submission updated event.
      * @return void
      */
     public static function submission_updated(submission_updated $event) {
-        global $DB;
-
         try {
             if (!assignment_config::is_feature_enabled()) {
                 return;
@@ -213,13 +215,18 @@ class submission {
             }
 
             $data = $event->get_data();
+            $other = $data['other'] ?? [];
+            if (($other['submissionstatus'] ?? null) !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
+                return;
+            }
+
             $userid = self::resolve_userid($event);
             if (!$userid) {
                 return;
             }
 
-            $other = $data['other'] ?? [];
-            if (($other['submissionstatus'] ?? null) !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
+            $config = assignment_config::get_effective((int)$assign->get_instance()->id);
+            if (empty($config->enableai)) {
                 return;
             }
 
@@ -229,37 +236,7 @@ class submission {
                 ? max((int) $submission->timecreated, (int) $submission->timemodified)
                 : time();
 
-            $config = assignment_config::get_effective((int)$assign->get_instance()->id);
-            if (empty($config->enableai)) {
-                return;
-            }
-
-            $records = $DB->get_records('local_assign_ai_pending', [
-                'assignmentid' => $cmid,
-                'userid' => $userid,
-            ], 'timemodified DESC');
-
-            $record = reset($records);
-
-            if (!$record) {
-                self::enqueue_submission_processing((int) $userid, (int) $cmid, $config, $submissiontime);
-                return;
-            }
-
-            if (!$submission || $submission->status !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
-                return;
-            }
-
-            if ($record->status === 'pending') {
-                $DB->delete_records('local_assign_ai_pending', ['id' => $record->id]);
-                self::enqueue_submission_processing((int) $userid, (int) $cmid, $config, $submissiontime);
-                return;
-            }
-
-            if ($record->status === 'approve') {
-                self::enqueue_submission_processing((int) $userid, (int) $cmid, $config, $submissiontime);
-                return;
-            }
+            self::enqueue_submission_processing((int) $userid, (int) $cmid, $config, $submissiontime);
         } catch (\Exception $e) {
             debugging('Exception in submission_updated observer: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
@@ -316,46 +293,36 @@ class submission {
     }
 
     /**
-     * Handles the submission_status_updated event when a student removes their submission.
+     * Handles the submission_removed event when a student deletes their submission.
      *
-     * @param submission_status_updated $event The submission status updated event.
+     * This is the ONLY place AI feedback is deleted, and it is scoped to the specific submission
+     * attempt that was removed (by submissionid), so AI feedback from other attempts is kept as
+     * history. Reopening an assignment does NOT fire this event, so prior attempts are preserved.
+     *
+     * @param submission_removed $event The submission removed event.
      * @return void
      */
-    public static function submission_status_updated(submission_status_updated $event) {
+    public static function submission_removed(submission_removed $event) {
+        global $DB;
+
         try {
-            global $DB;
-
             $data = $event->get_data();
-            $other = $data['other'];
-
-            if (
-                !isset($other['newstatus']) ||
-                ($other['newstatus'] !== ASSIGN_SUBMISSION_STATUS_NEW &&
-                    $other['newstatus'] !== ASSIGN_SUBMISSION_STATUS_DRAFT)
-            ) {
+            $submissionid = (int) ($data['other']['submissionid'] ?? $data['objectid'] ?? 0);
+            if ($submissionid <= 0) {
                 return;
             }
 
+            // Remove only the AI feedback tied to this specific submission attempt.
+            $DB->delete_records('local_assign_ai_pending', ['submissionid' => $submissionid]);
+
+            // Clean any queued processing for this user in this assignment.
             $assign = $event->get_assign();
-            if (!$assign) {
-                return;
-            }
-
             $userid = self::resolve_userid($event);
-            if (!$userid) {
-                return;
+            if ($assign && $userid) {
+                self::delete_submission_queue((int) $userid, (int) $assign->get_course_module()->id);
             }
-
-            $cmid = $assign->get_course_module()->id;
-
-            $DB->delete_records('local_assign_ai_pending', [
-                'assignmentid' => $cmid,
-                'userid' => $userid,
-            ]);
-
-            self::delete_submission_queue((int) $userid, (int) $cmid);
         } catch (\Exception $e) {
-            debugging('Exception in submission_status_updated observer: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            debugging('Exception in submission_removed observer: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
     }
 

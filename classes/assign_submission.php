@@ -44,6 +44,31 @@ class assign_submission {
     public const STATUS_REJECTED = 'rejected';
     /** Failed status when AI processing raised an error. */
     public const STATUS_FAILED = 'failed';
+    /** Superseded status: feedback from a previous attempt, kept as read-only history. */
+    public const STATUS_SUPERSEDED = 'superseded';
+
+    /**
+     * Statuses considered "active" (still part of the review pipeline, not yet frozen as history).
+     *
+     * When a newer attempt is processed, active records from previous attempts are moved to
+     * STATUS_SUPERSEDED so that only the latest attempt remains reviewable.
+     */
+    private const ACTIVE_STATUSES = [
+        self::STATUS_INITIAL,
+        self::STATUS_PENDING,
+        self::STATUS_QUEUED,
+        self::STATUS_PROCESSING,
+        self::STATUS_FAILED,
+    ];
+
+    /**
+     * Final statuses: a teacher decision has been recorded. These records are kept as history and
+     * are never overwritten by a re-evaluation (e.g. when the student edits the same submission).
+     */
+    private const FINAL_STATUSES = [
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+    ];
 
     /** @var stdClass User ID of the author of the submission. */
     private stdClass $user;
@@ -65,12 +90,25 @@ class assign_submission {
      *
      * @param int $userid User ID of the author of the submission.
      * @param \assign $assign Assig instance.
+     * @param int|null $submissionid Specific submission attempt to target. When provided, the AI
+     *                               review/grading runs against that exact attempt instead of the
+     *                               student's latest submission (used by per-attempt reviews/retries).
      */
-    public function __construct(int $userid, \assign $assign) {
+    public function __construct(int $userid, \assign $assign, ?int $submissionid = null) {
         global $DB;
         $this->assign = $assign;
         $this->user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0, 'suspended' => 0], '*', MUST_EXIST);
-        $this->submission = $assign->get_user_submission($userid, false);
+
+        $this->submission = false;
+        if (!empty($submissionid)) {
+            // Target the specific attempt this AI record belongs to.
+            $this->submission = $DB->get_record('assign_submission', ['id' => $submissionid, 'userid' => $userid]);
+        }
+        if (!$this->submission) {
+            // Fall back to the latest submission (new submissions, or legacy records without submissionid).
+            $this->submission = $assign->get_user_submission($userid, false);
+        }
+
         $this->assigninstance = $assign->get_instance();
         $this->course = $assign->get_course();
     }
@@ -110,13 +148,16 @@ class assign_submission {
                 'courseid' => $this->course->id,
                 'assignmentid' => $cmid,
                 'userid' => $this->user->id,
+                'submissionid' => (int) $this->submission->id,
+                'attemptnumber' => (int) $this->submission->attemptnumber,
+                'submissionmodified' => (int) $this->submission->timemodified,
                 'title' => $assignment->name,
                 'message' => null,
                 'grade' => null,
                 'rubric_response' => null,
                 'status' => self::STATUS_INITIAL,
             ];
-            self::create_pending_submission($record);
+            self::upsert_attempt_record($record);
             return;
         }
 
@@ -153,6 +194,9 @@ class assign_submission {
                 'courseid' => $this->course->id,
                 'assignmentid' => $cmid,
                 'userid' => $this->user->id,
+                'submissionid' => (int) $this->submission->id,
+                'attemptnumber' => (int) $this->submission->attemptnumber,
+                'submissionmodified' => (int) $this->submission->timemodified,
                 'title' => $assignment->name,
                 'message' => $message,
                 'grade' => $grade !== null ? (int) round($grade) : null,
@@ -160,7 +204,7 @@ class assign_submission {
                 'assessment_guide_response' => $assessmentguideresponse,
                 'status' => self::STATUS_APPROVED,
             ];
-            $recordid = self::create_pending_submission($record);
+            $recordid = self::upsert_attempt_record($record);
 
             $record = $DB->get_record('local_assign_ai_pending', ['id' => $recordid]);
             $config = assignment_config::get($this->assigninstance->id);
@@ -173,6 +217,9 @@ class assign_submission {
                 'courseid' => $this->course->id,
                 'assignmentid' => $cmid,
                 'userid' => $this->user->id,
+                'submissionid' => (int) $this->submission->id,
+                'attemptnumber' => (int) $this->submission->attemptnumber,
+                'submissionmodified' => (int) $this->submission->timemodified,
                 'title' => $assignment->name,
                 'message' => null,
                 'grade' => null,
@@ -195,21 +242,36 @@ class assign_submission {
      */
     public function process_submission_ai_review(int $pendingid): void {
         global $DB;
+
+        // Find existing pending record to update.
+        $existing = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
+
+        // Guard checks: when the review cannot proceed, mark the record as failed (with a reason)
+        // instead of leaving it stuck in "processing" forever (which shows ~99% in the UI).
         if (!$this->submission || !$this->user) {
+            self::update_pending_submission($pendingid, [
+                'status' => self::STATUS_FAILED,
+                'errormessage' => get_string('reviewnotsubmitted', 'local_assign_ai'),
+            ]);
             return;
         }
 
         $config = assignment_config::get_effective((int)$this->assigninstance->id);
         if (empty($config->enableai)) {
+            self::update_pending_submission($pendingid, [
+                'status' => self::STATUS_FAILED,
+                'errormessage' => get_string('reviewaidisabled', 'local_assign_ai'),
+            ]);
             return;
         }
 
         if ($this->submission->status !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
+            self::update_pending_submission($pendingid, [
+                'status' => self::STATUS_FAILED,
+                'errormessage' => get_string('reviewnotsubmitted', 'local_assign_ai'),
+            ]);
             return;
         }
-
-        // Find existing pending record to update.
-        $existing = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
 
         // Capture any error across the whole pipeline (payload/files, AI call, response
         // parsing and record update) into the log.
@@ -240,6 +302,9 @@ class assign_submission {
             }
 
             $data = [
+                'submissionid' => (int) $this->submission->id,
+                'attemptnumber' => (int) $this->submission->attemptnumber,
+                'submissionmodified' => (int) $this->submission->timemodified,
                 'message' => $message,
                 'grade' => $grade !== null ? (int) round($grade) : null,
                 'rubric_response' => $rubricresponse,
@@ -332,6 +397,87 @@ class assign_submission {
     }
 
     /**
+     * Insert or update the AI feedback record for a specific submission attempt.
+     *
+     * Records are kept per attempt, keyed by submissionid. Before persisting, any *active* records
+     * belonging to OTHER attempts of the same student are moved to STATUS_SUPERSEDED so that only
+     * the latest attempt stays reviewable while previous attempts remain as read-only history.
+     *
+     * @param stdClass $record Pending record payload. Must include assignmentid, userid and submissionid.
+     * @return int Record id (existing one when updated, new one when inserted).
+     */
+    public static function upsert_attempt_record(stdClass $record): int {
+        global $DB;
+
+        $cmid = (int) $record->assignmentid;
+        $userid = (int) $record->userid;
+        $submissionid = (int) ($record->submissionid ?? 0);
+
+        if ($submissionid > 0) {
+            self::supersede_previous_attempts($cmid, $userid, $submissionid);
+
+            // There may be several records for this submission (finalized ones kept as history).
+            // Re-evaluate by updating the single active (unreviewed) record in place if present;
+            // otherwise create a NEW entry so finalized feedback (approve/rejected) is preserved.
+            $existing = $DB->get_records('local_assign_ai_pending', [
+                'assignmentid' => $cmid,
+                'userid' => $userid,
+                'submissionid' => $submissionid,
+            ], 'id DESC');
+            $priormax = 0;
+            foreach ($existing as $rec) {
+                if (!in_array((string) $rec->status, self::FINAL_STATUSES, true)) {
+                    self::update_pending_submission((int) $rec->id, (array) $record);
+                    return (int) $rec->id;
+                }
+                $priormax = max($priormax, (int) $rec->submissionmodified);
+            }
+
+            // Creating a NEW entry while finalized evaluations exist: flag it as a student edit when
+            // the submission was modified after the previous evaluation (vs a teacher retry).
+            if ($priormax > 0 && (int) ($record->submissionmodified ?? 0) > $priormax) {
+                $record->edited = 1;
+            }
+        }
+
+        return self::create_pending_submission($record);
+    }
+
+    /**
+     * Freeze active AI feedback records from previous attempts as read-only history.
+     *
+     * Records already in a final state (approve/rejected) are left untouched; only records still in
+     * the active pipeline are moved to STATUS_SUPERSEDED. Legacy records without a submissionid are
+     * treated as belonging to a previous attempt.
+     *
+     * @param int $cmid Assignment course module id (matches local_assign_ai_pending.assignmentid).
+     * @param int $userid Student user id.
+     * @param int $currentsubmissionid Submission id of the attempt being processed now.
+     * @return void
+     */
+    public static function supersede_previous_attempts(int $cmid, int $userid, int $currentsubmissionid): void {
+        global $DB;
+
+        [$insql, $params] = $DB->get_in_or_equal(self::ACTIVE_STATUSES, SQL_PARAMS_NAMED, 'st');
+        $params = array_merge($params, [
+            'superseded' => self::STATUS_SUPERSEDED,
+            'now' => time(),
+            'cmid' => $cmid,
+            'userid' => $userid,
+            'cursid' => $currentsubmissionid,
+        ]);
+
+        $sql = "UPDATE {local_assign_ai_pending}
+                   SET status = :superseded, timemodified = :now
+                 WHERE assignmentid = :cmid
+                   AND userid = :userid
+                   AND status $insql
+                   AND (submissionid IS NULL OR submissionid <> :cursid)";
+
+        $DB->execute($sql, $params);
+    }
+
+    /**
      * Record a processing failure in the AI log.
      *
      * Always emits a developer debugging message and, when possible, persists the failure
@@ -356,7 +502,11 @@ class assign_submission {
             } else if ($recorddata !== null) {
                 $recorddata->status = self::STATUS_FAILED;
                 $recorddata->errormessage = $e->getMessage();
-                self::create_pending_submission($recorddata);
+                if (!empty($recorddata->submissionid)) {
+                    self::upsert_attempt_record($recorddata);
+                } else {
+                    self::create_pending_submission($recorddata);
+                }
             }
         } catch (\Throwable $inner) {
             debugging('local_assign_ai could not persist failure: ' . $inner->getMessage(), DEBUG_DEVELOPER);

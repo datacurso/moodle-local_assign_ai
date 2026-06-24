@@ -46,7 +46,7 @@ try {
             'nopermissions',
             'error',
             $courseurl,
-            get_string('local/assign_ai:review', 'local_assign_ai')
+            get_string('assign_ai:review', 'local_assign_ai')
         );
     }
 

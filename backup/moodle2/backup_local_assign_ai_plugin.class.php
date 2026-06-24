@@ -33,11 +33,9 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
         $pluginwrapper = new backup_nested_element($this->get_recommended_name());
         $plugin->add_child($pluginwrapper);
 
-        // Container for pending/approved AI feedback and assignment configs.
+        // Container for pending/approved AI feedback.
         $pendings = new backup_nested_element('assign_ai_pendings');
-        $configs = new backup_nested_element('assign_ai_configs');
         $pluginwrapper->add_child($pendings);
-        $pluginwrapper->add_child($configs);
 
         // Each record (pending or approved).
         $pending = new backup_nested_element('assign_ai_pending', ['id'], [
@@ -45,6 +43,10 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
             'assignmentid',
             'title',
             'userid',
+            'submissionid',
+            'attemptnumber',
+            'submissionmodified',
+            'edited',
             'message',
             'grade',
             'rubric_response',
@@ -64,13 +66,40 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
              WHERE p.courseid = ?
         ', [backup::VAR_COURSEID]);
 
-        // Map dependent entities.
+        // Map dependent entities. (submissionid is mapped on restore via the 'submission' mapping
+        // registered by mod_assign when user data is included; it has no inforef annotation handler.)
         $pending->annotate_ids('assign', 'assignmentid');
         $pending->annotate_ids('user', 'userid');
         $pending->annotate_ids('user', 'usermodified');
         $pending->annotate_ids('course', 'courseid');
 
-        // Container with assignment-level configuration for local_assign_ai.
+        return $plugin;
+    }
+
+    /**
+     * Define the per-activity structure to include in the backup.
+     *
+     * The assignment AI configuration is activity-scoped (keyed by the assign instance id),
+     * so it is backed up at the module level. This way it travels with the activity in both
+     * whole-course copies and single-activity duplications.
+     *
+     * @return backup_plugin_element
+     */
+    protected function define_module_plugin_structure() {
+        $plugin = $this->get_plugin_element(null);
+
+        // Only assignments carry AI configuration.
+        if ($this->task->get_modulename() !== 'assign') {
+            return $plugin;
+        }
+
+        $pluginwrapper = new backup_nested_element($this->get_recommended_name());
+        $plugin->add_child($pluginwrapper);
+
+        $configs = new backup_nested_element('assign_ai_configs');
+        $pluginwrapper->add_child($configs);
+
+        // Assignment-level configuration for local_assign_ai.
         $config = new backup_nested_element('assign_ai_config', ['id'], [
             'assignmentid',
             'enableai',
@@ -86,15 +115,13 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
         ]);
         $configs->add_child($config);
 
-        // Capture configurations only for assignments that belong to this course.
+        // Capture the configuration for this specific assignment instance.
         $config->set_source_sql('
             SELECT c.*
               FROM {local_assign_ai_config} c
-              JOIN {assign} a ON a.id = c.assignmentid
-             WHERE a.course = ?
-        ', [backup::VAR_COURSEID]);
+             WHERE c.assignmentid = ?
+        ', [backup::VAR_ACTIVITYID]);
 
-        $config->annotate_ids('assign', 'assignmentid');
         $config->annotate_ids('user', 'graderid');
         $config->annotate_ids('user', 'usermodified');
 

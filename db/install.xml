@@ -12,6 +12,14 @@
         <FIELD NAME="assignmentid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" />
         <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" />
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" />
+        <FIELD NAME="submissionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+          COMMENT="The assign_submission.id (attempt) this AI feedback was generated for." />
+        <FIELD NAME="attemptnumber" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"
+          SEQUENCE="false" COMMENT="The submission attempt number this AI feedback relates to." />
+        <FIELD NAME="submissionmodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"
+          SEQUENCE="false" COMMENT="assign_submission.timemodified captured when this AI feedback was generated." />
+        <FIELD NAME="edited" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"
+          SEQUENCE="false" COMMENT="1 when this evaluation reflects a student edit of the submission since the previous evaluation." />
         <FIELD NAME="message" TYPE="text" NOTNULL="false" SEQUENCE="false" />
         <FIELD NAME="grade" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" />
         <FIELD NAME="rubric_response" TYPE="text" NOTNULL="false" SEQUENCE="false" />
@@ -31,6 +39,9 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id" />
         <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id" />
       </KEYS>
+      <INDEXES>
+        <INDEX NAME="submissionid_ix" UNIQUE="false" FIELDS="submissionid" />
+      </INDEXES>
     </TABLE>
     <TABLE NAME="local_assign_ai_config" COMMENT="Configuration per assignment for local_assign_ai">
       <FIELDS>

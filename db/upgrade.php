@@ -339,5 +339,46 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026110310, 'local', 'assign_ai');
     }
 
+    if ($oldversion < 2026110313) {
+        // Per-attempt tracking for AI feedback: add submissionid and attemptnumber.
+        $table = new xmldb_table('local_assign_ai_pending');
+
+        $submissionid = new xmldb_field('submissionid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'userid');
+        if (!$dbman->field_exists($table, $submissionid)) {
+            $dbman->add_field($table, $submissionid);
+        }
+
+        $attemptnumber = new xmldb_field('attemptnumber', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'submissionid');
+        if (!$dbman->field_exists($table, $attemptnumber)) {
+            $dbman->add_field($table, $attemptnumber);
+        }
+
+        $index = new xmldb_index('submissionid_ix', XMLDB_INDEX_NOTUNIQUE, ['submissionid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110313, 'local', 'assign_ai');
+    }
+
+    if ($oldversion < 2026110315) {
+        // Track which submission version each AI evaluation was generated for, to flag student edits.
+        $table = new xmldb_table('local_assign_ai_pending');
+
+        $field = new xmldb_field('submissionmodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'attemptnumber');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $field = new xmldb_field('edited', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'submissionmodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110315, 'local', 'assign_ai');
+    }
+
     return true;
 }

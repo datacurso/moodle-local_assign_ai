@@ -47,15 +47,15 @@ $observers = [
         'priority' => 9999,
     ],
     [
-        'eventname' => '\mod_assign\event\submission_status_updated',
-        'callback' => '\local_assign_ai\observer\submission::submission_status_updated',
-        'includefile' => '/local/assign_ai/classes/observer/submission.php',
-        'internal' => false,
-        'priority'    => 9999,
-    ],
-    [
         'eventname' => '\mod_assign\event\assessable_submitted',
         'callback' => '\local_assign_ai\observer\submission::assessable_submitted',
+        'includefile' => '/local/assign_ai/classes/observer/submission.php',
+        'internal' => false,
+        'priority' => 9999,
+    ],
+    [
+        'eventname' => '\mod_assign\event\submission_removed',
+        'callback' => '\local_assign_ai\observer\submission::submission_removed',
         'includefile' => '/local/assign_ai/classes/observer/submission.php',
         'internal' => false,
         'priority' => 9999,

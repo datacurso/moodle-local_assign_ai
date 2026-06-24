@@ -49,7 +49,7 @@ if (!has_capability('local/assign_ai:review', $context)) {
         'nopermissions',
         'error',
         $courseurl,
-        get_string('local/assign_ai:review', 'local_assign_ai')
+        get_string('assign_ai:review', 'local_assign_ai')
     );
 }
 
@@ -69,6 +69,9 @@ if ($retry) {
             'courseid' => $record->courseid,
             'assignmentid' => $record->assignmentid,
             'userid' => $record->userid,
+            'submissionid' => $record->submissionid,
+            'attemptnumber' => $record->attemptnumber,
+            'submissionmodified' => $record->submissionmodified,
             'title' => $record->title,
             'message' => null,
             'grade' => null,
@@ -126,6 +129,7 @@ if ($logid !== null) {
     $studentname = $student ? fullname($student) : (string) $record->userid;
     $statuslabel = match ((string) $record->status) {
         assign_submission::STATUS_APPROVED => get_string('statusapprove', 'local_assign_ai'),
+        assign_submission::STATUS_SUPERSEDED => get_string('statussuperseded', 'local_assign_ai'),
         assign_submission::STATUS_FAILED, assign_submission::STATUS_REJECTED =>
             get_string('statuserror', 'local_assign_ai'),
         default => get_string('statuspending', 'local_assign_ai'),
@@ -133,9 +137,22 @@ if ($logid !== null) {
     $gradetext = $record->grade !== null ? (string) $record->grade : '-';
     $datetext = !empty($record->timemodified) ? userdate((int) $record->timemodified) : '-';
 
+    // Validity: superseded when a more recent visible evaluation exists for this student here.
+    $issuperseded = $DB->record_exists_select(
+        'local_assign_ai_pending',
+        'assignmentid = :cmid AND userid = :userid AND id > :id AND status ' .
+            "IN ('" . assign_submission::STATUS_APPROVED . "','" . assign_submission::STATUS_FAILED . "')",
+        ['cmid' => $record->assignmentid, 'userid' => $record->userid, 'id' => $record->id]
+    );
+    $validitytext = $issuperseded
+        ? get_string('superseded', 'local_assign_ai')
+        : get_string('current', 'local_assign_ai');
+
     // Build the log text once, reused for both the on-screen view and the download.
     $lines = [
         get_string('fullname', 'local_assign_ai') . ': ' . $studentname,
+        get_string('attemptnumber', 'local_assign_ai') . ': ' . ((int) $record->attemptnumber + 1)
+            . ' (' . $validitytext . ')',
         get_string('status', 'local_assign_ai') . ': ' . $statuslabel,
         get_string('grade', 'local_assign_ai') . ': ' . $gradetext,
         get_string('lastmodified', 'local_assign_ai') . ': ' . $datetext,

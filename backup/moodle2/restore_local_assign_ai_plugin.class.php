@@ -28,11 +28,11 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
     /** @var array Temporary storage for pending/approved records. */
     protected $pendingrecords = [];
 
-    /** @var array Temporary storage for assignment configuration rows. */
-    protected $configrecords = [];
+    /** @var array Temporary storage for assignment configuration rows (per module). */
+    protected $moduleconfigs = [];
 
     /**
-     * Returns the definition of the restore paths for this plugin.
+     * Returns the definition of the course-level restore paths for this plugin.
      *
      * @return restore_path_element[]
      */
@@ -42,6 +42,19 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                 'local_assign_ai_pending',
                 $this->get_pathfor('/assign_ai_pendings/assign_ai_pending')
             ),
+        ];
+    }
+
+    /**
+     * Returns the definition of the module-level restore paths for this plugin.
+     *
+     * The assignment AI configuration is restored at the module level so it is duplicated
+     * both when copying a whole course and when duplicating a single activity.
+     *
+     * @return restore_path_element[]
+     */
+    protected function define_module_plugin_structure() {
+        return [
             new restore_path_element(
                 'local_assign_ai_config',
                 $this->get_pathfor('/assign_ai_configs/assign_ai_config')
@@ -56,7 +69,6 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
      * @return void
      */
     public function process_local_assign_ai_pending($data) {
-        mtrace("   - Reading assign_ai record from XML (assignmentid={$data['assignmentid']}, status={$data['status']})");
         $this->pendingrecords[] = (object)$data;
     }
 
@@ -67,8 +79,7 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
      * @return void
      */
     public function process_local_assign_ai_config($data) {
-        mtrace("   - Reading assign_ai config from XML (assignmentid={$data['assignmentid']})");
-        $this->configrecords[] = (object)$data;
+        $this->moduleconfigs[] = (object)$data;
     }
 
     /**
@@ -81,10 +92,8 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
     public function after_restore_course() {
         global $DB;
 
-        mtrace(">> [local_assign_ai] Restoring AI feedback records (pending + approved)...");
-
         if (empty($this->pendingrecords)) {
-            mtrace("   - No AI feedback data found in XML.");
+            return;
         } else {
             foreach ($this->pendingrecords as $recorddata) {
                 // Map course ID.
@@ -120,15 +129,17 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                           JOIN {assign} a ON a.id = cm.instance
                          WHERE cm.course = ? AND m.name = 'assign' AND a.name = ?
                     ", [$newcourseid, $recorddata->title]);
-
-                    if ($newcmid) {
-                        mtrace("   - Mapped by title '{$recorddata->title}' → cm.id={$newcmid}");
-                    }
                 }
 
                 if (!$newcmid) {
-                    mtrace("   - Warning: could not map assignmentid={$recorddata->assignmentid}, keeping original.");
                     $newcmid = $recorddata->assignmentid;
+                }
+
+                // Map the submission attempt id (only available when user data is restored).
+                $newsubmissionid = null;
+                if (!empty($recorddata->submissionid)) {
+                    $mapped = $this->get_mappingid('submission', $recorddata->submissionid);
+                    $newsubmissionid = !empty($mapped) ? $mapped : null;
                 }
 
                 // Create restored record.
@@ -137,6 +148,10 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                 $record->assignmentid = $newcmid;
                 $record->title = $recorddata->title;
                 $record->userid = $newuserid;
+                $record->submissionid = $newsubmissionid;
+                $record->attemptnumber = isset($recorddata->attemptnumber) ? (int) $recorddata->attemptnumber : 0;
+                $record->submissionmodified = isset($recorddata->submissionmodified) ? (int) $recorddata->submissionmodified : 0;
+                $record->edited = isset($recorddata->edited) ? (int) $recorddata->edited : 0;
                 $record->usermodified = $this->map_userid($recorddata->usermodified ?? null);
                 $record->message = $recorddata->message;
                 $record->grade = $recorddata->grade;
@@ -162,46 +177,62 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
 
                 // Insert record into the database.
                 $DB->insert_record('local_assign_ai_pending', $record);
-                mtrace("   + Restored record → course={$newcourseid}, cm={$newcmid}, status={$record->status}");
+            }
+        }
+    }
+
+    /**
+     * Restores the AI configuration for the just-restored assignment instance.
+     *
+     * The grader is a per-user reference: it is preserved only when the activity is duplicated
+     * within the SAME course (the grader is still a valid participant). When the activity is
+     * copied/imported into a DIFFERENT (or new) course, the grader cannot be carried over
+     * (participants are not part of the copy), so it is cleared.
+     *
+     * @return void
+     */
+    public function after_restore_module() {
+        global $DB;
+
+        if (empty($this->moduleconfigs)) {
+            return;
+        }
+
+        // New assignment instance id for the module being restored.
+        $newassignid = $this->task->get_activityid();
+        if (empty($newassignid)) {
+            $this->moduleconfigs = [];
+            return;
+        }
+
+        // Same course => single-activity duplication: keep the grader. Otherwise clear it.
+        $samecourse = (int)$this->task->get_courseid() === (int)$this->task->get_old_courseid();
+
+        foreach ($this->moduleconfigs as $configdata) {
+            $record = new stdClass();
+            $record->assignmentid = $newassignid;
+            $record->enableai = $configdata->enableai ?? null;
+            $record->autograde = $configdata->autograde ?? 0;
+            $record->graderid = $samecourse ? $this->map_userid($configdata->graderid ?? null) : null;
+            $record->usedelay = $configdata->usedelay ?? 0;
+            $record->delayminutes = $configdata->delayminutes ?? 0;
+            $record->prompt = $configdata->prompt ?? null;
+            $record->lang = $configdata->lang ?? null;
+            $record->usermodified = $this->map_userid($configdata->usermodified ?? null);
+            $record->timecreated = !empty($configdata->timecreated) ? $configdata->timecreated : time();
+            $record->timemodified = !empty($configdata->timemodified) ? $configdata->timemodified : time();
+
+            $existing = $DB->get_record('local_assign_ai_config', ['assignmentid' => $record->assignmentid]);
+            if ($existing) {
+                $record->id = $existing->id;
+                $DB->update_record('local_assign_ai_config', $record);
+            } else {
+                $DB->insert_record('local_assign_ai_config', $record);
             }
         }
 
-        if (empty($this->configrecords)) {
-            mtrace("   - No AI configuration data found in XML.");
-        } else {
-            mtrace(">> [local_assign_ai] Restoring AI configuration records...");
-            foreach ($this->configrecords as $configdata) {
-                $newassignid = $this->get_mappingid('assign', $configdata->assignmentid);
-                if (empty($newassignid)) {
-                    $newassignid = $configdata->assignmentid;
-                }
-
-                $record = new stdClass();
-                $record->assignmentid = $newassignid;
-                $record->enableai = $configdata->enableai ?? null;
-                $record->autograde = $configdata->autograde;
-                $record->graderid = $this->map_userid($configdata->graderid ?? null);
-                $record->usedelay = $configdata->usedelay ?? 0;
-                $record->delayminutes = $configdata->delayminutes ?? 0;
-                $record->prompt = $configdata->prompt ?? null;
-                $record->lang = $configdata->lang ?? null;
-                $record->usermodified = $this->map_userid($configdata->usermodified ?? null);
-                $record->timecreated = !empty($configdata->timecreated) ? $configdata->timecreated : time();
-                $record->timemodified = !empty($configdata->timemodified) ? $configdata->timemodified : time();
-
-                $existing = $DB->get_record('local_assign_ai_config', ['assignmentid' => $record->assignmentid]);
-                if ($existing) {
-                    $record->id = $existing->id;
-                    $DB->update_record('local_assign_ai_config', $record);
-                    mtrace("   * Updated config for assignment {$record->assignmentid}");
-                } else {
-                    $DB->insert_record('local_assign_ai_config', $record);
-                    mtrace("   + Restored config for assignment {$record->assignmentid}");
-                }
-            }
-        }
-
-        mtrace(">> [local_assign_ai] Restoration completed");
+        // Reset so a subsequent module restore in the same run starts clean.
+        $this->moduleconfigs = [];
     }
 
     /**
