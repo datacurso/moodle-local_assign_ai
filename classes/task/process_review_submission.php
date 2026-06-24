@@ -76,7 +76,8 @@ class process_review_submission extends adhoc_task {
             ]);
 
             // Review the attempt this record belongs to (not necessarily the latest submission).
-            $proc = new assign_submission((int) $data->userid, $assign, $current->submissionid ? (int) $current->submissionid : null);
+            $targetsid = $current->submissionid ? (int) $current->submissionid : null;
+            $proc = new assign_submission((int) $data->userid, $assign, $targetsid);
             $proc->process_submission_ai_review((int) $data->pendingid);
         } catch (\Throwable $e) {
             // Log the failure (marks the record as failed) so it shows in the AI history report.

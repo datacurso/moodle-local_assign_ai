@@ -366,15 +366,14 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
         // Track which submission version each AI evaluation was generated for, to flag student edits.
         $table = new xmldb_table('local_assign_ai_pending');
 
-        $submissionmodified = new xmldb_field(
-            'submissionmodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'attemptnumber');
-        if (!$dbman->field_exists($table, $submissionmodified)) {
-            $dbman->add_field($table, $submissionmodified);
+        $field = new xmldb_field('submissionmodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'attemptnumber');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
         }
 
-        $edited = new xmldb_field('edited', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'submissionmodified');
-        if (!$dbman->field_exists($table, $edited)) {
-            $dbman->add_field($table, $edited);
+        $field = new xmldb_field('edited', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'submissionmodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
         }
 
         // Assign_ai savepoint reached.
