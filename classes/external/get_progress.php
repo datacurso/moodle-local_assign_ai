@@ -80,7 +80,7 @@ class get_progress extends external_api {
             "id $insql",
             $inparams,
             '',
-            'id, assignmentid, status, grade'
+            'id, assignmentid, status, grade, errormessage'
         );
 
         $out = [];
@@ -112,6 +112,7 @@ class get_progress extends external_api {
                 'id' => (int)$r->id,
                 'status' => (string)$r->status,
                 'grade' => $r->grade !== null ? (int)$r->grade : null,
+                'errormessage' => (string)($r->errormessage ?? ''),
             ];
         }
         return $out;
@@ -126,6 +127,7 @@ class get_progress extends external_api {
             'id' => new external_value(PARAM_INT, 'Pending record id'),
             'status' => new external_value(PARAM_TEXT, 'Status value'),
             'grade' => new external_value(PARAM_INT, 'Grade', VALUE_OPTIONAL),
+            'errormessage' => new external_value(PARAM_RAW, 'Error message when the review failed', VALUE_OPTIONAL),
         ]));
     }
 }
