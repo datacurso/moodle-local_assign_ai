@@ -141,7 +141,12 @@ class process_submission extends external_api {
 
             // Mark as queued and enqueue the ad-hoc review task. The UI then shows 'en cola'.
             \local_assign_ai\assign_submission::queue_ai_review(
-                $cmid, (int) $course->id, (int) $student->id, $pendingid, false, $reviewerid
+                $cmid,
+                (int) $course->id,
+                (int) $student->id,
+                $pendingid,
+                false,
+                $reviewerid
             );
 
             return [
