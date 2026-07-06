@@ -28,6 +28,9 @@ import { get_string as getString } from 'core/str';
 const POLL_MS_DEFAULT = 8000;
 let intervalid = 0;
 
+// Track pending ids already notified as failed so the teacher only gets one error toast per row.
+const notifiedFailures = new Set();
+
 // Client-side smoothing state per row. We keep randomized parameters per processing session
 // so that progress does not look identical across rows or sessions.
 const startTimes = new Map(); // pendingid -> timestamp ms
@@ -115,7 +118,7 @@ function reflectHeaderButtonsState() {
  * @param {number} progress
  * @param {string} status
  */
-function updateRow(row, progress, status, grade) {
+function updateRow(row, progress, status, grade, errormessage) {
     const badge = row.querySelector('.js-state-badge');
     const hint = row.querySelector('.js-state-hint');
     let indicator = row.querySelector('.js-progress-indicator');
@@ -177,6 +180,14 @@ function updateRow(row, progress, status, grade) {
             badge.className = 'badge bg-warning js-state-badge';
             getString('processing', 'local_assign_ai').then(t => { badge.textContent = t; }).catch(() => { });
             getString('aistatus_processing_help', 'local_assign_ai').then(t => { hint.textContent = t; }).catch(() => { });
+        } else if (status === 'failed') {
+            badge.className = 'badge bg-danger js-state-badge';
+            getString('statuserror', 'local_assign_ai').then(t => { badge.textContent = t; }).catch(() => { });
+            if (errormessage) {
+                hint.textContent = errormessage;
+            } else {
+                getString('processingerror', 'local_assign_ai').then(t => { hint.textContent = t; }).catch(() => { });
+            }
         } else if (status === 'pending') {
             badge.className = 'badge bg-info js-state-badge';
             getString('aistatus_pending_short', 'local_assign_ai').then(t => { badge.textContent = t; }).catch(() => { });
@@ -193,7 +204,7 @@ function updateRow(row, progress, status, grade) {
         if (status === 'pending' || progress >= 100) {
             btnReview.classList.add('d-none');
             btnDetails.classList.remove('d-none');
-        } else if (status === 'initial' || status === 'queued' || status === 'processing') {
+        } else if (status === 'initial' || status === 'queued' || status === 'processing' || status === 'failed') {
             btnDetails.classList.add('d-none');
             btnReview.classList.remove('d-none');
         }
@@ -298,7 +309,19 @@ function applyProgress(entries) {
             row.classList.remove('js-row-queued');
         }
         row.setAttribute('data-progress', String(adjusted));
-        updateRow(row, adjusted, entry.status, entry.grade);
+        updateRow(row, adjusted, entry.status, entry.grade, entry.errormessage);
+
+        // Surface a one-time error toast to the teacher when a review fails (e.g. rate limit exceeded).
+        if (entry.status === 'failed' && !notifiedFailures.has(entry.id)) {
+            notifiedFailures.add(entry.id);
+            if (entry.errormessage) {
+                Notification.addNotification({message: entry.errormessage, type: 'error'});
+            } else {
+                getString('processingerror', 'local_assign_ai')
+                    .then(msg => { Notification.addNotification({message: msg, type: 'error'}); return msg; })
+                    .catch(() => { Notification.addNotification({message: 'Error', type: 'error'}); });
+            }
+        }
     });
 
     reflectHeaderButtonsState();
