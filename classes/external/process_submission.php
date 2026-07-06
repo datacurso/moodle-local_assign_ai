@@ -72,7 +72,10 @@ class process_submission extends external_api {
      * @return array An associative array containing the processing result.
      */
     public static function execute($cmid, $userid = 0, $all = false, $pendingid = 0) {
-        global $DB;
+        global $DB, $USER;
+
+        // Teacher triggering the review; used as the consumption/rate-limit owner (per-teacher limit).
+        $reviewerid = (int) $USER->id;
 
         $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
@@ -110,6 +113,7 @@ class process_submission extends external_api {
                 'cmid' => $cmid,
                 'courseid' => $course->id,
                 'pendingcount' => $pendingcount,
+                'reviewerid' => $reviewerid,
             ]);
             \core\task\manager::queue_adhoc_task($task);
 
@@ -136,7 +140,9 @@ class process_submission extends external_api {
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
 
             // Mark as queued and enqueue the ad-hoc review task. The UI then shows 'en cola'.
-            \local_assign_ai\assign_submission::queue_ai_review($cmid, (int) $course->id, (int) $student->id, $pendingid);
+            \local_assign_ai\assign_submission::queue_ai_review(
+                $cmid, (int) $course->id, (int) $student->id, $pendingid, false, $reviewerid
+            );
 
             return [
                 'status' => 'queued',
