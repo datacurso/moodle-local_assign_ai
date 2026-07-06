@@ -75,7 +75,8 @@ class get_progress extends external_api {
         }
 
         [$insql, $inparams] = $DB->get_in_or_equal($pendingids, SQL_PARAMS_NAMED);
-        $records = $DB->get_records_select('local_assign_ai_pending', "id $insql", $inparams, '', 'id, status, grade, errormessage');
+        $fields = 'id, status, grade, errormessage';
+        $records = $DB->get_records_select('local_assign_ai_pending', "id $insql", $inparams, '', $fields);
 
         $out = [];
         foreach ($records as $r) {
