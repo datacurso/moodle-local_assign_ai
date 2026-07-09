@@ -1,0 +1,40 @@
+name: Security Scan
+
+on:
+  push:
+    branches:
+      - main
+      - MOODLE_*
+      - WORKPLACE*
+  pull_request:
+
+jobs:
+  analyze:
+    name: Analyze Security (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: 'javascript-typescript, php'
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+
+  leaks_check:
+    name: Check for PII and Secret Leaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
