@@ -81,7 +81,6 @@ $string['enableassignai'] = 'Assign AI aktivieren';
 $string['enableassignai_desc'] = 'Wenn deaktiviert, wird der Abschnitt "Datacurso Assign AI" in den Aufgabeneinstellungen ausgeblendet und die automatische Verarbeitung pausiert.';
 $string['error_airequest'] = 'Fehler bei der Kommunikation mit dem KI-Dienst: {$a}';
 $string['error_processing_timeout'] = 'Die Verarbeitung hat das Zeitlimit ohne Antwort überschritten; bitte erneut versuchen.';
-$string['error_ws_not_configured'] = 'Aktionen zur KI-Überprüfung sind nicht verfügbar, da der Datacurso-Webservice nicht konfiguriert ist. Schließen Sie die Einrichtung unter <a href="{$a->url}">Datacurso-Webservice-Konfiguration</a> ab oder wenden Sie sich an Ihre Administration.';
 $string['errorparsingrubric'] = 'Fehler beim Analysieren der Rubrik-Antwort: {$a}';
 $string['feedbackcomments'] = 'Kommentare';
 $string['feedbackcommentsfull'] = 'Feedback-Kommentare';

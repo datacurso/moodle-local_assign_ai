@@ -81,7 +81,6 @@ $string['enableassignai'] = 'Включить Assign AI';
 $string['enableassignai_desc'] = 'Если отключено, раздел "Datacurso Assign AI" скрывается в настройках задания, а автоматическая обработка приостанавливается.';
 $string['error_airequest'] = 'Ошибка при связи со службой ИИ: {$a}';
 $string['error_processing_timeout'] = 'Время обработки истекло без ответа; повторите попытку.';
-$string['error_ws_not_configured'] = 'Действия проверки ИИ недоступны, потому что веб-сервис Datacurso не настроен. Завершите настройку в <a href="{$a->url}">настройке веб-сервиса Datacurso</a> или обратитесь к администратору.';
 $string['errorparsingrubric'] = 'Ошибка при разборе ответа рубрики: {$a}';
 $string['feedbackcomments'] = 'Комментарии';
 $string['feedbackcommentsfull'] = 'Комментарии обратной связи';

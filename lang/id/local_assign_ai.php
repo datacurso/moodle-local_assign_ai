@@ -81,7 +81,6 @@ $string['enableassignai'] = 'Aktifkan Tugas AI';
 $string['enableassignai_desc'] = 'Jika dinonaktifkan, bagian "Datacurso Assign AI" disembunyikan dari pengaturan aktivitas tugas dan pemrosesan otomatis dijeda.';
 $string['error_airequest'] = 'Kesalahan saat berkomunikasi dengan layanan AI: {$a}';
 $string['error_processing_timeout'] = 'Pemrosesan melebihi batas waktu tanpa respons; silakan coba lagi.';
-$string['error_ws_not_configured'] = 'Aksi tinjauan AI tidak tersedia karena layanan web Datacurso belum dikonfigurasi. Selesaikan pengaturan di <a href="{$a->url}">Konfigurasi layanan web Datacurso</a> atau hubungi administrator Anda.';
 $string['errorparsingrubric'] = 'Kesalahan saat mengurai respons rubrik: {$a}';
 $string['feedbackcomments'] = 'Komentar';
 $string['feedbackcommentsfull'] = 'Komentar umpan balik';

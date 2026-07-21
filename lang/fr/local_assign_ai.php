@@ -81,7 +81,6 @@ $string['enableassignai'] = 'Activer Assign AI';
 $string['enableassignai_desc'] = 'Si désactivé, la section "Datacurso Assign AI" est masquée dans les paramètres de l’activité devoir et le traitement automatique est mis en pause.';
 $string['error_airequest'] = 'Erreur de communication avec le service IA : {$a}';
 $string['error_processing_timeout'] = 'Le traitement a expiré sans réponse ; veuillez réessayer.';
-$string['error_ws_not_configured'] = 'Les actions de révision IA ne sont pas disponibles car le service web Datacurso n\'est pas configuré. Terminez la configuration à <a href="{$a->url}">Configuration du service web Datacurso</a> ou contactez votre administrateur.';
 $string['errorparsingrubric'] = 'Erreur lors de l’analyse de la réponse de la grille : {$a}';
 $string['feedbackcomments'] = 'Commentaires';
 $string['feedbackcommentsfull'] = 'Commentaires de retour';

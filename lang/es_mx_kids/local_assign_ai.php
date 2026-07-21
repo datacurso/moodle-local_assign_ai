@@ -81,7 +81,6 @@ $string['enableassignai'] = 'Habilitar Tarea IA';
 $string['enableassignai_desc'] = 'Si se deshabilita, la sección "Datacurso Tareas IA" se oculta en la configuración de la actividad tarea y se pausa el procesamiento automático.';
 $string['error_airequest'] = 'Error al comunicarse con el servicio de IA: {$a}';
 $string['error_processing_timeout'] = 'El procesamiento superó el tiempo límite sin respuesta; reinténtalo.';
-$string['error_ws_not_configured'] = 'Las acciones de revisión de actividades con IA no están disponibles porque el servicio web de Datacurso no está configurado. Complete la configuración en <a href="{$a->url}">Configuración de servicio web Datacurso</a> o contacte a su administrador.';
 $string['errorparsingrubric'] = 'Error al analizar la respuesta de la rúbrica: {$a}';
 $string['feedbackcomments'] = 'Comentarios';
 $string['feedbackcommentsfull'] = 'Comentarios de retroalimentación';

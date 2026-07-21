@@ -81,7 +81,6 @@ $string['enableassignai'] = 'Enable Assign AI';
 $string['enableassignai_desc'] = 'If disabled, the "Datacurso Assign AI" section is hidden from assignment activity settings and automatic processing is paused.';
 $string['error_airequest'] = 'Error communicating with the AI service: {$a}';
 $string['error_processing_timeout'] = 'Processing timed out without a response; please retry.';
-$string['error_ws_not_configured'] = 'AI review actions are unavailable because the Datacurso web service is not configured. Complete the setup at <a href="{$a->url}">Datacurso webservice setup</a> or contact your administrator.';
 $string['errorparsingrubric'] = 'Error parsing rubric_response: {$a}';
 $string['feedbackcomments'] = 'Comments';
 $string['feedbackcommentsfull'] = 'Feedback comments';
