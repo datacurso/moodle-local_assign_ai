@@ -73,6 +73,13 @@ class assign_submission {
     /** @var stdClass User ID of the author of the submission. */
     private stdClass $user;
 
+    /**
+     * @var int|null Teacher (grader) who consumes the AI review. Drives the consumption/rate-limit
+     * userid so the limit is per-teacher, not per-student. Null for automatic flows (autograde),
+     * where build_payload falls back to the configured graderid.
+     */
+    private ?int $reviewerid = null;
+
     /** @var stdClass Submission record from {assign_submission}. */
     private stdClass|false $submission;
 
@@ -111,6 +118,16 @@ class assign_submission {
 
         $this->assigninstance = $assign->get_instance();
         $this->course = $assign->get_course();
+    }
+
+    /**
+     * Set the teacher (reviewer) who triggered this AI review, so the consumption/rate limit is
+     * attributed to the teacher instead of the student. Used by the manual-review tasks.
+     *
+     * @param int|null $reviewerid Teacher user id (null keeps the graderid/student fallback).
+     */
+    public function set_reviewerid(?int $reviewerid): void {
+        $this->reviewerid = $reviewerid ?: null;
     }
 
     /**
@@ -524,6 +541,7 @@ class assign_submission {
      * @param int $userid Student user id.
      * @param int $pendingid Pending record id to (re)process.
      * @param bool $resetretries When true, reset the auto-retry counter (manual retries).
+     * @param int|null $reviewerid Teacher who triggered the review (consumption/rate-limit owner).
      * @return void
      */
     public static function queue_ai_review(
@@ -531,7 +549,8 @@ class assign_submission {
         int $courseid,
         int $userid,
         int $pendingid,
-        bool $resetretries = false
+        bool $resetretries = false,
+        ?int $reviewerid = null
     ): void {
         $update = ['status' => self::STATUS_QUEUED];
         if ($resetretries) {
@@ -545,6 +564,8 @@ class assign_submission {
             'courseid' => $courseid,
             'userid' => $userid,
             'pendingid' => $pendingid,
+            // Teacher who triggered the review (for per-teacher consumption/rate limit).
+            'reviewerid' => $reviewerid,
         ]);
         \core\task\manager::queue_adhoc_task($task);
     }
@@ -636,7 +657,9 @@ class assign_submission {
             'assignment_activity_instructions' => $assignment->activity ?? '',
             'rubric' => $rubric,
             'assessment_guide' => $assessmentguide,
-            'userid' => $this->user->id,
+            // Consumer for consumption/rate-limit: teacher who triggered the manual review →
+            // configured graderid (autograde) → student (last resort, avoids null).
+            'userid' => (string)($this->reviewerid ?: $config->graderid ?: $this->user->id),
             'student_name' => fullname($this->user),
             'submission_assign' => self::get_submission_text($this->submission),
             'submission_files' => $this->get_submission_files(),
