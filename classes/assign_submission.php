@@ -169,6 +169,11 @@ class assign_submission {
             $response = client::send_to_ai($payload);
 
             $message = $response['reply'] ?? null;
+            if (!feedback_applier::is_comments_plugin_active($this->assign)) {
+                // Feedback comments are disabled for this assignment: the message could
+                // never be delivered to the student, so it is not stored at all.
+                $message = null;
+            }
             $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
             // Determine correct advanced grading response (rubric or assessment_guide).
@@ -280,6 +285,11 @@ class assign_submission {
             $response = client::send_to_ai($payload);
 
             $message = $response['reply'] ?? null;
+            if (!feedback_applier::is_comments_plugin_active($this->assign)) {
+                // Feedback comments are disabled for this assignment: the message could
+                // never be delivered to the student, so it is not stored at all.
+                $message = null;
+            }
             $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
             // Determine correct advanced grading response (rubric or assessment_guide).
