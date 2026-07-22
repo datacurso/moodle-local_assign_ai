@@ -125,9 +125,11 @@ class process_submission extends external_api {
             // record actually belongs to this activity, course and user before queueing,
             // so a valid cmid cannot be used to touch another activity's record.
             $record = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
-            if ((int) $record->assignmentid !== (int) $cm->id
-                    || (int) $record->courseid !== (int) $course->id
-                    || (int) $record->userid !== (int) $userid) {
+            if (
+                (int) $record->assignmentid !== (int) $cm->id
+                || (int) $record->courseid !== (int) $course->id
+                || (int) $record->userid !== (int) $userid
+            ) {
                 throw new \moodle_exception('invalidpendingrecord', 'local_assign_ai');
             }
 

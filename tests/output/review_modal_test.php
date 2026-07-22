@@ -29,6 +29,7 @@ namespace local_assign_ai\output;
  * Ensures the review modal template escapes the AI message (no stored XSS).
  *
  * @group local_assign_ai
+ * @coversNothing
  */
 final class review_modal_test extends \advanced_testcase {
     /**

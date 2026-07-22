@@ -77,9 +77,11 @@ class process_review_submission extends adhoc_task {
             // Defence in depth: never process a record that does not match the task's own
             // activity, course and user (guards against a task queued with tampered data or
             // a record whose ownership changed after it was queued).
-            if ((int) $current->assignmentid !== (int) $cm->id
-                    || (int) $current->courseid !== (int) $course->id
-                    || (int) $current->userid !== (int) $data->userid) {
+            if (
+                (int) $current->assignmentid !== (int) $cm->id
+                || (int) $current->courseid !== (int) $course->id
+                || (int) $current->userid !== (int) $data->userid
+            ) {
                 mtrace('Assign AI: skipping pending ' . $data->pendingid . ' (context mismatch).');
                 return;
             }
