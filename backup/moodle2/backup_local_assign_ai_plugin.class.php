@@ -50,6 +50,7 @@ class backup_local_assign_ai_plugin extends backup_local_plugin {
             'message',
             'grade',
             'rubric_response',
+            'assessment_guide_response',
             'errormessage',
             'status',
             'approval_token',

@@ -156,6 +156,8 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                 $record->message = $recorddata->message;
                 $record->grade = $recorddata->grade;
                 $record->rubric_response = $recorddata->rubric_response;
+                // Older backups predate this field; default to null when absent.
+                $record->assessment_guide_response = $recorddata->assessment_guide_response ?? null;
                 $record->errormessage = $recorddata->errormessage ?? null;
                 $record->status = $recorddata->status;
 
