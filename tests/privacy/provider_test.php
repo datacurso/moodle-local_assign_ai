@@ -26,6 +26,7 @@
 namespace local_assign_ai\privacy;
 
 use core_privacy\local\metadata\collection;
+use core_privacy\local\metadata\types\database_table;
 use core_privacy\local\metadata\types\external_location;
 
 /**
@@ -57,6 +58,27 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
         $this->assertArrayHasKey('userid', $fields);
         $this->assertArrayHasKey('submission_text', $fields);
         $this->assertArrayHasKey('submission_files', $fields);
+    }
+
+    /**
+     * All personal-data tables must be declared, including the processing queue.
+     *
+     * @covers ::get_metadata
+     */
+    public function test_get_metadata_declares_all_tables(): void {
+        $collection = new collection('local_assign_ai');
+        provider::get_metadata($collection);
+
+        $tables = [];
+        foreach ($collection->get_collection() as $item) {
+            if ($item instanceof database_table) {
+                $tables[] = $item->get_name();
+            }
+        }
+
+        $this->assertContains('local_assign_ai_pending', $tables);
+        $this->assertContains('local_assign_ai_config', $tables);
+        $this->assertContains('local_assign_ai_queue', $tables);
     }
 
     /**

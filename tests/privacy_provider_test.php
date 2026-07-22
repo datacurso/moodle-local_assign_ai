@@ -15,168 +15,273 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Privacy provider tests for local_assign_ai.
+ * Privacy provider behaviour tests for local_assign_ai (module-context model).
  *
  * @package   local_assign_ai
  * @category  test
- * @copyright 2025 Datacurso
+ * @copyright 2026 Datacurso
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace local_assign_ai;
 
-use context_system;
-use context_user;
+use context_module;
 use core_privacy\local\request\approved_contextlist;
+use core_privacy\local\request\approved_userlist;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
 use core_privacy\tests\provider_testcase;
 use local_assign_ai\privacy\provider;
-use stdClass;
 
 /**
- * Unit tests for the privacy provider.
+ * Behavioural tests for the privacy provider under the module-context model.
  *
  * @coversDefaultClass \local_assign_ai\privacy\provider
  * @group local_assign_ai
  */
 final class privacy_provider_test extends provider_testcase {
+    /** @var \stdClass */
+    private $course;
+    /** @var \stdClass */
+    private $student;
+    /** @var \stdClass */
+    private $teacher;
+    /** @var \cm_info|\stdClass */
+    private $cm;
+    /** @var \stdClass assign instance */
+    private $instance;
+
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
         $this->setAdminUser();
+
+        $this->course = $this->getDataGenerator()->create_course();
+        $this->student = $this->getDataGenerator()->create_and_enrol($this->course, 'student');
+        $this->teacher = $this->getDataGenerator()->create_and_enrol($this->course, 'editingteacher');
+        $this->instance = $this->getDataGenerator()->create_module('assign', ['course' => $this->course->id]);
+        [, $this->cm] = get_course_and_cm_from_instance($this->instance->id, 'assign');
     }
 
     /**
-     * Tests that get_contexts_for_userid() returns the expected contexts for the given user.
+     * Inserts a pending record for the student in this assignment.
+     *
+     * @return int
+     */
+    private function create_pending(): int {
+        global $DB;
+        return $DB->insert_record('local_assign_ai_pending', (object) [
+            'courseid' => $this->course->id,
+            'assignmentid' => $this->cm->id,
+            'title' => $this->instance->name,
+            'userid' => $this->student->id,
+            'submissionid' => 0,
+            'attemptnumber' => 0,
+            'submissionmodified' => 0,
+            'edited' => 0,
+            'message' => 'AI feedback',
+            'grade' => 80,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+            'errormessage' => null,
+            'status' => assign_submission::STATUS_APPROVED,
+            'approval_token' => md5(uniqid('t', true)),
+            'usermodified' => $this->teacher->id,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ]);
+    }
+
+    /**
+     * Inserts a config row with the teacher as grader for this assignment.
+     *
+     * @return void
+     */
+    private function create_config(): void {
+        global $DB;
+        $config = $DB->get_record('local_assign_ai_config', ['assignmentid' => $this->instance->id]);
+        if ($config) {
+            $config->graderid = $this->teacher->id;
+            $config->usermodified = $this->teacher->id;
+            $DB->update_record('local_assign_ai_config', $config);
+        } else {
+            $DB->insert_record('local_assign_ai_config', (object) [
+                'assignmentid' => $this->instance->id,
+                'enableai' => 1,
+                'autograde' => 0,
+                'graderid' => $this->teacher->id,
+                'usermodified' => $this->teacher->id,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+        }
+    }
+
+    /**
+     * Inserts a queue row for the student in this assignment.
+     *
+     * @return int
+     */
+    private function create_queue(): int {
+        global $DB;
+        return $DB->insert_record('local_assign_ai_queue', (object) [
+            'type' => 'submission',
+            'payload' => json_encode([
+                'userid' => $this->student->id,
+                'cmid' => (int) $this->cm->id,
+                'submissiontime' => time(),
+            ]),
+            'timecreated' => time(),
+            'timetoprocess' => time(),
+            'processed' => 0,
+        ]);
+    }
+
+    /**
+     * The student's pending data resolves to the assignment module context.
      *
      * @covers ::get_contexts_for_userid
      */
-    public function test_get_contexts_for_userid(): void {
-        $user = $this->getDataGenerator()->create_user();
-        $this->assertEmpty(provider::get_contexts_for_userid($user->id));
+    public function test_get_contexts_for_student(): void {
+        $this->create_pending();
+        $modulecontext = context_module::instance($this->cm->id);
 
-        self::create_userdata($user->id);
+        $contextlist = provider::get_contexts_for_userid($this->student->id);
 
-        $contextlist = provider::get_contexts_for_userid($user->id);
-        $this->assertCount(1, $contextlist);
-
-        $usercontext = context_user::instance($user->id);
-        $this->assertEquals($usercontext->id, $contextlist->get_contextids()[0]);
+        $this->assertEqualsCanonicalizing(
+            [$modulecontext->id],
+            $contextlist->get_contextids()
+        );
     }
 
     /**
-     * Tests that get_users_in_context() correctly identifies users with data in a given context.
+     * The grader recorded in config resolves to the assignment module context.
+     *
+     * @covers ::get_contexts_for_userid
+     */
+    public function test_get_contexts_for_grader(): void {
+        $this->create_config();
+        $modulecontext = context_module::instance($this->cm->id);
+
+        $contextlist = provider::get_contexts_for_userid($this->teacher->id);
+
+        $this->assertContains((int) $modulecontext->id, array_map('intval', $contextlist->get_contextids()));
+    }
+
+    /**
+     * The module context lists both the student (pending) and the grader (config).
      *
      * @covers ::get_users_in_context
      */
     public function test_get_users_in_context(): void {
-        $component = 'local_assign_ai';
-        $user = $this->getDataGenerator()->create_user();
-        $usercontext = context_user::instance($user->id);
+        $this->create_pending();
+        $this->create_config();
+        $modulecontext = context_module::instance($this->cm->id);
 
-        $userlist = new userlist($usercontext, $component);
+        $userlist = new userlist($modulecontext, 'local_assign_ai');
         provider::get_users_in_context($userlist);
-        $this->assertCount(0, $userlist);
 
-        self::create_userdata($user->id);
-
-        provider::get_users_in_context($userlist);
-        $this->assertCount(1, $userlist);
-        $this->assertEquals([$user->id], $userlist->get_userids());
-
-        $systemcontext = context_system::instance();
-        $userlist = new userlist($systemcontext, $component);
-        provider::get_users_in_context($userlist);
-        $this->assertCount(0, $userlist);
+        $ids = $userlist->get_userids();
+        $this->assertContains((int) $this->student->id, array_map('intval', $ids));
+        $this->assertContains((int) $this->teacher->id, array_map('intval', $ids));
     }
 
     /**
-     * Tests that export_user_data() exports user data correctly for approved contexts.
+     * Exporting the student's data in the module context yields the pending record.
      *
      * @covers ::export_user_data
      */
     public function test_export_user_data(): void {
-        $user = $this->getDataGenerator()->create_user();
-        $record = self::create_userdata($user->id);
+        $this->create_pending();
+        $modulecontext = context_module::instance($this->cm->id);
 
-        $usercontext = context_user::instance($user->id);
-        $writer = writer::with_context($usercontext);
+        $this->export_context_data_for_user($this->student->id, $modulecontext, 'local_assign_ai');
 
-        $this->assertFalse($writer->has_any_data());
-        $approvedlist = new approved_contextlist($user, 'local_assign_ai', [$usercontext->id]);
-        provider::export_user_data($approvedlist);
-
-        $data = $writer->get_data([get_string('privacy:metadata:local_assign_ai_pending', 'local_assign_ai')]);
-        $this->assertNotEmpty($data);
+        $writer = writer::with_context($modulecontext);
+        $this->assertTrue($writer->has_any_data());
     }
 
     /**
-     * Tests that delete_data_for_all_users_in_context() removes all data for users in a context.
+     * Deleting all data in a module context clears pending, config and queue for that cmid only.
      *
      * @covers ::delete_data_for_all_users_in_context
      */
     public function test_delete_data_for_all_users_in_context(): void {
         global $DB;
+        $this->create_pending();
+        $this->create_config();
+        $this->create_queue();
 
-        $user1 = $this->getDataGenerator()->create_user();
-        $user2 = $this->getDataGenerator()->create_user();
+        // A second, unrelated assignment that must remain untouched.
+        $other = $this->getDataGenerator()->create_module('assign', ['course' => $this->course->id]);
+        [, $othercm] = get_course_and_cm_from_instance($other->id, 'assign');
+        $DB->insert_record('local_assign_ai_pending', (object) [
+            'courseid' => $this->course->id,
+            'assignmentid' => $othercm->id,
+            'title' => $other->name,
+            'userid' => $this->student->id,
+            'submissionid' => 0,
+            'attemptnumber' => 0,
+            'submissionmodified' => 0,
+            'edited' => 0,
+            'message' => null,
+            'grade' => null,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+            'errormessage' => null,
+            'status' => assign_submission::STATUS_PENDING,
+            'approval_token' => md5(uniqid('o', true)),
+            'usermodified' => null,
+            'timecreated' => time(),
+            'timemodified' => time(),
+        ]);
 
-        self::create_userdata($user1->id);
-        self::create_userdata($user2->id);
+        provider::delete_data_for_all_users_in_context(context_module::instance($this->cm->id));
 
-        $this->assertEquals(2, $DB->count_records('local_assign_ai_pending'));
-
-        $context1 = context_user::instance($user1->id);
-        provider::delete_data_for_all_users_in_context($context1);
-
-        $this->assertEquals(0, $DB->count_records('local_assign_ai_pending', ['userid' => $user1->id]));
-        $this->assertEquals(1, $DB->count_records('local_assign_ai_pending', ['userid' => $user2->id]));
+        $this->assertEquals(0, $DB->count_records('local_assign_ai_pending', ['assignmentid' => $this->cm->id]));
+        $this->assertEquals(0, $DB->count_records('local_assign_ai_config', ['assignmentid' => $this->instance->id]));
+        $this->assertEquals(0, $DB->count_records('local_assign_ai_queue'));
+        // The other activity's record survives.
+        $this->assertEquals(1, $DB->count_records('local_assign_ai_pending', ['assignmentid' => $othercm->id]));
     }
 
     /**
-     * Tests that delete_data_for_user() deletes data for the specified user only.
+     * Deleting a student removes their pending rows; a grader is anonymised in config.
      *
      * @covers ::delete_data_for_user
      */
     public function test_delete_data_for_user(): void {
         global $DB;
+        $pendingid = $this->create_pending();
+        $this->create_config();
+        $modulecontext = context_module::instance($this->cm->id);
 
-        $user1 = $this->getDataGenerator()->create_user();
-        $user2 = $this->getDataGenerator()->create_user();
+        // Delete the student.
+        $studentlist = new approved_contextlist($this->student, 'local_assign_ai', [$modulecontext->id]);
+        provider::delete_data_for_user($studentlist);
+        $this->assertFalse($DB->record_exists('local_assign_ai_pending', ['id' => $pendingid]));
 
-        self::create_userdata($user1->id);
-        self::create_userdata($user2->id);
-
-        $context1 = context_user::instance($user1->id);
-        $approvedlist = new approved_contextlist($user1, 'local_assign_ai', [$context1->id]);
-        provider::delete_data_for_user($approvedlist);
-
-        $this->assertEquals(0, $DB->count_records('local_assign_ai_pending', ['userid' => $user1->id]));
-        $this->assertEquals(1, $DB->count_records('local_assign_ai_pending', ['userid' => $user2->id]));
+        // Delete the teacher: config grader reference is nulled, config row kept.
+        $teacherlist = new approved_contextlist($this->teacher, 'local_assign_ai', [$modulecontext->id]);
+        provider::delete_data_for_user($teacherlist);
+        $config = $DB->get_record('local_assign_ai_config', ['assignmentid' => $this->instance->id]);
+        $this->assertNotEmpty($config);
+        $this->assertNull($config->graderid);
     }
 
     /**
-     * Creates a sample record in the local_assign_ai_pending table for testing.
+     * Deleting a set of users in a module context clears their student data.
      *
-     * @param int $userid The user ID for which the record will be created.
-     * @return stdClass The inserted record.
+     * @covers ::delete_data_for_users
      */
-    private static function create_userdata(int $userid): stdClass {
+    public function test_delete_data_for_users(): void {
         global $DB;
+        $pendingid = $this->create_pending();
+        $modulecontext = context_module::instance($this->cm->id);
 
-        $record = new stdClass();
-        $record->courseid = 2;
-        $record->assignmentid = 5;
-        $record->userid = $userid;
-        $record->title = 'AI Feedback';
-        $record->message = 'Generated feedback from AI model.';
-        $record->grade = 85;
-        $record->rubric_response = 'Excellent structure and analysis.';
-        $record->status = 'approved';
-        $record->approval_token = md5(uniqid((string)$userid, true));
-        $record->id = $DB->insert_record('local_assign_ai_pending', $record);
+        $approved = new approved_userlist($modulecontext, 'local_assign_ai', [$this->student->id]);
+        provider::delete_data_for_users($approved);
 
-        return $record;
+        $this->assertFalse($DB->record_exists('local_assign_ai_pending', ['id' => $pendingid]));
     }
 }
