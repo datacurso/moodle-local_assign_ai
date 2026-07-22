@@ -18,13 +18,12 @@ namespace local_assign_ai\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use external_api;
-use external_function_parameters;
-use external_single_structure;
-use external_value;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_single_structure;
+use core_external\external_value;
 
 /**
  * External function for processing assignment submissions with AI.
@@ -72,7 +71,10 @@ class process_submission extends external_api {
      * @return array An associative array containing the processing result.
      */
     public static function execute($cmid, $userid = 0, $all = false, $pendingid = 0) {
-        global $DB;
+        global $DB, $USER;
+
+        // Teacher triggering the review; used as the consumption/rate-limit owner (per-teacher limit).
+        $reviewerid = (int) $USER->id;
 
         $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
@@ -110,6 +112,7 @@ class process_submission extends external_api {
                 'cmid' => $cmid,
                 'courseid' => $course->id,
                 'pendingcount' => $pendingcount,
+                'reviewerid' => $reviewerid,
             ]);
             \core\task\manager::queue_adhoc_task($task);
 
@@ -136,7 +139,14 @@ class process_submission extends external_api {
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
 
             // Mark as queued and enqueue the ad-hoc review task. The UI then shows 'en cola'.
-            \local_assign_ai\assign_submission::queue_ai_review($cmid, (int) $course->id, (int) $student->id, $pendingid);
+            \local_assign_ai\assign_submission::queue_ai_review(
+                $cmid,
+                (int) $course->id,
+                (int) $student->id,
+                $pendingid,
+                false,
+                $reviewerid
+            );
 
             return [
                 'status' => 'queued',
