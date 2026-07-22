@@ -29,6 +29,8 @@ use local_assign_ai\external\approve_all_pending;
 use local_assign_ai\external\cancel_review;
 use local_assign_ai\external\change_status;
 use local_assign_ai\external\get_details;
+use local_assign_ai\external\get_progress;
+use local_assign_ai\external\get_token;
 use local_assign_ai\external\process_submission;
 use local_assign_ai\external\update_response;
 
@@ -149,13 +151,26 @@ final class access_control_test extends \externallib_advanced_testcase {
     }
 
     /**
-     * MDL-INT-020: get_progress should reject users without local/assign_ai:review.
+     * MDL-INT-020: get_progress silently drops records the caller cannot review.
+     *
+     * A student (no local/assign_ai:review capability) who passes a valid pending record id
+     * must receive an empty result — the record is not returned and no exception is thrown,
+     * so callers cannot enumerate activity ids they do not own.
      */
     public function test_get_progress_should_require_review_capability(): void {
-        $this->markTestSkipped(
-            'Documented defect: external get_progress performs no capability or context validation, '
-            . 'any authenticated user can poll pending review progress by id (MDL-INT-020).'
-        );
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [, $assign, , $student] = $this->create_env();
+        $record = $this->create_pending_record($assign, (int) $student->id);
+
+        // Switch to the student, who holds no local/assign_ai:review capability.
+        $this->setUser($student);
+
+        $result = get_progress::execute([(int) $record->id]);
+
+        // The record must be silently dropped — not returned, no exception.
+        $this->assertSame([], $result);
     }
 
     /**
@@ -224,12 +239,23 @@ final class access_control_test extends \externallib_advanced_testcase {
     }
 
     /**
-     * MDL-INT-020: get_token should validate the caller before handing out approval tokens.
+     * MDL-INT-020: get_token must throw when the caller lacks local/assign_ai:review.
+     *
+     * The execute method resolves the module context from the assignmentid (cmid) and calls
+     * require_capability('local/assign_ai:review', ...), so a student without that capability
+     * must receive a required_capability_exception.
      */
     public function test_get_token_should_require_capability_validation(): void {
-        $this->markTestSkipped(
-            'Documented defect: external get_token performs no capability or context validation, '
-            . 'any authenticated user can obtain approval tokens (MDL-INT-020).'
-        );
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [, $assign, $cmid, $student] = $this->create_env();
+        $this->create_pending_record($assign, (int) $student->id);
+
+        // Switch to the student, who holds no local/assign_ai:review capability.
+        $this->setUser($student);
+
+        $this->expectException(\required_capability_exception::class);
+        get_token::execute((int) $student->id, $cmid);
     }
 }

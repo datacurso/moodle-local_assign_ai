@@ -300,9 +300,40 @@ final class backup_restore_test extends \advanced_testcase {
      * course backup and restore like the rubric response does.
      */
     public function test_assessment_guide_response_survives_restore(): void {
-        $this->markTestSkipped(
-            'Documented defect: assessment_guide_response is not included in the backup field list, '
-            . 'guide data is lost on restore (MDL-INT-021).'
-        );
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(5070, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+        ]);
+
+        // A JSON payload that mimics a real assessment guide AI response.
+        $guideresponse = json_encode([
+            'criteria' => [
+                ['name' => 'Coherencia', 'score' => 8, 'feedback' => 'Buen argumento'],
+                ['name' => 'Ortografía', 'score' => 9, 'feedback' => 'Sin errores'],
+            ],
+        ]);
+
+        $original = $this->create_pending_record($assign, $student, [
+            'message' => 'Guide AI feedback',
+            'grade' => 8,
+            'status' => assign_submission::STATUS_PENDING,
+            'assessment_guide_response' => $guideresponse,
+        ]);
+
+        $newcourseid = $this->backup_and_restore($course, true);
+        $newcm = $this->get_single_assign_cm($newcourseid);
+
+        // The assessment guide response must survive the backup/restore cycle intact.
+        $restored = $DB->get_record('local_assign_ai_pending', ['courseid' => $newcourseid], '*', MUST_EXIST);
+        $this->assertEquals($newcm->id, $restored->assignmentid);
+        $this->assertSame($original->assessment_guide_response, $restored->assessment_guide_response);
     }
 }
