@@ -83,6 +83,12 @@ class feedback_applier {
             $debugmsg .= "Resultado simple: " . ($gradepushed ? 'ok' : 'fallo') . ".\n";
         }
 
+        // Queue the standard mod_assign "feedback available" notification (sent by
+        // cron), honouring the assignment's "Notify students" setting.
+        if ($gradepushed && !empty($assign->get_instance()->sendstudentnotifications)) {
+            $assign->notify_grade_modified($grade, true);
+        }
+
         // Always save feedback comments regardless of the grading method.
         self::save_feedback_comments($assign, $grade, $record->message ?? null);
 
