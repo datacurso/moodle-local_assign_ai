@@ -465,4 +465,167 @@ final class feedback_applier_test extends \advanced_testcase {
 
         $this->assertCount(0, $sink->get_messages());
     }
+
+    /**
+     * Builds an AI record stub for advanced grading tests.
+     *
+     * @param int $userid Student user ID.
+     * @param string|null $rubricjson Rubric response JSON.
+     * @param string|null $guidejson Marking guide response JSON.
+     * @return \stdClass
+     */
+    private function build_record(int $userid, ?string $rubricjson, ?string $guidejson): \stdClass {
+        return (object) [
+            'userid' => $userid,
+            'attemptnumber' => 0,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 90,
+            'rubric_response' => $rubricjson,
+            'assessment_guide_response' => $guidejson,
+        ];
+    }
+
+    /**
+     * Asserts the student has no effective grade (no fallback happened).
+     *
+     * @param \assign $assign The assignment instance.
+     * @param int $userid Student user ID.
+     * @return void
+     */
+    private function assert_no_effective_grade(\assign $assign, int $userid): void {
+        $grade = $assign->get_user_grade($userid, false);
+        $this->assertTrue($grade === false || (float) $grade->grade < 0);
+    }
+
+    /**
+     * A rubric response with unmatched criteria must fail, never fall back to simple grading.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_fails_on_rubric_mismatch(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $rubricgenerator = $this->getDataGenerator()->get_plugin_generator('gradingform_rubric');
+        $rubricgenerator->get_test_rubric($assign->get_context(), 'mod_assign', 'submissions');
+
+        $record = $this->build_record($student->id, json_encode([
+            ['criterion' => 'Redacción', 'levels' => [['points' => 2, 'comment' => 'x']]],
+        ]), null);
+
+        try {
+            feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+            $this->fail('Expected a moodle_exception for the rubric mismatch.');
+        } catch (\moodle_exception $e) {
+            $this->assertStringContainsString('Redacción', $e->getMessage());
+        }
+        $this->resetDebugging();
+
+        $this->assert_no_effective_grade($assign, $student->id);
+    }
+
+    /**
+     * A rubric assignment with no rubric data in the AI response must fail.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_fails_when_rubric_response_missing(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $rubricgenerator = $this->getDataGenerator()->get_plugin_generator('gradingform_rubric');
+        $rubricgenerator->get_test_rubric($assign->get_context(), 'mod_assign', 'submissions');
+
+        $record = $this->build_record($student->id, null, null);
+
+        try {
+            feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+            $this->fail('Expected a moodle_exception for the missing rubric response.');
+        } catch (\moodle_exception $e) {
+            $this->assertNotEmpty($e->getMessage());
+        }
+        $this->resetDebugging();
+
+        $this->assert_no_effective_grade($assign, $student->id);
+    }
+
+    /**
+     * A matching rubric response grades through the rubric (control).
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_applies_matching_rubric(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $rubricgenerator = $this->getDataGenerator()->get_plugin_generator('gradingform_rubric');
+        $rubricgenerator->get_test_rubric($assign->get_context(), 'mod_assign', 'submissions');
+
+        $record = $this->build_record($student->id, json_encode([
+            ['criterion' => 'Spelling is important', 'levels' => [['points' => 2, 'comment' => 'No mistakes']]],
+            ['criterion' => 'Pictures', 'levels' => [['points' => 1, 'comment' => 'One picture']]],
+        ]), null);
+
+        feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+        $this->resetDebugging();
+
+        $grade = $assign->get_user_grade($student->id, false);
+        $this->assertEquals(75.0, (float) $grade->grade);
+    }
+
+    /**
+     * A marking guide response with unmatched criteria must fail, never fall back.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_fails_on_guide_mismatch(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $guidegenerator = $this->getDataGenerator()->get_plugin_generator('gradingform_guide');
+        $guidegenerator->get_test_guide($assign->get_context(), 'mod_assign', 'submissions');
+
+        $record = $this->build_record($student->id, null, json_encode([
+            'Inexistente' => ['grade' => 10, 'reply' => ['x']],
+        ]));
+
+        try {
+            feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+            $this->fail('Expected a moodle_exception for the guide mismatch.');
+        } catch (\moodle_exception $e) {
+            $this->assertStringContainsString('Inexistente', $e->getMessage());
+        }
+        $this->resetDebugging();
+
+        $this->assert_no_effective_grade($assign, $student->id);
+    }
+
+    /**
+     * A matching guide response grades through the guide (control).
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_applies_matching_guide(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $guidegenerator = $this->getDataGenerator()->get_plugin_generator('gradingform_guide');
+        $guidegenerator->get_test_guide($assign->get_context(), 'mod_assign', 'submissions');
+
+        $record = $this->build_record($student->id, null, json_encode([
+            'Spelling mistakes' => ['grade' => 20, 'reply' => ['ok']],
+            'Pictures' => ['grade' => 10, 'reply' => ['good']],
+        ]));
+
+        feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+        $this->resetDebugging();
+
+        $grade = $assign->get_user_grade($student->id, false);
+        $this->assertEquals(75.0, (float) $grade->grade);
+    }
 }
