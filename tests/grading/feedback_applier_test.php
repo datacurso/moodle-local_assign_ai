@@ -245,4 +245,109 @@ final class feedback_applier_test extends \advanced_testcase {
         $gradebookgrade = $gradinginfo->items[0]->grades[$student->id];
         $this->assertEquals(90.0, (float) $gradebookgrade->grade);
     }
+
+    /**
+     * Creates an until-pass assignment (gradepass 80) with a submitted first attempt.
+     *
+     * @return array [assign, student]
+     */
+    private function create_untilpass_assign_with_submission(): array {
+        global $DB;
+
+        [$assign, $student] = $this->create_assign_with_student(true, [
+            'attemptreopenmethod' => ASSIGN_ATTEMPT_REOPEN_METHOD_UNTILPASS,
+            'maxattempts' => 3,
+        ]);
+
+        $gradeitem = $assign->get_grade_item();
+        $gradeitem->gradepass = '80.0';
+        $gradeitem->update();
+
+        $submission = $assign->get_user_submission($student->id, true, 0);
+        $submission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+        $DB->update_record('assign_submission', $submission);
+
+        return [$assign, $student];
+    }
+
+    /**
+     * An AI grade below the grade to pass triggers the automatic attempt reopen.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_below_gradepass_reopens_attempt(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_untilpass_assign_with_submission();
+
+        $record = (object) [
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 50,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+        ];
+
+        feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+        $this->resetDebugging();
+
+        // The failing grade must be recorded and propagated.
+        $graderecord = $DB->get_record('assign_grades', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+        ], '*', MUST_EXIST);
+        $this->assertEquals(50.0, (float) $graderecord->grade);
+
+        $gradinginfo = grade_get_grades(
+            $assign->get_course()->id,
+            'mod',
+            'assign',
+            $assign->get_instance()->id,
+            $student->id
+        );
+        $this->assertEquals(50.0, (float) $gradinginfo->items[0]->grades[$student->id]->grade);
+
+        // Moodle must have reopened the submission into a new attempt.
+        $newattempt = $DB->get_record('assign_submission', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+        ], '*', MUST_EXIST);
+        $this->assertSame(ASSIGN_SUBMISSION_STATUS_REOPENED, $newattempt->status);
+    }
+
+    /**
+     * An AI grade at or above the grade to pass must not reopen the attempt.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_at_or_above_gradepass_does_not_reopen(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_untilpass_assign_with_submission();
+
+        $record = (object) [
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 85,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+        ];
+
+        feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+        $this->resetDebugging();
+
+        $this->assertFalse($DB->record_exists('assign_submission', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+        ]));
+    }
 }
