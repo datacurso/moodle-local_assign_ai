@@ -266,12 +266,61 @@ final class feedback_applier_test extends \advanced_testcase {
      * be rejected loudly instead of silently downgrading the grading method.
      *
      * @covers ::apply_ai_feedback
+     * @covers ::apply_rubric_grading
      */
     public function test_rubric_criteria_mismatch_should_fail_loudly(): void {
-        $this->markTestSkipped(
-            'Documented defect: when AI criteria do not match the rubric definition the plugin '
-            . 'silently falls back to simple grading instead of failing loudly (MDL-INT-005).'
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(4025, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+        ]);
+
+        // Rubric defines criteria A and B.
+        $this->getDataGenerator()->get_plugin_generator('gradingform_rubric')->create_instance(
+            $assign->get_context(),
+            'mod_assign',
+            'submissions',
+            'Mismatch rubric',
+            'Rubric with criteria A and B',
+            [
+                'Criterion A' => [
+                    'Poor' => 0,
+                    'Good' => 50,
+                ],
+                'Criterion B' => [
+                    'Poor' => 0,
+                    'Good' => 50,
+                ],
+            ]
         );
+
+        $this->add_submission($student, $assign, 'My essay text');
+
+        // AI response references criteria C and D — completely mismatched against the rubric definition.
+        $record = $this->create_pending_record($assign, $student, [
+            'grade' => 50,
+            'message' => 'Mismatched rubric feedback',
+            'rubric_response' => json_encode([
+                [
+                    'criterion' => 'Criterion C',
+                    'levels' => [['points' => 50, 'comment' => 'Good C']],
+                ],
+                [
+                    'criterion' => 'Criterion D',
+                    'levels' => [['points' => 50, 'comment' => 'Good D']],
+                ],
+            ]),
+        ]);
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_rubricmismatch');
+        feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
     }
 
     /**
@@ -368,12 +417,57 @@ final class feedback_applier_test extends \advanced_testcase {
      * should be rejected loudly instead of silently downgrading the grading method.
      *
      * @covers ::apply_ai_feedback
+     * @covers ::apply_guide_grading
      */
     public function test_guide_criteria_mismatch_should_fail_loudly(): void {
-        $this->markTestSkipped(
-            'Documented defect: when AI criteria do not match the marking guide definition the plugin '
-            . 'silently falls back to simple grading instead of failing loudly (MDL-INT-006).'
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(4035, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'grade' => 40,
+        ]);
+
+        // Marking guide defines criteria X and Y.
+        $this->getDataGenerator()->get_plugin_generator('gradingform_guide')->create_instance(
+            $assign->get_context(),
+            'mod_assign',
+            'submissions',
+            'Mismatch guide',
+            'Guide with criteria X and Y',
+            [
+                'Criterion X' => [
+                    'description' => 'Criterion X description.',
+                    'descriptionmarkers' => 'Criterion X marker hint.',
+                    'maxscore' => 20,
+                ],
+                'Criterion Y' => [
+                    'description' => 'Criterion Y description.',
+                    'descriptionmarkers' => 'Criterion Y marker hint.',
+                    'maxscore' => 20,
+                ],
+            ]
         );
+
+        $this->add_submission($student, $assign, 'My essay text');
+
+        // AI response references criterion Z only — completely mismatched against the guide definition.
+        $record = $this->create_pending_record($assign, $student, [
+            'grade' => 20,
+            'message' => 'Mismatched guide feedback',
+            'assessment_guide_response' => json_encode([
+                'Criterion Z' => ['grade' => 20, 'reply' => 'Good Z'],
+            ]),
+        ]);
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage('error_guidemismatch');
+        feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
     }
 
     /**

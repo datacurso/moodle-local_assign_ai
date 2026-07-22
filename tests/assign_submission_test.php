@@ -641,12 +641,70 @@ final class assign_submission_test extends \advanced_testcase {
      * MDL-INT-011: The grade produced for a reopened attempt should be linked to that attempt
      * number so it reaches the gradebook.
      *
+     * feedback_applier calls get_user_grade($userid, true, $record->attemptnumber) so each
+     * attempt gets its own assign_grades row, keyed by attemptnumber, rather than all grades
+     * overwriting the same row (attemptnumber = -1 = latest).
+     *
      * @covers ::process_submission_ai
      */
     public function test_grade_is_associated_to_the_processed_attempt_number(): void {
-        $this->markTestSkipped(
-            'Documented defect: the grade is not associated to the correct attempt number, '
-            . 'so it may not propagate to the gradebook (MDL-INT-011).'
-        );
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->configure_ai_provider();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->bump_assign_sequence(2110, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'attemptreopenmethod' => ASSIGN_ATTEMPT_REOPEN_METHOD_MANUAL,
+            'maxattempts' => 2,
+        ]);
+        $this->enable_autograde((int) $assign->get_instance()->id, (int) $teacher->id);
+
+        // Attempt 0: student submits and AI processes.
+        $this->add_submission($student, $assign, 'First attempt text');
+
+        $this->mock_ai_success(6, 'First attempt feedback');
+        $processor = new assign_submission((int) $student->id, $assign);
+        $processor->process_submission_ai();
+
+        // Grade for attempt 0 must exist with the correct attempt number and grade.
+        $graderow0 = $assign->get_user_grade($student->id, false, 0);
+        $this->assertNotEmpty($graderow0, 'Grade row for attempt 0 must exist');
+        $this->assertEquals(0, (int) $graderow0->attemptnumber, 'Attempt 0 grade row must carry attemptnumber=0');
+        $this->assertEquals(6.0, (float) $graderow0->grade, 'Attempt 0 grade must be 6');
+
+        // Attempt 1: teacher reopens, student resubmits, AI processes.
+        $teacher->ignoresesskey = true;
+        $this->setUser($teacher);
+        $this->assertTrue($assign->testable_process_add_attempt($student->id));
+
+        $this->add_submission($student, $assign, 'Second attempt text');
+
+        $this->mock_ai_success(9, 'Second attempt feedback');
+        $freshassign = new \assign($assign->get_context(), $assign->get_course_module(), $course);
+        $processor = new assign_submission((int) $student->id, $freshassign);
+        $processor->process_submission_ai();
+
+        // Grade for attempt 1 must be a separate row, not overwriting attempt 0.
+        $graderow1 = $freshassign->get_user_grade($student->id, false, 1);
+        $this->assertNotEmpty($graderow1, 'Grade row for attempt 1 must exist');
+        $this->assertEquals(1, (int) $graderow1->attemptnumber, 'Attempt 1 grade row must carry attemptnumber=1');
+        $this->assertEquals(9.0, (float) $graderow1->grade, 'Attempt 1 grade must be 9');
+
+        // Both rows must be distinct records.
+        $this->assertNotEquals($graderow0->id, $graderow1->id, 'Each attempt must have its own grade row');
+
+        // The attempt 0 grade must remain unchanged.
+        $graderow0again = $freshassign->get_user_grade($student->id, false, 0);
+        $this->assertEquals(6.0, (float) $graderow0again->grade, 'Attempt 0 grade must remain 6 after attempt 1 is graded');
+
+        $this->resetDebugging();
     }
 }
