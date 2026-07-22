@@ -93,6 +93,7 @@ $string['grade'] = 'Оценка';
 $string['gradesuccess'] = 'Оценка успешно добавлена';
 $string['gradingfailed_body'] = 'Оценивание с помощью ИИ для задания «{$a->assignment}» (студент: {$a->student}) не удалось, автоматические повторные попытки исчерпаны. Последняя ошибка: {$a->error}';
 $string['gradingfailed_subject'] = 'Сбой оценивания с помощью ИИ: {$a}';
+$string['invalidpendingrecord'] = 'Запись ИИ не относится к этому заданию.';
 $string['lastmodified'] = 'Последнее изменение';
 $string['log'] = 'Журнал';
 $string['logdetails'] = 'Сведения журнала ИИ';

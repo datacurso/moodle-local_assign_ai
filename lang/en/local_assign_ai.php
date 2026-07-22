@@ -93,6 +93,7 @@ $string['grade'] = 'Grade';
 $string['gradesuccess'] = 'Grade successfully injected';
 $string['gradingfailed_body'] = 'The AI grading for the assignment "{$a->assignment}" (student: {$a->student}) failed and the automatic retries are exhausted. Last error: {$a->error}';
 $string['gradingfailed_subject'] = 'AI grading failed: {$a}';
+$string['invalidpendingrecord'] = 'The AI record does not belong to this assignment.';
 $string['lastmodified'] = 'Last modified';
 $string['log'] = 'Log';
 $string['logdetails'] = 'AI log details';

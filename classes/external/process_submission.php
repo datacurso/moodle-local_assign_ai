@@ -121,6 +121,16 @@ class process_submission extends external_api {
 
         // Process a single user submission asynchronously via an ad-hoc task (like "Review all").
         if ($userid && $pendingid) {
+            // The capability was checked on $cm; make sure the client-supplied pending
+            // record actually belongs to this activity, course and user before queueing,
+            // so a valid cmid cannot be used to touch another activity's record.
+            $record = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
+            if ((int) $record->assignmentid !== (int) $cm->id
+                    || (int) $record->courseid !== (int) $course->id
+                    || (int) $record->userid !== (int) $userid) {
+                throw new \moodle_exception('invalidpendingrecord', 'local_assign_ai');
+            }
+
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
 
             // Mark as queued and enqueue the ad-hoc review task. The UI then shows 'en cola'.

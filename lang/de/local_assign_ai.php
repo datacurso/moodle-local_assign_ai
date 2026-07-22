@@ -93,6 +93,7 @@ $string['grade'] = 'Bewertung';
 $string['gradesuccess'] = 'Bewertung erfolgreich eingefügt';
 $string['gradingfailed_body'] = 'Die KI-Bewertung für die Aufgabe "{$a->assignment}" (Teilnehmer/in: {$a->student}) ist fehlgeschlagen und die automatischen Wiederholungen sind ausgeschöpft. Letzter Fehler: {$a->error}';
 $string['gradingfailed_subject'] = 'KI-Bewertung fehlgeschlagen: {$a}';
+$string['invalidpendingrecord'] = 'Der KI-Datensatz gehört nicht zu dieser Aufgabe.';
 $string['lastmodified'] = 'Zuletzt geändert';
 $string['log'] = 'Protokoll';
 $string['logdetails'] = 'KI-Protokolldetails';
