@@ -337,6 +337,20 @@ class feedback_applier {
     }
 
     /**
+     * Checks whether the comments feedback plugin is active for the assignment instance.
+     *
+     * Moodle requires the plugin to be both enabled for the instance and visible at
+     * site level before rendering its feedback to students.
+     *
+     * @param assign $assign The assignment instance.
+     * @return bool True if the comments feedback plugin is active.
+     */
+    public static function is_comments_plugin_active(assign $assign): bool {
+        $plugin = $assign->get_feedback_plugin_by_type('comments');
+        return $plugin && $plugin->is_enabled() && $plugin->is_visible();
+    }
+
+    /**
      * Helper to save feedback comments for a given submission.
      *
      * @param assign $assign The assignment instance.
@@ -348,6 +362,14 @@ class feedback_applier {
         global $DB;
 
         if (empty($message)) {
+            return;
+        }
+
+        // Moodle only renders feedback from plugins that are enabled for the instance
+        // and visible at site level, so writing while disabled would leave the comment
+        // stored but never shown to the student.
+        if (!self::is_comments_plugin_active($assign)) {
+            debugging('local_assign_ai: feedback comments plugin disabled for this assignment, skipping.', DEBUG_DEVELOPER);
             return;
         }
 

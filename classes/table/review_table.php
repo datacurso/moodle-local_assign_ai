@@ -19,6 +19,7 @@ namespace local_assign_ai\table;
 use assign;
 use html_writer;
 use local_assign_ai\assign_submission;
+use local_assign_ai\grading\feedback_applier;
 use moodle_url;
 
 defined('MOODLE_INTERNAL') || die();
@@ -46,6 +47,9 @@ class review_table extends \table_sql {
     /** @var bool Whether the current user can view details. */
     private bool $canviewdetails;
 
+    /** @var bool Whether the comments feedback plugin is active for this assignment. */
+    private bool $commentsactive;
+
     /**
      * Constructor.
      *
@@ -59,6 +63,7 @@ class review_table extends \table_sql {
         $this->context = $assign->get_context();
         $this->canchangestatus = has_capability('local/assign_ai:changestatus', $this->context);
         $this->canviewdetails = has_capability('local/assign_ai:viewdetails', $this->context);
+        $this->commentsactive = feedback_applier::is_comments_plugin_active($assign);
 
         $this->define_baseurl(new moodle_url('/local/assign_ai/review.php', ['id' => $assign->get_course_module()->id]));
         $this->set_attribute('class', 'generaltable generalbox table table-bordered table-striped w-100 text-center mb-0');
@@ -305,7 +310,9 @@ class review_table extends \table_sql {
             ]
         );
 
-        if ($canapproveai && $this->canviewdetails) {
+        // The details modal only exposes the AI feedback message, which cannot be
+        // delivered when the comments feedback plugin is disabled.
+        if ($canapproveai && $this->canviewdetails && $this->commentsactive) {
             $buttons .= html_writer::tag('button', get_string('viewdetails', 'local_assign_ai'), [
                 'class' => 'btn btn-success btn-sm text-nowrap view-details js-btn-details',
                 'data-courseid' => (int) $row->courseid,
