@@ -75,15 +75,42 @@ class get_progress extends external_api {
         }
 
         [$insql, $inparams] = $DB->get_in_or_equal($pendingids, SQL_PARAMS_NAMED);
-        $records = $DB->get_records_select('local_assign_ai_pending', "id $insql", $inparams, '', 'id, status, grade');
+        $records = $DB->get_records_select(
+            'local_assign_ai_pending',
+            "id $insql",
+            $inparams,
+            '',
+            'id, assignmentid, status, grade'
+        );
 
         $out = [];
+        $allowedcmid = [];
         foreach ($records as $r) {
-            $status = (string)$r->status;
+            $cmid = (int)$r->assignmentid;
+
+            // Resolve each record's module context and require review permission there,
+            // caching the result per cmid. Records the caller cannot review are silently
+            // dropped so ids cannot be enumerated across activities.
+            if (!array_key_exists($cmid, $allowedcmid)) {
+                $allowedcmid[$cmid] = false;
+                try {
+                    $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
+                    $context = \context_module::instance($cm->id);
+                    self::validate_context($context);
+                    require_capability('local/assign_ai:review', $context);
+                    $allowedcmid[$cmid] = true;
+                } catch (\Exception $e) {
+                    $allowedcmid[$cmid] = false;
+                }
+            }
+
+            if (!$allowedcmid[$cmid]) {
+                continue;
+            }
 
             $out[] = [
                 'id' => (int)$r->id,
-                'status' => $status,
+                'status' => (string)$r->status,
                 'grade' => $r->grade !== null ? (int)$r->grade : null,
             ];
         }

@@ -55,6 +55,21 @@ class get_token extends external_api {
     public static function execute($userid, $assignmentid) {
         global $DB;
 
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'userid' => $userid,
+            'assignmentid' => $assignmentid,
+        ]);
+        $userid = $params['userid'];
+        $assignmentid = $params['assignmentid'];
+
+        // The plugin stores the cmid in assignmentid. Resolve its module context and
+        // require review permission so a user cannot read another user's token by
+        // enumerating ids.
+        $cm = get_coursemodule_from_id('assign', $assignmentid, 0, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('local/assign_ai:review', $context);
+
         $sql = "
             SELECT *
             FROM {local_assign_ai_pending}
