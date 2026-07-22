@@ -58,11 +58,35 @@ class provider implements
                 'message'          => 'privacy:metadata:local_assign_ai_pending:message',
                 'grade'            => 'privacy:metadata:local_assign_ai_pending:grade',
                 'rubric_response'  => 'privacy:metadata:local_assign_ai_pending:rubric_response',
+                'assessment_guide_response' => 'privacy:metadata:local_assign_ai_pending:assessment_guide_response',
                 'errormessage'     => 'privacy:metadata:local_assign_ai_pending:errormessage',
                 'status'           => 'privacy:metadata:local_assign_ai_pending:status',
                 'approval_token'   => 'privacy:metadata:local_assign_ai_pending:approval_token',
             ],
             'privacy:metadata:local_assign_ai_pending'
+        );
+
+        $collection->add_database_table(
+            'local_assign_ai_config',
+            [
+                'assignmentid' => 'privacy:metadata:local_assign_ai_config:assignmentid',
+                'graderid'     => 'privacy:metadata:local_assign_ai_config:graderid',
+                'usermodified' => 'privacy:metadata:local_assign_ai_config:usermodified',
+            ],
+            'privacy:metadata:local_assign_ai_config'
+        );
+
+        // The submission data is sent to an external AI provider for grading/feedback.
+        $collection->add_external_location_link(
+            'datacurso_ai',
+            [
+                'userid' => 'privacy:metadata:datacurso_ai:userid',
+                'student_name' => 'privacy:metadata:datacurso_ai:student_name',
+                'submission_text' => 'privacy:metadata:datacurso_ai:submission_text',
+                'submission_files' => 'privacy:metadata:datacurso_ai:submission_files',
+                'course_activity' => 'privacy:metadata:datacurso_ai:course_activity',
+            ],
+            'privacy:metadata:datacurso_ai'
         );
 
         return $collection;
