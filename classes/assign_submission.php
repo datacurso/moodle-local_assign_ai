@@ -509,6 +509,7 @@ class assign_submission {
                     'status' => self::STATUS_FAILED,
                     'errormessage' => $e->getMessage(),
                 ]);
+                self::maybe_notify_grading_failure($pendingid);
             } else if ($recorddata !== null) {
                 $recorddata->status = self::STATUS_FAILED;
                 $recorddata->errormessage = $e->getMessage();
@@ -521,6 +522,61 @@ class assign_submission {
         } catch (\Throwable $inner) {
             debugging('local_assign_ai could not persist failure: ' . $inner->getMessage(), DEBUG_DEVELOPER);
         }
+    }
+
+    /**
+     * Notifies the configured grader when a record fails with its retries exhausted.
+     *
+     * The automatic retry policy ({@see \local_assign_ai\task\retry_failed_submissions})
+     * stops selecting a record once it reaches MAX_RETRIES, so a failure registered at
+     * that point is final and the grader must be told. Earlier failures stay silent
+     * because a retry is still coming.
+     *
+     * @param int $pendingid Pending record id just marked as failed.
+     * @return void
+     */
+    private static function maybe_notify_grading_failure(int $pendingid): void {
+        global $DB;
+
+        $record = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid]);
+        if (!$record || (int) $record->retries < \local_assign_ai\task\retry_failed_submissions::MAX_RETRIES) {
+            return;
+        }
+
+        [$course, $cm] = get_course_and_cm_from_cmid($record->assignmentid, 'assign');
+        $config = assignment_config::get((int) $cm->instance);
+        if (empty($config) || empty($config->graderid)) {
+            return;
+        }
+
+        $grader = \core_user::get_user($config->graderid);
+        $student = \core_user::get_user($record->userid);
+        if (!$grader || $grader->deleted) {
+            return;
+        }
+
+        $a = (object) [
+            'assignment' => $record->title,
+            'student' => $student ? fullname($student) : $record->userid,
+            'error' => $record->errormessage,
+        ];
+
+        $message = new \core\message\message();
+        $message->component = 'local_assign_ai';
+        $message->name = 'gradingfailed';
+        $message->userfrom = \core_user::get_noreply_user();
+        $message->userto = $grader;
+        $message->subject = get_string('gradingfailed_subject', 'local_assign_ai', $record->title);
+        $message->fullmessage = get_string('gradingfailed_body', 'local_assign_ai', $a);
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml = '';
+        $message->smallmessage = $message->subject;
+        $message->notification = 1;
+        $message->contexturl = (new \moodle_url('/local/assign_ai/history.php', ['id' => $record->assignmentid]))->out(false);
+        $message->contexturlname = get_string('logdetails', 'local_assign_ai');
+        $message->courseid = $course->id;
+
+        message_send($message);
     }
 
     /**

@@ -15,21 +15,21 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Plugin version and other meta-data are defined here.
+ * Message providers for local_assign_ai.
  *
- * @package     local_assign_ai
- * @copyright   2025 Datacurso
- * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    local_assign_ai
+ * @copyright  2026 Datacurso
+ * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_assign_ai';
-$plugin->release = '1.1.7';
-$plugin->version = 2026110317;
-$plugin->requires = 2024100700;
-$plugin->maturity = MATURITY_STABLE;
-$plugin->supported = [405, 501];
-$plugin->dependencies = [
-    'aiprovider_datacurso' => 2025100201,
+$messageproviders = [
+    // Sent to the configured grader when AI grading fails and retries are exhausted.
+    'gradingfailed' => [
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+        ],
+    ],
 ];
