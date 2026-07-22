@@ -93,6 +93,7 @@ $string['grade'] = 'Calificación';
 $string['gradesuccess'] = 'Calificación inyectada con éxito';
 $string['gradingfailed_body'] = 'La calificación por IA de la tarea "{$a->assignment}" (estudiante: {$a->student}) falló y se agotaron los reintentos automáticos. Último error: {$a->error}';
 $string['gradingfailed_subject'] = 'Falló la calificación por IA: {$a}';
+$string['invalidpendingrecord'] = 'El registro de IA no pertenece a esta tarea.';
 $string['lastmodified'] = 'Última modificación';
 $string['log'] = 'Registro';
 $string['logdetails'] = 'Detalle del registro de IA';

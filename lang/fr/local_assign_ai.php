@@ -93,6 +93,7 @@ $string['grade'] = 'Note';
 $string['gradesuccess'] = 'Note injectée avec succès';
 $string['gradingfailed_body'] = 'L’évaluation par IA du devoir « {$a->assignment} » (étudiant : {$a->student}) a échoué et les nouvelles tentatives automatiques sont épuisées. Dernière erreur : {$a->error}';
 $string['gradingfailed_subject'] = 'Échec de l’évaluation par IA : {$a}';
+$string['invalidpendingrecord'] = 'L’enregistrement IA n’appartient pas à ce devoir.';
 $string['lastmodified'] = 'Dernière modification';
 $string['log'] = 'Journal';
 $string['logdetails'] = 'Détails du journal IA';

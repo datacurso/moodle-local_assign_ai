@@ -93,6 +93,7 @@ $string['grade'] = 'Nilai';
 $string['gradesuccess'] = 'Nilai berhasil dimasukkan';
 $string['gradingfailed_body'] = 'Penilaian AI untuk tugas "{$a->assignment}" (siswa: {$a->student}) gagal dan percobaan ulang otomatis telah habis. Kesalahan terakhir: {$a->error}';
 $string['gradingfailed_subject'] = 'Penilaian AI gagal: {$a}';
+$string['invalidpendingrecord'] = 'Catatan AI tidak termasuk dalam tugas ini.';
 $string['lastmodified'] = 'Terakhir diubah';
 $string['log'] = 'Log';
 $string['logdetails'] = 'Detail log AI';
