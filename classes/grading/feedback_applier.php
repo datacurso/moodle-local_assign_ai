@@ -93,8 +93,7 @@ class feedback_applier {
 
             if (!$gradepushed) {
                 debugging($debugmsg, DEBUG_DEVELOPER);
-                throw new \moodle_exception('unexpectederror', 'local_assign_ai', '',
-                    'advanced grading could not be applied');
+                throw new \moodle_exception('unexpectederror', 'local_assign_ai', '', 'advanced grading could not be applied');
             }
         } else {
             // No advanced grading definition: the assignment grades with a simple
@@ -208,8 +207,7 @@ class feedback_applier {
         }
 
         if (!empty($unmatched)) {
-            throw new \moodle_exception('error_rubricmismatch', 'local_assign_ai', '',
-                implode(', ', array_unique($unmatched)));
+            throw new \moodle_exception('error_rubricmismatch', 'local_assign_ai', '', implode(', ', array_unique($unmatched)));
         }
 
         try {
@@ -336,8 +334,7 @@ class feedback_applier {
         if (!empty($unmatched)) {
             $debugmsg .= "Criterios sin match: " . implode(', ', $unmatched) . ".\n";
             debugging($debugmsg, DEBUG_DEVELOPER);
-            throw new \moodle_exception('error_guidemismatch', 'local_assign_ai', '',
-                implode(', ', array_unique($unmatched)));
+            throw new \moodle_exception('error_guidemismatch', 'local_assign_ai', '', implode(', ', array_unique($unmatched)));
         }
 
         try {
