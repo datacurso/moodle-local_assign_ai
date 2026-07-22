@@ -350,4 +350,119 @@ final class feedback_applier_test extends \advanced_testcase {
             'attemptnumber' => 1,
         ]));
     }
+
+    /**
+     * Creates a submitted first attempt for the student.
+     *
+     * @param \assign $assign The assignment instance.
+     * @param int $userid The student user ID.
+     * @return void
+     */
+    private function submit_first_attempt(\assign $assign, int $userid): void {
+        global $DB;
+
+        $submission = $assign->get_user_submission($userid, true, 0);
+        $submission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+        $DB->update_record('assign_submission', $submission);
+    }
+
+    /**
+     * Applying an AI grade queues the standard feedback notification for the student.
+     *
+     * Auto and manual approval both enter through apply_ai_feedback(), so this
+     * covers every approval flow.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_queues_student_notification(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        // Flush any assign notifications queued by other tests.
+        \core\cron::setup_user();
+        \assign::cron();
+
+        [$assign, $student] = $this->create_assign_with_student(true, [
+            'sendstudentnotifications' => 1,
+        ]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($assign->get_course(), 'editingteacher');
+        $this->submit_first_attempt($assign, $student->id);
+
+        $record = (object) [
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 75,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+        ];
+
+        feedback_applier::apply_ai_feedback($assign, $record, $teacher->id);
+        $this->resetDebugging();
+
+        $flags = $DB->get_record('assign_user_flags', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+        ]);
+        $this->assertNotEmpty($flags);
+        $this->assertEquals(0, $flags->mailed);
+
+        // The mod_assign cron must deliver the queued notification.
+        $this->expectOutputRegex('/Done processing 1 assignment submissions/');
+        \core\cron::setup_user();
+        $sink = $this->redirectMessages();
+        \assign::cron();
+        $messages = $sink->get_messages();
+
+        $this->assertCount(1, $messages);
+        $this->assertEquals($student->id, $messages[0]->useridto);
+        $customdata = json_decode($messages[0]->customdata);
+        $this->assertSame('feedbackavailable', $customdata->messagetype);
+    }
+
+    /**
+     * No notification is queued when the assignment has notifications disabled.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_no_notification_when_disabled(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        // Flush any assign notifications queued by other tests.
+        \core\cron::setup_user();
+        \assign::cron();
+
+        [$assign, $student] = $this->create_assign_with_student(true, [
+            'sendstudentnotifications' => 0,
+        ]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($assign->get_course(), 'editingteacher');
+        $this->submit_first_attempt($assign, $student->id);
+
+        $record = (object) [
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 75,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+        ];
+
+        feedback_applier::apply_ai_feedback($assign, $record, $teacher->id);
+        $this->resetDebugging();
+
+        $flags = $DB->get_record('assign_user_flags', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+        ]);
+        $this->assertTrue($flags === false || (int) $flags->mailed !== 0);
+
+        \core\cron::setup_user();
+        $sink = $this->redirectMessages();
+        \assign::cron();
+
+        $this->assertCount(0, $sink->get_messages());
+    }
 }
