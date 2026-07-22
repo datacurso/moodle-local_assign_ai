@@ -41,13 +41,14 @@ final class feedback_applier_test extends \advanced_testcase {
      * Creates a course, a student and an assignment, and returns the assign instance.
      *
      * @param bool $commentsenabled Whether the comments feedback plugin is enabled.
+     * @param array $options Extra assignment settings.
      * @return array [assign, student]
      */
-    private function create_assign_with_student(bool $commentsenabled): array {
+    private function create_assign_with_student(bool $commentsenabled, array $options = []): array {
         $course = $this->getDataGenerator()->create_course();
         $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
 
-        $instance = $this->getDataGenerator()->create_module('assign', [
+        $instance = $this->getDataGenerator()->create_module('assign', $options + [
             'course' => $course->id,
             'assignfeedback_comments_enabled' => $commentsenabled ? 1 : 0,
             'grade' => 100,
@@ -134,6 +135,7 @@ final class feedback_applier_test extends \advanced_testcase {
 
         $record = (object) [
             'userid' => $student->id,
+            'attemptnumber' => 0,
             'message' => '<p>AI feedback</p>',
             'grade' => 85,
             'rubric_response' => null,
@@ -146,5 +148,101 @@ final class feedback_applier_test extends \advanced_testcase {
         $grade = $assign->get_user_grade($student->id, false);
         $this->assertEquals(85.0, (float) $grade->grade);
         $this->assertFalse($DB->record_exists('assignfeedback_comments', ['grade' => $grade->id]));
+    }
+
+    /**
+     * The grade must attach to the attempt recorded by the AI, not the latest one.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_targets_record_attempt(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        [$assign, $student] = $this->create_assign_with_student(true, [
+            'maxattempts' => 3,
+            'attemptreopenmethod' => ASSIGN_ATTEMPT_REOPEN_METHOD_MANUAL,
+        ]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($assign->get_course(), 'editingteacher');
+
+        // Student submitted attempt 0 and was reopened into attempt 1.
+        $assign->get_user_submission($student->id, true, 0);
+        $assign->get_user_submission($student->id, true, 1);
+
+        $record = (object) [
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 85,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+        ];
+
+        feedback_applier::apply_ai_feedback($assign, $record, $teacher->id);
+        $this->resetDebugging();
+
+        $graderecord = $DB->get_record('assign_grades', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+            'attemptnumber' => 0,
+        ]);
+        $this->assertNotEmpty($graderecord);
+        $this->assertEquals(85.0, (float) $graderecord->grade);
+
+        // The in-progress attempt 1 must not receive the AI grade.
+        $latestgrade = $DB->get_record('assign_grades', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+        ]);
+        $this->assertTrue($latestgrade === false || (float) $latestgrade->grade === -1.0);
+    }
+
+    /**
+     * The grade propagates to the gradebook when the record targets the current later attempt.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_propagates_to_gradebook_on_later_attempt(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        [$assign, $student] = $this->create_assign_with_student(true, [
+            'maxattempts' => 3,
+            'attemptreopenmethod' => ASSIGN_ATTEMPT_REOPEN_METHOD_MANUAL,
+        ]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($assign->get_course(), 'editingteacher');
+
+        $assign->get_user_submission($student->id, true, 0);
+        $assign->get_user_submission($student->id, true, 1);
+
+        $record = (object) [
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+            'message' => '<p>AI feedback</p>',
+            'grade' => 90,
+            'rubric_response' => null,
+            'assessment_guide_response' => null,
+        ];
+
+        feedback_applier::apply_ai_feedback($assign, $record, $teacher->id);
+        $this->resetDebugging();
+
+        $graderecord = $DB->get_record('assign_grades', [
+            'assignment' => $assign->get_instance()->id,
+            'userid' => $student->id,
+            'attemptnumber' => 1,
+        ], '*', MUST_EXIST);
+        $this->assertEquals(90.0, (float) $graderecord->grade);
+
+        $gradinginfo = grade_get_grades(
+            $assign->get_course()->id,
+            'mod',
+            'assign',
+            $assign->get_instance()->id,
+            $student->id
+        );
+        $gradebookgrade = $gradinginfo->items[0]->grades[$student->id];
+        $this->assertEquals(90.0, (float) $gradebookgrade->grade);
     }
 }

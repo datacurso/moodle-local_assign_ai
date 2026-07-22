@@ -46,7 +46,9 @@ class feedback_applier {
         $debugmsg = '';
         $debugmsg .= "local_assign_ai_apply_ai_feedback: inicio.\n";
 
-        $grade = $assign->get_user_grade($record->userid, true);
+        // Target the attempt the AI actually reviewed; the default (-1) would bind
+        // the grade to the student's latest submission attempt instead.
+        $grade = $assign->get_user_grade($record->userid, true, (int) ($record->attemptnumber ?? -1));
         if (!$grade) {
             $debugmsg .= "No grade para userid={$record->userid}.\n";
             debugging($debugmsg, DEBUG_DEVELOPER);
