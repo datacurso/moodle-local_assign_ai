@@ -169,6 +169,11 @@ class assign_submission {
             $response = client::send_to_ai($payload);
 
             $message = $response['reply'] ?? null;
+            if ($message !== null) {
+                // The AI provider response is untrusted input: strip scripts/handlers
+                // before it is stored, rendered in the review modal or shown to students.
+                $message = clean_text($message, FORMAT_HTML);
+            }
             if (!feedback_applier::is_comments_plugin_active($this->assign)) {
                 // Feedback comments are disabled for this assignment: the message could
                 // never be delivered to the student, so it is not stored at all.
@@ -285,6 +290,11 @@ class assign_submission {
             $response = client::send_to_ai($payload);
 
             $message = $response['reply'] ?? null;
+            if ($message !== null) {
+                // The AI provider response is untrusted input: strip scripts/handlers
+                // before it is stored, rendered in the review modal or shown to students.
+                $message = clean_text($message, FORMAT_HTML);
+            }
             if (!feedback_applier::is_comments_plugin_active($this->assign)) {
                 // Feedback comments are disabled for this assignment: the message could
                 // never be delivered to the student, so it is not stored at all.

@@ -83,7 +83,10 @@ class update_response extends external_api {
         self::validate_context($context);
         require_capability('local/assign_ai:changestatus', $context);
 
-        $record->message = $params['message'];
+        // The message is edited in the browser and rendered back into the review modal,
+        // so strip any scripts/handlers before persisting (defence in depth on top of the
+        // template output escaping).
+        $record->message = clean_text($params['message'], FORMAT_HTML);
         $record->timemodified = time();
         $record->usermodified = $USER->id ?? $record->usermodified;
         $DB->update_record('local_assign_ai_pending', $record);
