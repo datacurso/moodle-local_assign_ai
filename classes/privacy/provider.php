@@ -165,20 +165,29 @@ class provider implements
         $instanceid = self::instanceid_for_cmid($cmid);
 
         // Pending: student (userid) and the teacher who last edited (usermodified).
-        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_assign_ai_pending} WHERE assignmentid = :cmid',
-            ['cmid' => $cmid]);
-        $userlist->add_from_sql('usermodified',
+        $userlist->add_from_sql(
+            'userid',
+            'SELECT userid FROM {local_assign_ai_pending} WHERE assignmentid = :cmid',
+            ['cmid' => $cmid]
+        );
+        $userlist->add_from_sql(
+            'usermodified',
             'SELECT usermodified FROM {local_assign_ai_pending} WHERE assignmentid = :cmid AND usermodified IS NOT NULL',
-            ['cmid' => $cmid]);
+            ['cmid' => $cmid]
+        );
 
         // Config: grader and last modifier.
         if ($instanceid) {
-            $userlist->add_from_sql('graderid',
+            $userlist->add_from_sql(
+                'graderid',
                 'SELECT graderid FROM {local_assign_ai_config} WHERE assignmentid = :aid AND graderid IS NOT NULL',
-                ['aid' => $instanceid]);
-            $userlist->add_from_sql('usermodified',
+                ['aid' => $instanceid]
+            );
+            $userlist->add_from_sql(
+                'usermodified',
                 'SELECT usermodified FROM {local_assign_ai_config} WHERE assignmentid = :aid AND usermodified IS NOT NULL',
-                ['aid' => $instanceid]);
+                ['aid' => $instanceid]
+            );
         }
 
         // Queue: userid embedded in the JSON payload.
@@ -319,17 +328,35 @@ class provider implements
         [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
 
         // Student-owned pending rows are deleted.
-        $DB->delete_records_select('local_assign_ai_pending', "assignmentid = :cmid AND userid $insql",
-            ['cmid' => $cmid] + $inparams);
+        $DB->delete_records_select(
+            'local_assign_ai_pending',
+            "assignmentid = :cmid AND userid $insql",
+            ['cmid' => $cmid] + $inparams
+        );
         // Teacher references on remaining pending rows are anonymised.
-        $DB->set_field_select('local_assign_ai_pending', 'usermodified', null,
-            "assignmentid = :cmid AND usermodified $insql", ['cmid' => $cmid] + $inparams);
+        $DB->set_field_select(
+            'local_assign_ai_pending',
+            'usermodified',
+            null,
+            "assignmentid = :cmid AND usermodified $insql",
+            ['cmid' => $cmid] + $inparams
+        );
 
         if ($instanceid) {
-            $DB->set_field_select('local_assign_ai_config', 'graderid', null,
-                "assignmentid = :aid AND graderid $insql", ['aid' => $instanceid] + $inparams);
-            $DB->set_field_select('local_assign_ai_config', 'usermodified', null,
-                "assignmentid = :aid AND usermodified $insql", ['aid' => $instanceid] + $inparams);
+            $DB->set_field_select(
+                'local_assign_ai_config',
+                'graderid',
+                null,
+                "assignmentid = :aid AND graderid $insql",
+                ['aid' => $instanceid] + $inparams
+            );
+            $DB->set_field_select(
+                'local_assign_ai_config',
+                'usermodified',
+                null,
+                "assignmentid = :aid AND usermodified $insql",
+                ['aid' => $instanceid] + $inparams
+            );
         }
 
         self::delete_queue_rows($cmid, $userids);
