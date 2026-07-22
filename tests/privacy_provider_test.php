@@ -27,6 +27,7 @@ namespace local_assign_ai;
 
 use context_system;
 use context_user;
+use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
@@ -45,6 +46,42 @@ final class privacy_provider_test extends provider_testcase {
         parent::setUp();
         $this->resetAfterTest();
         $this->setAdminUser();
+    }
+
+    /**
+     * MDL-INT-023: get_metadata() declares the local_assign_ai_pending table together with its
+     * personal data fields.
+     *
+     * @covers ::get_metadata
+     */
+    public function test_get_metadata(): void {
+        $collection = new collection('local_assign_ai');
+        $itemcollection = provider::get_metadata($collection)->get_collection();
+        $this->assertCount(1, $itemcollection);
+
+        $table = reset($itemcollection);
+        $this->assertInstanceOf(\core_privacy\local\metadata\types\database_table::class, $table);
+        $this->assertEquals('local_assign_ai_pending', $table->get_name());
+        $this->assertEquals('privacy:metadata:local_assign_ai_pending', $table->get_summary());
+
+        $fields = $table->get_privacy_fields();
+        $expected = ['userid', 'submissionid', 'message', 'grade', 'rubric_response', 'status', 'approval_token'];
+        foreach ($expected as $field) {
+            $this->assertArrayHasKey($field, $fields);
+        }
+    }
+
+    /**
+     * MDL-INT-023: The assignment configuration table stores user references (graderid and
+     * usermodified), so it should be declared in the privacy metadata as well.
+     *
+     * @covers ::get_metadata
+     */
+    public function test_config_table_should_be_declared_in_metadata(): void {
+        $this->markTestSkipped(
+            'Documented defect: local_assign_ai_config (graderid, usermodified) is not declared '
+            . 'in privacy metadata (MDL-INT-023).'
+        );
     }
 
     /**
@@ -92,7 +129,7 @@ final class privacy_provider_test extends provider_testcase {
     }
 
     /**
-     * Tests that export_user_data() exports user data correctly for approved contexts.
+     * MDL-INT-023: Tests that export_user_data() exports user data correctly for approved contexts.
      *
      * @covers ::export_user_data
      */
@@ -112,7 +149,7 @@ final class privacy_provider_test extends provider_testcase {
     }
 
     /**
-     * Tests that delete_data_for_all_users_in_context() removes all data for users in a context.
+     * MDL-INT-023: Tests that delete_data_for_all_users_in_context() removes all data for users in a context.
      *
      * @covers ::delete_data_for_all_users_in_context
      */
@@ -135,7 +172,7 @@ final class privacy_provider_test extends provider_testcase {
     }
 
     /**
-     * Tests that delete_data_for_user() deletes data for the specified user only.
+     * MDL-INT-023: Tests that delete_data_for_user() deletes data for the specified user only.
      *
      * @covers ::delete_data_for_user
      */
