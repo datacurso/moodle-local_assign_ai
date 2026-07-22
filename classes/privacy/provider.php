@@ -76,6 +76,14 @@ class provider implements
             'privacy:metadata:local_assign_ai_config'
         );
 
+        $collection->add_database_table(
+            'local_assign_ai_queue',
+            [
+                'payload' => 'privacy:metadata:local_assign_ai_queue:payload',
+            ],
+            'privacy:metadata:local_assign_ai_queue'
+        );
+
         // The submission data is sent to an external AI provider for grading/feedback.
         $collection->add_external_location_link(
             'datacurso_ai',
@@ -95,15 +103,48 @@ class provider implements
     /**
      * Get contexts containing user data for a specific user.
      *
+     * All personal data is scoped to the assignment (course module) it belongs to,
+     * so the relevant contexts are module contexts, not the user context.
+     *
      * @param int $userid
      * @return contextlist
      */
     public static function get_contexts_for_userid(int $userid): contextlist {
-        $contextlist = new contextlist();
-
         global $DB;
-        if ($DB->record_exists('local_assign_ai_pending', ['userid' => $userid])) {
-            $contextlist->add_user_context($userid);
+
+        $contextlist = new contextlist();
+        $assignmodule = (int) $DB->get_field('modules', 'id', ['name' => 'assign']);
+
+        // Pending records: pending.assignmentid holds the cmid.
+        $contextlist->add_from_sql(
+            "SELECT ctx.id
+               FROM {local_assign_ai_pending} p
+               JOIN {course_modules} cm ON cm.id = p.assignmentid
+               JOIN {context} ctx ON ctx.instanceid = cm.id AND ctx.contextlevel = :modlevel
+              WHERE p.userid = :uid1 OR p.usermodified = :uid2",
+            ['modlevel' => CONTEXT_MODULE, 'uid1' => $userid, 'uid2' => $userid]
+        );
+
+        // Config records: config.assignmentid holds the assign instance id.
+        $contextlist->add_from_sql(
+            "SELECT ctx.id
+               FROM {local_assign_ai_config} c
+               JOIN {course_modules} cm ON cm.instance = c.assignmentid AND cm.module = :assignmod
+               JOIN {context} ctx ON ctx.instanceid = cm.id AND ctx.contextlevel = :modlevel
+              WHERE c.graderid = :uid1 OR c.usermodified = :uid2",
+            ['assignmod' => $assignmodule, 'modlevel' => CONTEXT_MODULE, 'uid1' => $userid, 'uid2' => $userid]
+        );
+
+        // Queue rows carry the userid/cmid inside the JSON payload.
+        $cmids = self::queue_cmids_for_user($userid);
+        if (!empty($cmids)) {
+            [$insql, $inparams] = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED);
+            $contextlist->add_from_sql(
+                "SELECT ctx.id
+                   FROM {context} ctx
+                  WHERE ctx.contextlevel = :modlevel AND ctx.instanceid $insql",
+                ['modlevel' => CONTEXT_MODULE] + $inparams
+            );
         }
 
         return $contextlist;
@@ -115,16 +156,45 @@ class provider implements
      * @param userlist $userlist
      */
     public static function get_users_in_context(userlist $userlist) {
-        global $DB;
         $context = $userlist->get_context();
-
-        if (!$context instanceof \context_user) {
+        if (!$context instanceof \context_module) {
             return;
         }
 
-        $userid = $context->instanceid;
-        if ($DB->record_exists('local_assign_ai_pending', ['userid' => $userid])) {
-            $userlist->add_user($userid);
+        $cmid = (int) $context->instanceid;
+        $instanceid = self::instanceid_for_cmid($cmid);
+
+        // Pending: student (userid) and the teacher who last edited (usermodified).
+        $userlist->add_from_sql(
+            'userid',
+            'SELECT userid FROM {local_assign_ai_pending} WHERE assignmentid = :cmid',
+            ['cmid' => $cmid]
+        );
+        $userlist->add_from_sql(
+            'usermodified',
+            'SELECT usermodified FROM {local_assign_ai_pending} WHERE assignmentid = :cmid AND usermodified IS NOT NULL',
+            ['cmid' => $cmid]
+        );
+
+        // Config: grader and last modifier.
+        if ($instanceid) {
+            $userlist->add_from_sql(
+                'graderid',
+                'SELECT graderid FROM {local_assign_ai_config} WHERE assignmentid = :aid AND graderid IS NOT NULL',
+                ['aid' => $instanceid]
+            );
+            $userlist->add_from_sql(
+                'usermodified',
+                'SELECT usermodified FROM {local_assign_ai_config} WHERE assignmentid = :aid AND usermodified IS NOT NULL',
+                ['aid' => $instanceid]
+            );
+        }
+
+        // Queue: userid embedded in the JSON payload.
+        foreach (self::queue_payloads() as $data) {
+            if ((int) ($data->cmid ?? 0) === $cmid && !empty($data->userid)) {
+                $userlist->add_user((int) $data->userid);
+            }
         }
     }
 
@@ -137,18 +207,54 @@ class provider implements
         global $DB;
 
         $user = $contextlist->get_user();
-        $context = \context_user::instance($user->id);
 
-        $records = $DB->get_records('local_assign_ai_pending', ['userid' => $user->id]);
+        foreach ($contextlist->get_contexts() as $context) {
+            if (!$context instanceof \context_module) {
+                continue;
+            }
+            $cmid = (int) $context->instanceid;
+            $instanceid = self::instanceid_for_cmid($cmid);
 
-        if (empty($records)) {
-            return;
+            $pending = $DB->get_records_select(
+                'local_assign_ai_pending',
+                'assignmentid = :cmid AND (userid = :uid1 OR usermodified = :uid2)',
+                ['cmid' => $cmid, 'uid1' => $user->id, 'uid2' => $user->id]
+            );
+            if (!empty($pending)) {
+                writer::with_context($context)->export_data(
+                    [get_string('privacy:metadata:local_assign_ai_pending', 'local_assign_ai')],
+                    (object) ['entries' => array_values($pending)]
+                );
+            }
+
+            if ($instanceid) {
+                $config = $DB->get_records_select(
+                    'local_assign_ai_config',
+                    'assignmentid = :aid AND (graderid = :uid1 OR usermodified = :uid2)',
+                    ['aid' => $instanceid, 'uid1' => $user->id, 'uid2' => $user->id]
+                );
+                if (!empty($config)) {
+                    writer::with_context($context)->export_data(
+                        [get_string('privacy:metadata:local_assign_ai_config', 'local_assign_ai')],
+                        (object) ['entries' => array_values($config)]
+                    );
+                }
+            }
+
+            $queue = [];
+            foreach (self::queue_payloads(true) as $row) {
+                $data = json_decode($row->payload);
+                if ($data && (int) ($data->cmid ?? 0) === $cmid && (int) ($data->userid ?? 0) === (int) $user->id) {
+                    $queue[] = $row;
+                }
+            }
+            if (!empty($queue)) {
+                writer::with_context($context)->export_data(
+                    [get_string('privacy:metadata:local_assign_ai_queue', 'local_assign_ai')],
+                    (object) ['entries' => array_values($queue)]
+                );
+            }
         }
-
-        writer::with_context($context)->export_data(
-            [get_string('privacy:metadata:local_assign_ai_pending', 'local_assign_ai')],
-            (object)['entries' => array_values($records)]
-        );
     }
 
     /**
@@ -159,22 +265,30 @@ class provider implements
     public static function delete_data_for_all_users_in_context(context $context) {
         global $DB;
 
-        if ($context->contextlevel == CONTEXT_USER) {
-            $DB->delete_records('local_assign_ai_pending', ['userid' => $context->instanceid]);
+        if ($context->contextlevel != CONTEXT_MODULE) {
+            return;
         }
+
+        $cmid = (int) $context->instanceid;
+        $instanceid = self::instanceid_for_cmid($cmid);
+
+        $DB->delete_records('local_assign_ai_pending', ['assignmentid' => $cmid]);
+        if ($instanceid) {
+            $DB->delete_records('local_assign_ai_config', ['assignmentid' => $instanceid]);
+        }
+        self::delete_queue_rows($cmid);
     }
 
     /**
-     * Delete all data for the specified user.
+     * Delete all data for the specified user across the approved contexts.
      *
      * @param approved_contextlist $contextlist
      */
     public static function delete_data_for_user(approved_contextlist $contextlist) {
-        global $DB;
-
+        $user = $contextlist->get_user();
         foreach ($contextlist->get_contexts() as $context) {
-            if ($context->contextlevel == CONTEXT_USER) {
-                $DB->delete_records('local_assign_ai_pending', ['userid' => $context->instanceid]);
+            if ($context instanceof \context_module) {
+                self::delete_users_in_module($context, [(int) $user->id]);
             }
         }
     }
@@ -185,11 +299,140 @@ class provider implements
      * @param approved_userlist $userlist
      */
     public static function delete_data_for_users(approved_userlist $userlist) {
+        $context = $userlist->get_context();
+        if ($context instanceof \context_module) {
+            self::delete_users_in_module($context, array_map('intval', $userlist->get_userids()));
+        }
+    }
+
+    /**
+     * Deletes/anonymises the given users' data within one module context.
+     *
+     * The student's own pending records are removed. When a user only appears as an
+     * actor (usermodified/graderid), the reference is nulled rather than deleting the
+     * underlying record, which belongs to the student or the assignment.
+     *
+     * @param \context_module $context The module context.
+     * @param int[] $userids User ids to remove.
+     * @return void
+     */
+    private static function delete_users_in_module(\context_module $context, array $userids): void {
         global $DB;
 
-        $context = $userlist->get_context();
-        if ($context instanceof \context_user) {
-            $DB->delete_records('local_assign_ai_pending', ['userid' => $context->instanceid]);
+        if (empty($userids)) {
+            return;
+        }
+
+        $cmid = (int) $context->instanceid;
+        $instanceid = self::instanceid_for_cmid($cmid);
+        [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+
+        // Student-owned pending rows are deleted.
+        $DB->delete_records_select(
+            'local_assign_ai_pending',
+            "assignmentid = :cmid AND userid $insql",
+            ['cmid' => $cmid] + $inparams
+        );
+        // Teacher references on remaining pending rows are anonymised.
+        $DB->set_field_select(
+            'local_assign_ai_pending',
+            'usermodified',
+            null,
+            "assignmentid = :cmid AND usermodified $insql",
+            ['cmid' => $cmid] + $inparams
+        );
+
+        if ($instanceid) {
+            $DB->set_field_select(
+                'local_assign_ai_config',
+                'graderid',
+                null,
+                "assignmentid = :aid AND graderid $insql",
+                ['aid' => $instanceid] + $inparams
+            );
+            $DB->set_field_select(
+                'local_assign_ai_config',
+                'usermodified',
+                null,
+                "assignmentid = :aid AND usermodified $insql",
+                ['aid' => $instanceid] + $inparams
+            );
+        }
+
+        self::delete_queue_rows($cmid, $userids);
+    }
+
+    /**
+     * Resolves the assign instance id for a course-module id.
+     *
+     * @param int $cmid Course module id.
+     * @return int|null Instance id, or null if the module no longer exists.
+     */
+    private static function instanceid_for_cmid(int $cmid): ?int {
+        $cm = get_coursemodule_from_id('assign', $cmid, 0, false, IGNORE_MISSING);
+        return $cm ? (int) $cm->instance : null;
+    }
+
+    /**
+     * Returns the decoded payloads of all queue rows (or the raw rows).
+     *
+     * @param bool $raw When true, returns the raw DB rows instead of decoded payloads.
+     * @return array
+     */
+    private static function queue_payloads(bool $raw = false): array {
+        global $DB;
+        $rows = $DB->get_records('local_assign_ai_queue');
+        if ($raw) {
+            return $rows;
+        }
+        $out = [];
+        foreach ($rows as $row) {
+            $data = json_decode($row->payload);
+            if ($data) {
+                $out[] = $data;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Returns the cmids referenced by queue rows for a given user.
+     *
+     * @param int $userid User id.
+     * @return int[]
+     */
+    private static function queue_cmids_for_user(int $userid): array {
+        $cmids = [];
+        foreach (self::queue_payloads() as $data) {
+            if ((int) ($data->userid ?? 0) === $userid && !empty($data->cmid)) {
+                $cmids[(int) $data->cmid] = (int) $data->cmid;
+            }
+        }
+        return array_values($cmids);
+    }
+
+    /**
+     * Deletes queue rows for a cmid, optionally restricted to given users.
+     *
+     * @param int $cmid Course module id.
+     * @param int[]|null $userids When given, only rows for these users are removed.
+     * @return void
+     */
+    private static function delete_queue_rows(int $cmid, ?array $userids = null): void {
+        global $DB;
+        $ids = [];
+        foreach (self::queue_payloads(true) as $row) {
+            $data = json_decode($row->payload);
+            if (!$data || (int) ($data->cmid ?? 0) !== $cmid) {
+                continue;
+            }
+            if ($userids !== null && !in_array((int) ($data->userid ?? 0), $userids, true)) {
+                continue;
+            }
+            $ids[] = $row->id;
+        }
+        if (!empty($ids)) {
+            $DB->delete_records_list('local_assign_ai_queue', 'id', $ids);
         }
     }
 }
