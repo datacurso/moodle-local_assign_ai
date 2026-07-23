@@ -141,7 +141,9 @@ final class backup_restore_test extends \advanced_testcase {
         $bc->destroy();
 
         $newcourseid = \restore_dbops::create_new_course(
-            $course->fullname, $course->shortname . '_r', $course->category
+            $course->fullname,
+            $course->shortname . '_r',
+            $course->category
         );
         $rc = new \restore_controller(
             $backupid,
