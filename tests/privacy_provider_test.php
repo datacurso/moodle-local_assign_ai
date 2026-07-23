@@ -34,7 +34,7 @@ use core_privacy\tests\provider_testcase;
 use local_assign_ai\privacy\provider;
 
 /**
- * Behavioural tests for the privacy provider under the module-context model.
+ * Behavioural tests for the privacy provider under the module-context model (MDL-INT-023).
  *
  * @coversDefaultClass \local_assign_ai\privacy\provider
  * @group local_assign_ai

@@ -647,7 +647,7 @@ final class feedback_applier_test extends \advanced_testcase {
     }
 
     /**
-     * MDL-INT-032: With marking workflow enabled, applying AI feedback advances the student's
+     * MDL-INT-033: With marking workflow enabled, applying AI feedback advances the student's
      * workflow state to released so the grade reaches the gradebook.
      *
      * @covers ::apply_ai_feedback

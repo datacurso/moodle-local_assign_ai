@@ -30,7 +30,7 @@ use core_privacy\local\metadata\types\database_table;
 use core_privacy\local\metadata\types\external_location;
 
 /**
- * Tests that the external AI transfer is declared in the Privacy API.
+ * Tests that the external AI transfer is declared in the Privacy API (MDL-INT-023).
  *
  * @coversDefaultClass \local_assign_ai\privacy\provider
  * @group local_assign_ai

@@ -28,7 +28,7 @@ namespace local_assign_ai;
 use local_assign_ai\task\retry_failed_submissions;
 
 /**
- * Unit tests for failure handling: retry policy and exhausted-retries notification.
+ * Unit tests for failure handling: retry policy and exhausted-retries notification (MDL-INT-032).
  *
  * @coversDefaultClass \local_assign_ai\assign_submission
  * @group local_assign_ai
@@ -93,7 +93,7 @@ final class failure_notification_test extends \advanced_testcase {
     }
 
     /**
-     * When retries are exhausted, the configured grader receives a notification.
+     * MDL-INT-032: When retries are exhausted, the configured grader receives a notification.
      *
      * @covers ::register_failure
      */
@@ -117,7 +117,7 @@ final class failure_notification_test extends \advanced_testcase {
     }
 
     /**
-     * While retries remain, no notification is sent.
+     * MDL-INT-032: While retries remain, no notification is sent.
      *
      * @covers ::register_failure
      */
@@ -135,7 +135,7 @@ final class failure_notification_test extends \advanced_testcase {
     }
 
     /**
-     * A failed record enters the automatic retry policy.
+     * MDL-INT-032: A failed record enters the automatic retry policy.
      *
      * @covers \local_assign_ai\task\retry_failed_submissions::execute
      */
