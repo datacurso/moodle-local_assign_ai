@@ -81,6 +81,7 @@ $string['enableassignai'] = 'Aktifkan Tugas AI';
 $string['enableassignai_desc'] = 'Jika dinonaktifkan, bagian "Datacurso Assign AI" disembunyikan dari pengaturan aktivitas tugas dan pemrosesan otomatis dijeda.';
 $string['error_advancedresponsemissing'] = 'Tugas ini dinilai dengan metode lanjutan ({$a}) tetapi respons AI tidak berisi data untuk metode tersebut. Nilai tidak diterapkan.';
 $string['error_airequest'] = 'Kesalahan saat berkomunikasi dengan layanan AI: {$a}';
+$string['error_generic'] = 'Peninjauan AI gagal. Periksa log riwayat AI untuk detailnya.';
 $string['error_guidemismatch'] = 'Respons AI tidak cocok dengan panduan penilaian tugas ini. Nilai tidak diterapkan. Kriteria yang tidak cocok: {$a}';
 $string['error_processing_timeout'] = 'Pemrosesan melebihi batas waktu tanpa respons; silakan coba lagi.';
 $string['error_rubricmismatch'] = 'Respons AI tidak cocok dengan rubrik tugas ini. Nilai tidak diterapkan. Kriteria yang tidak cocok: {$a}';

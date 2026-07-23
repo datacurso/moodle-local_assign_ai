@@ -81,6 +81,7 @@ $string['enableassignai'] = 'Assign AI aktivieren';
 $string['enableassignai_desc'] = 'Wenn deaktiviert, wird der Abschnitt "Datacurso Assign AI" in den Aufgabeneinstellungen ausgeblendet und die automatische Verarbeitung pausiert.';
 $string['error_advancedresponsemissing'] = 'Die Aufgabe wird mit einer erweiterten Methode ({$a}) bewertet, aber die KI-Antwort enthält keine Daten dafür. Die Bewertung wurde nicht übernommen.';
 $string['error_airequest'] = 'Fehler bei der Kommunikation mit dem KI-Dienst: {$a}';
+$string['error_generic'] = 'Die KI-Überprüfung ist fehlgeschlagen. Weitere Details finden Sie im KI-Verlaufsprotokoll.';
 $string['error_guidemismatch'] = 'Die KI-Antwort stimmt nicht mit der Bewertungsrichtlinie dieser Aufgabe überein. Die Bewertung wurde nicht übernommen. Nicht übereinstimmende Kriterien: {$a}';
 $string['error_processing_timeout'] = 'Die Verarbeitung hat das Zeitlimit ohne Antwort überschritten; bitte erneut versuchen.';
 $string['error_rubricmismatch'] = 'Die KI-Antwort stimmt nicht mit der Rubrik dieser Aufgabe überein. Die Bewertung wurde nicht übernommen. Nicht übereinstimmende Kriterien: {$a}';

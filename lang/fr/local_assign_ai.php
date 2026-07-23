@@ -81,6 +81,7 @@ $string['enableassignai'] = 'Activer Assign AI';
 $string['enableassignai_desc'] = 'Si désactivé, la section "Datacurso Assign AI" est masquée dans les paramètres de l’activité devoir et le traitement automatique est mis en pause.';
 $string['error_advancedresponsemissing'] = 'Le devoir est évalué avec une méthode avancée ({$a}), mais la réponse de l’IA ne contient aucune donnée pour cette méthode. La note n’a pas été appliquée.';
 $string['error_airequest'] = 'Erreur de communication avec le service IA : {$a}';
+$string['error_generic'] = 'La révision par IA a échoué. Consultez le journal de l’historique IA pour plus de détails.';
 $string['error_guidemismatch'] = 'La réponse de l’IA ne correspond pas au guide d’évaluation de ce devoir. La note n’a pas été appliquée. Critères sans correspondance : {$a}';
 $string['error_processing_timeout'] = 'Le traitement a expiré sans réponse ; veuillez réessayer.';
 $string['error_rubricmismatch'] = 'La réponse de l’IA ne correspond pas à la grille d’évaluation de ce devoir. La note n’a pas été appliquée. Critères sans correspondance : {$a}';

@@ -527,6 +527,31 @@ class assign_submission {
     }
 
     /**
+     * Builds a teacher-safe message for a failure.
+     *
+     * Localized exceptions from our own first-party components (this plugin and the
+     * Datacurso AI provider) are curated and safe to display, so they are preserved
+     * (rebuilt from their string to drop any developer debuginfo). Any other error
+     * (raw PHP, network, core or third-party) may carry operational detail and is
+     * replaced by a generic message; the full detail is only written to the log.
+     *
+     * @param \Throwable $e The error that occurred.
+     * @return string A message safe to store and show in the UI.
+     */
+    public static function ui_error_message(\Throwable $e): string {
+        $trusted = ['local_assign_ai', 'aiprovider_datacurso'];
+        if (
+            $e instanceof \moodle_exception
+            && in_array($e->module, $trusted, true)
+            && get_string_manager()->string_exists($e->errorcode, $e->module)
+        ) {
+            return get_string($e->errorcode, $e->module, $e->a ?? null);
+        }
+
+        return get_string('error_generic', 'local_assign_ai');
+    }
+
+    /**
      * Record a processing failure in the AI log.
      *
      * Always emits a developer debugging message and, when possible, persists the failure
@@ -540,18 +565,23 @@ class assign_submission {
      * @return void
      */
     public static function register_failure(\Throwable $e, ?int $pendingid = null, ?stdClass $recorddata = null): void {
+        // Full technical detail goes to the developer log only (protected).
         debugging('local_assign_ai processing failure: ' . $e->getMessage(), DEBUG_DEVELOPER);
+
+        // The stored message is teacher-facing (history report, progress bar), so use a
+        // sanitised version that never leaks provider/network/internal detail.
+        $uimessage = self::ui_error_message($e);
 
         try {
             if ($pendingid) {
                 self::update_pending_submission($pendingid, [
                     'status' => self::STATUS_FAILED,
-                    'errormessage' => $e->getMessage(),
+                    'errormessage' => $uimessage,
                 ]);
                 self::maybe_notify_grading_failure($pendingid);
             } else if ($recorddata !== null) {
                 $recorddata->status = self::STATUS_FAILED;
-                $recorddata->errormessage = $e->getMessage();
+                $recorddata->errormessage = $uimessage;
                 if (!empty($recorddata->submissionid)) {
                     self::upsert_attempt_record($recorddata);
                 } else {
