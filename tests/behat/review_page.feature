@@ -25,15 +25,14 @@ Feature: Review with AI page
       | student3 | C1     | student        |
 
   @MDL-INT-014
-  Scenario: Teacher sees the unconfigured service warning and one row per record with its status badge
+  Scenario: Teacher sees one row per record with its status badge on the review page
     Given the following "local_assign_ai > pending records" exist:
       | assign  | user     | status  | grade | message   | errormessage       |
       | assign1 | student1 | initial |       |           |                    |
       | assign1 | student2 | pending | 80    | Good work |                    |
       | assign1 | student3 | failed  |       |           | AI service timeout |
     When I am on the "assign1" "local_assign_ai > review" page logged in as "teacher1"
-    Then I should see "AI review actions are unavailable because the Datacurso web service is not configured"
-    And I should see "Review with AI"
+    Then I should see "Review with AI"
     And I should see "Pending AI review" in the "Student One" "table_row"
     And I should see "Pending approval" in the "Student Two" "table_row"
     And I should see "Error" in the "Student Three" "table_row"

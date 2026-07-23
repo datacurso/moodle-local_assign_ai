@@ -63,6 +63,10 @@ final class pending_features_test extends \advanced_testcase {
             'introformat' => FORMAT_HTML,
         ]);
         $DB->get_manager()->reset_sequence('assign');
+        // Remove the filler so it does not confuse assign::cron() or other
+        // Moodle subsystems that iterate all assign rows expecting a valid
+        // course_modules entry.
+        $DB->delete_records('assign', ['id' => $id]);
     }
 
     /**

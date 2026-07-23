@@ -9,8 +9,8 @@ Feature: AI feedback modal on the review page
       | fullname | shortname | category |
       | Course 1 | C1        | 0        |
     And the following "activities" exist:
-      | activity | course | name        | idnumber |
-      | assign   | C1     | Test assign | assign1  |
+      | activity | course | name        | idnumber | assignfeedback_comments_enabled |
+      | assign   | C1     | Test assign | assign1  | 1                               |
     And the following "users" exist:
       | username | firstname | lastname | email                |
       | teacher1 | Teacher   | One      | teacher1@example.com |
