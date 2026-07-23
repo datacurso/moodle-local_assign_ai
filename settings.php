@@ -52,22 +52,15 @@ if ($hassiteconfig) {
             1
         ));
 
-        $globalenableaisetting = new admin_setting_configcheckbox(
+        // Disabling this setting pauses all AI functionality at runtime through
+        // assignment_config::get_effective(); stored per-assignment configuration is
+        // preserved so re-enabling restores every assignment's original behaviour.
+        $settings->add(new admin_setting_configcheckbox(
             'local_assign_ai/defaultenableai',
             get_string('defaultenableai', 'local_assign_ai'),
             get_string('defaultenableai_desc', 'local_assign_ai'),
             1
-        );
-        $globalenableaisetting->set_updatedcallback(function (string $settingname): void {
-            if ($settingname !== 'local_assign_ai/defaultenableai') {
-                return;
-            }
-
-            if (!\local_assign_ai\config\assignment_config::is_global_ai_enabled()) {
-                \local_assign_ai\config\assignment_config::disable_all_assignments_ai();
-            }
-        });
-        $settings->add($globalenableaisetting);
+        ));
 
         $settings->add(new admin_setting_configcheckbox(
             'local_assign_ai/defaultautograde',
