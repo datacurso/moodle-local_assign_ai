@@ -88,5 +88,6 @@ $functions = [
         'description' => 'Get AI approval token for a given user id',
         'type' => 'read',
         'ajax' => true,
+        'capabilities' => 'local/assign_ai:review',
     ],
 ];

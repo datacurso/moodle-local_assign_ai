@@ -19,7 +19,6 @@ namespace local_assign_ai\task;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
-require_once($CFG->libdir . '/externallib.php');
 
 use core\task\adhoc_task;
 use local_assign_ai\api\client;

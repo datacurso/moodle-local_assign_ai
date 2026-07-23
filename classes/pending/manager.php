@@ -104,7 +104,7 @@ class manager {
 
         $update = (object) [
             'id' => $record->id,
-            'grade' => $grade->grade,
+            'grade' => (int) $grade->grade,
             'message' => $message,
             'rubric_response' => $rubricresponse,
             'assessment_guide_response' => $assessmentguideresponse,
