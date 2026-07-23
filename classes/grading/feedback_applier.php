@@ -369,11 +369,20 @@ class feedback_applier {
         }
 
         $instancegrade = (float) $assign->get_instance()->grade;
-        if ($instancegrade <= 0) {
-            return false; // Scales not supported for automatic numeric grading yet.
+        if ($instancegrade < 0) {
+            // Scale: translate the AI numeric value to a valid 1-based scale index.
+            $scalemenu = advanced_grading::get_grade_menu($assign);
+            $n = count($scalemenu);
+            if ($n < 1) {
+                return false;
+            }
+            $grade->grade = max(1, min((int) round((float) $record->grade), $n));
+        } else if ($instancegrade > 0) {
+            $grade->grade = max(0, min((float) $record->grade, $instancegrade));
+        } else {
+            return false; // "No grade" type: nothing to apply.
         }
 
-        $grade->grade = max(0, min((float) $record->grade, $instancegrade));
         $grade->grader = $graderid;
 
         self::advance_marking_workflow($assign, $record->userid);

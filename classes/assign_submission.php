@@ -765,6 +765,13 @@ class assign_submission {
             }
         }
 
+        // For scale assignments assign->grade is negative (-scaleid); send the number of
+        // scale points so the AI returns a value in [1..N] instead of a meaningless negative.
+        $maxgrade = (int) $assignment->grade;
+        if ($maxgrade < 0) {
+            $maxgrade = count(advanced_grading::get_grade_menu($this->assign));
+        }
+
         return [
             'course_id' => $course->id,
             'course' => $course->fullname,
@@ -781,7 +788,7 @@ class assign_submission {
             'student_name' => fullname($this->user),
             'submission_assign' => self::get_submission_text($this->submission),
             'submission_files' => $this->get_submission_files(),
-            'maximum_grade' => $assignment->grade,
+            'maximum_grade' => $maxgrade,
             'prompt' => $config->prompt,
             'lang' => $config->lang,
         ];

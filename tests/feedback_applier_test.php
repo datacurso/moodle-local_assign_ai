@@ -519,13 +519,13 @@ final class feedback_applier_test extends \advanced_testcase {
     }
 
     /**
-     * MDL-INT-007: When the assignment is graded with a scale, the numeric AI grade is not applied
-     * (the user grade stays ungraded) while the AI message is still stored as feedback.
+     * MDL-INT-007: When the assignment is graded with a scale, the numeric AI grade is translated
+     * into the matching 1-based scale item and applied, while the AI message is still stored.
      *
      * @covers ::apply_ai_feedback
      * @covers ::apply_simple_grading
      */
-    public function test_simple_grading_with_scale_does_not_push_grade(): void {
+    public function test_simple_grading_with_scale_pushes_translated_grade(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -551,10 +551,10 @@ final class feedback_applier_test extends \advanced_testcase {
         ]);
         feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
 
-        // No scale grade is pushed: the auto-created user grade stays at the ungraded marker.
+        // The AI value 2 maps to scale item 2 ("Average") and is applied.
         $grade = $assign->get_user_grade($student->id, false);
         $this->assertNotEmpty($grade);
-        $this->assertEquals(-1.0, (float) $grade->grade);
+        $this->assertEquals(2.0, (float) $grade->grade);
 
         // The AI message is still stored as feedback comments.
         $feedback = $DB->get_record('assignfeedback_comments', ['grade' => $grade->id], '*', MUST_EXIST);
@@ -602,15 +602,48 @@ final class feedback_applier_test extends \advanced_testcase {
     }
 
     /**
-     * MDL-INT-007: The numeric AI grade should be translated into the matching scale item when the
-     * assignment is graded with a scale.
+     * MDL-INT-007: An out-of-range AI grade is clamped to a valid 1-based scale index.
      *
      * @covers ::apply_simple_grading
      */
-    public function test_scale_grade_translation_is_not_implemented(): void {
-        $this->markTestSkipped(
-            'Pending: translating the AI numeric grade to a scale item is not implemented (MDL-INT-007).'
-        );
+    public function test_scale_grade_is_translated_and_clamped(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $scaledef = 'Poor, Average, Good'; // Three items: valid indexes are 1..3.
+
+        // Above the top of the scale is clamped down to the last item (3).
+        $this->assertEquals(3.0, $this->apply_scale_grade($scaledef, 5, 4070));
+        // Below the bottom (0) is clamped up to the first item (1).
+        $this->assertEquals(1.0, $this->apply_scale_grade($scaledef, 0, 4080));
+    }
+
+    /**
+     * Applies an AI grade on a fresh scale assignment and returns the stored user grade.
+     *
+     * @param string $scaledef Comma-separated scale definition.
+     * @param int $aigrade Numeric grade returned by the AI.
+     * @param int $seq Unique sequence bump to isolate the assignment.
+     * @return float The resulting assign_grades.grade value.
+     */
+    private function apply_scale_grade(string $scaledef, int $aigrade, int $seq): float {
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $scale = $this->getDataGenerator()->create_scale(['scale' => $scaledef]);
+        $this->bump_assign_sequence($seq, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'grade' => -((int) $scale->id),
+        ]);
+        $this->add_submission($student, $assign, 'Essay');
+
+        $record = $this->create_pending_record($assign, $student, ['grade' => $aigrade, 'message' => 'x']);
+        feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
+        $this->resetDebugging();
+
+        return (float) $assign->get_user_grade($student->id, false)->grade;
     }
 
     /**
