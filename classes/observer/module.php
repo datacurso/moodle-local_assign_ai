@@ -64,7 +64,20 @@ class module {
                 'assignmentid' => $cmid,
             ]);
 
-            $DB->delete_records('local_assign_ai_queue');
+            // Only remove queue rows for THIS activity, not the whole plugin queue.
+            // The cmid lives inside the JSON payload, so decode and match in PHP: this is
+            // database-agnostic (no LIKE) and exact (avoids 5-vs-50 false positives). The
+            // queue only holds delayed submissions awaiting processing, so it stays small.
+            $todelete = [];
+            foreach ($DB->get_records('local_assign_ai_queue') as $row) {
+                $data = json_decode($row->payload);
+                if ($data && (int) ($data->cmid ?? 0) === (int) $cmid) {
+                    $todelete[] = $row->id;
+                }
+            }
+            if (!empty($todelete)) {
+                $DB->delete_records_list('local_assign_ai_queue', 'id', $todelete);
+            }
         } catch (\Exception $e) {
             debugging('Exception in course_module_deleted observer: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
