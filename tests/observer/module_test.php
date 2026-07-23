@@ -134,8 +134,20 @@ final class module_test extends \advanced_testcase {
         $this->ensure_config($instancea->id);
         $this->ensure_config($instanceb->id);
 
-        // Delete activity A (fires the observer through the real event).
-        course_delete_module($cma->id);
+        // Invoke the observer with the module-deleted event for activity A. Calling the
+        // callback directly (instead of course_delete_module) keeps the test focused on
+        // this plugin's logic and free of core's deletion plumbing, which behaves
+        // differently across databases.
+        $event = \core\event\course_module_deleted::create([
+            'courseid' => $course->id,
+            'context' => \context_module::instance($cma->id),
+            'objectid' => (int) $cma->id,
+            'other' => [
+                'modulename' => 'assign',
+                'instanceid' => (int) $instancea->id,
+            ],
+        ]);
+        module::course_module_deleted($event);
 
         // Activity A data is gone.
         $this->assertFalse($DB->record_exists('local_assign_ai_queue', ['id' => $queuea]));
