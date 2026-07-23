@@ -161,8 +161,8 @@ class restore_local_assign_ai_plugin extends restore_local_plugin {
                 $record->errormessage = $recorddata->errormessage ?? null;
                 $record->status = $recorddata->status;
 
-                // Always generate a new approval token to avoid duplicates with the original backup.
-                $record->approval_token = md5(uniqid('restored_', true));
+                // Always generate a new, strong approval token to avoid duplicates with the original backup.
+                $record->approval_token = \local_assign_ai\assign_submission::generate_approval_token();
 
                 // Set timestamps.
                 if (!empty($recorddata->timecreated)) {

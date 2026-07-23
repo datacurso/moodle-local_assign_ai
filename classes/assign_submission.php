@@ -356,6 +356,18 @@ class assign_submission {
     }
 
     /**
+     * Generates a strong approval token.
+     *
+     * Uses Moodle's CSPRNG-backed random_string() at the full column length (64), so
+     * the token has high entropy instead of the previous short/md5(uniqid) values.
+     *
+     * @return string A 64-character random token.
+     */
+    public static function generate_approval_token(): string {
+        return random_string(64);
+    }
+
+    /**
      * Create a pending AI submission record.
      *
      * Expects a record object with the following fields:
@@ -383,7 +395,7 @@ class assign_submission {
         try {
             $now = time();
             if (empty($record->approval_token)) {
-                $record->approval_token = random_string(10);
+                $record->approval_token = self::generate_approval_token();
             }
             $record->status = $record->status ?? self::STATUS_PENDING;
             $record->usermodified = $USER->id;

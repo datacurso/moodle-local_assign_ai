@@ -131,5 +131,7 @@ final class backup_restore_test extends \advanced_testcase {
         $this->assertSame('<p>AI feedback</p>', $restored->message);
         $this->assertEquals(80, (int) $restored->grade);
         $this->assertSame(assign_submission::STATUS_PENDING, $restored->status);
+        // The restored token must be regenerated with the strong 64-char generator.
+        $this->assertSame(64, strlen($restored->approval_token));
     }
 }
