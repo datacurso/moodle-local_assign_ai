@@ -209,7 +209,8 @@ final class pending_features_test extends \advanced_testcase {
             'message' => 'Below pass threshold',
         ]);
 
-        $this->redirectMessages();
+        // Switch to teacher — update_grade requires mod/assign:grade in module context.
+        $this->setUser($teacher);
         feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
         $this->resetDebugging();
 
@@ -275,6 +276,8 @@ final class pending_features_test extends \advanced_testcase {
             'message' => 'Good work!',
         ]);
 
+        // Switch to teacher — update_grade requires mod/assign:grade in module context.
+        $this->setUser($teacher);
         $this->redirectMessages();
         feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
         $this->resetDebugging();

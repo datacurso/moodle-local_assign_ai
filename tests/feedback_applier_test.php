@@ -319,9 +319,13 @@ final class feedback_applier_test extends \advanced_testcase {
             ]),
         ]);
 
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('does not match the rubric');
-        feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
+        try {
+            feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
+            $this->fail('Expected moodle_exception was not thrown');
+        } catch (\moodle_exception $e) {
+            $this->resetDebugging();
+            $this->assertStringContainsString('does not match the rubric', $e->getMessage());
+        }
     }
 
     /**
@@ -467,9 +471,13 @@ final class feedback_applier_test extends \advanced_testcase {
             ]),
         ]);
 
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('does not match the marking guide');
-        feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
+        try {
+            feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
+            $this->fail('Expected moodle_exception was not thrown');
+        } catch (\moodle_exception $e) {
+            $this->resetDebugging();
+            $this->assertStringContainsString('does not match the marking guide', $e->getMessage());
+        }
     }
 
     /**
