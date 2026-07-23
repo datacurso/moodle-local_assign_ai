@@ -19,7 +19,6 @@ namespace local_assign_ai\task;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
-require_once($CFG->libdir . '/externallib.php');
 
 use core\task\adhoc_task;
 use local_assign_ai\api\client;
@@ -58,6 +57,9 @@ class process_all_submissions extends adhoc_task {
             return;
         }
 
+        // Teacher who triggered "Review all" — used as the consumption/rate-limit owner.
+        $reviewerid = isset($data->reviewerid) ? (int) $data->reviewerid : null;
+
         $cm = get_coursemodule_from_id('assign', $data->cmid, 0, false, MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $data->courseid], '*', MUST_EXIST);
         $context = \context_module::instance($cm->id);
@@ -93,6 +95,7 @@ class process_all_submissions extends adhoc_task {
                     $assign,
                     !empty($pending->submissionid) ? (int) $pending->submissionid : null
                 );
+                $proc->set_reviewerid($reviewerid);
                 $proc->process_submission_ai_review($pending->id);
 
                 $processed++;

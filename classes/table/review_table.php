@@ -81,7 +81,7 @@ class review_table extends \table_sql {
 
         [$insql, $inparams] = $this->build_status_sql();
         $this->set_sql(
-            'p.id, p.courseid, p.assignmentid, p.userid, p.message, p.grade, p.status AS aistatus, p.timemodified, '
+            'p.id, p.courseid, p.assignmentid, p.userid, p.message, p.grade, p.status AS aistatus, p.errormessage, p.timemodified, '
             . 'u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename, u.email',
             '{local_assign_ai_pending} p JOIN {user} u ON u.id = p.userid',
             'p.courseid = :courseid AND p.assignmentid = :assignmentid AND p.status ' . $insql
@@ -109,6 +109,7 @@ class review_table extends \table_sql {
             assign_submission::STATUS_PROCESSING,
             assign_submission::STATUS_PENDING,
             assign_submission::STATUS_REJECTED,
+            assign_submission::STATUS_FAILED,
         ], SQL_PARAMS_NAMED, 'st');
     }
 
@@ -124,6 +125,7 @@ class review_table extends \table_sql {
             assign_submission::STATUS_QUEUED => 'js-review-row js-row-queued',
             assign_submission::STATUS_PROCESSING => 'js-review-row js-row-inprogress',
             assign_submission::STATUS_REJECTED => 'js-review-row js-row-rejected',
+            assign_submission::STATUS_FAILED => 'js-review-row js-row-failed',
             default => 'js-review-row js-row-pending',
         };
     }
@@ -268,6 +270,15 @@ class review_table extends \table_sql {
                 'badge bg-danger',
                 get_string('statusrejected', 'local_assign_ai'),
                 get_string('statusrejected', 'local_assign_ai')
+            );
+        }
+
+        if ($status === assign_submission::STATUS_FAILED) {
+            $errormessage = trim((string) ($row->errormessage ?? ''));
+            return $this->render_state(
+                'badge bg-danger',
+                get_string('statuserror', 'local_assign_ai'),
+                $errormessage !== '' ? $errormessage : get_string('processingerror', 'local_assign_ai')
             );
         }
 
