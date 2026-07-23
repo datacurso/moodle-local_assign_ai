@@ -55,8 +55,13 @@ final class recovery_tasks_test extends \advanced_testcase {
      * @param array $overrides Extra column overrides applied after creation.
      * @return int The pending record id.
      */
-    private function create_pending_record(int $courseid, int $cmid, int $userid, string $status,
-            array $overrides = []): int {
+    private function create_pending_record(
+        int $courseid,
+        int $cmid,
+        int $userid,
+        string $status,
+        array $overrides = []
+    ): int {
         global $DB;
 
         $id = assign_submission::create_pending_submission((object) [
@@ -92,12 +97,26 @@ final class recovery_tasks_test extends \advanced_testcase {
         [$courseid, $cmid, $student] = $this->create_assign_environment();
 
         $stuckthreshold = time() - (16 * MINSECS);
-        $stuckqueued = $this->create_pending_record($courseid, $cmid, (int) $student->id,
-            assign_submission::STATUS_QUEUED, ['timemodified' => $stuckthreshold]);
-        $stuckprocessing = $this->create_pending_record($courseid, $cmid, (int) $student->id,
-            assign_submission::STATUS_PROCESSING, ['timemodified' => $stuckthreshold]);
-        $recentqueued = $this->create_pending_record($courseid, $cmid, (int) $student->id,
-            assign_submission::STATUS_QUEUED);
+        $stuckqueued = $this->create_pending_record(
+            $courseid,
+            $cmid,
+            (int) $student->id,
+            assign_submission::STATUS_QUEUED,
+            ['timemodified' => $stuckthreshold]
+        );
+        $stuckprocessing = $this->create_pending_record(
+            $courseid,
+            $cmid,
+            (int) $student->id,
+            assign_submission::STATUS_PROCESSING,
+            ['timemodified' => $stuckthreshold]
+        );
+        $recentqueued = $this->create_pending_record(
+            $courseid,
+            $cmid,
+            (int) $student->id,
+            assign_submission::STATUS_QUEUED
+        );
 
         (new \local_assign_ai\task\reap_stuck_submissions())->execute();
 
@@ -131,8 +150,12 @@ final class recovery_tasks_test extends \advanced_testcase {
 
         [$courseid, $cmid, $student] = $this->create_assign_environment();
 
-        $failedid = $this->create_pending_record($courseid, $cmid, (int) $student->id,
-            assign_submission::STATUS_FAILED);
+        $failedid = $this->create_pending_record(
+            $courseid,
+            $cmid,
+            (int) $student->id,
+            assign_submission::STATUS_FAILED
+        );
 
         (new \local_assign_ai\task\retry_failed_submissions())->execute();
 
@@ -158,8 +181,13 @@ final class recovery_tasks_test extends \advanced_testcase {
 
         [$courseid, $cmid, $student] = $this->create_assign_environment();
 
-        $failedid = $this->create_pending_record($courseid, $cmid, (int) $student->id,
-            assign_submission::STATUS_FAILED, ['retries' => 3]);
+        $failedid = $this->create_pending_record(
+            $courseid,
+            $cmid,
+            (int) $student->id,
+            assign_submission::STATUS_FAILED,
+            ['retries' => 3]
+        );
 
         (new \local_assign_ai\task\retry_failed_submissions())->execute();
 

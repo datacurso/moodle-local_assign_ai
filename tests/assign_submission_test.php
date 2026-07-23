@@ -188,8 +188,14 @@ final class assign_submission_test extends \advanced_testcase {
         // The file must exist in the assignsubmission_file area of the attempt.
         $submission = $assign->get_user_submission($student->id, false);
         $fs = get_file_storage();
-        $files = $fs->get_area_files($assign->get_context()->id, 'assignsubmission_file',
-            'submission_files', $submission->id, 'filename', false);
+        $files = $fs->get_area_files(
+            $assign->get_context()->id,
+            'assignsubmission_file',
+            'submission_files',
+            $submission->id,
+            'filename',
+            false
+        );
         $this->assertCount(1, $files);
 
         $this->mock_ai_success(8, 'File feedback');
@@ -280,8 +286,14 @@ final class assign_submission_test extends \advanced_testcase {
         $submission = $assign->get_user_submission($student->id, false);
         $this->assertNotEmpty(assign_submission::get_submission_text($submission));
         $fs = get_file_storage();
-        $files = $fs->get_area_files($assign->get_context()->id, 'assignsubmission_file',
-            'submission_files', $submission->id, 'filename', false);
+        $files = $fs->get_area_files(
+            $assign->get_context()->id,
+            'assignsubmission_file',
+            'submission_files',
+            $submission->id,
+            'filename',
+            false
+        );
         $this->assertCount(1, $files);
 
         $this->mock_ai_success(10, 'Combined feedback');
@@ -321,8 +333,12 @@ final class assign_submission_test extends \advanced_testcase {
 
         // A submitted attempt without any processable content (no text, no files).
         $submission = $assign->get_user_submission($student->id, true);
-        $DB->set_field('assign_submission', 'status', ASSIGN_SUBMISSION_STATUS_SUBMITTED,
-            ['id' => $submission->id]);
+        $DB->set_field(
+            'assign_submission',
+            'status',
+            ASSIGN_SUBMISSION_STATUS_SUBMITTED,
+            ['id' => $submission->id]
+        );
 
         // The service rejects the payload: the HTTP client surfaces it as an "empty response" error.
         $this->mock_ai_pipeline('');
@@ -546,10 +562,18 @@ final class assign_submission_test extends \advanced_testcase {
         $processor = new assign_submission((int) $student->id, $assign);
         $processor->process_submission_ai();
 
-        $firstrecord = $DB->get_record('local_assign_ai_pending',
-            ['submissionid' => $firstsubmission->id], '*', MUST_EXIST);
-        $DB->set_field('local_assign_ai_pending', 'status', assign_submission::STATUS_PENDING,
-            ['id' => $firstrecord->id]);
+        $firstrecord = $DB->get_record(
+            'local_assign_ai_pending',
+            ['submissionid' => $firstsubmission->id],
+            '*',
+            MUST_EXIST
+        );
+        $DB->set_field(
+            'local_assign_ai_pending',
+            'status',
+            assign_submission::STATUS_PENDING,
+            ['id' => $firstrecord->id]
+        );
 
         // The teacher opens a new attempt and the student submits again.
         $teacher->ignoresesskey = true;
@@ -569,8 +593,12 @@ final class assign_submission_test extends \advanced_testcase {
         $firstrecord = $DB->get_record('local_assign_ai_pending', ['id' => $firstrecord->id], '*', MUST_EXIST);
         $this->assertSame(assign_submission::STATUS_SUPERSEDED, $firstrecord->status);
 
-        $secondrecord = $DB->get_record('local_assign_ai_pending',
-            ['submissionid' => $secondsubmission->id], '*', MUST_EXIST);
+        $secondrecord = $DB->get_record(
+            'local_assign_ai_pending',
+            ['submissionid' => $secondsubmission->id],
+            '*',
+            MUST_EXIST
+        );
         $this->assertSame(assign_submission::STATUS_APPROVED, $secondrecord->status);
         $this->assertEquals(9, $secondrecord->grade);
         $this->assertEquals(1, $secondrecord->attemptnumber);
@@ -611,8 +639,12 @@ final class assign_submission_test extends \advanced_testcase {
         $processor = new assign_submission((int) $student->id, $assign);
         $processor->process_submission_ai();
 
-        $firstrecord = $DB->get_record('local_assign_ai_pending',
-            ['submissionid' => $firstsubmission->id], '*', MUST_EXIST);
+        $firstrecord = $DB->get_record(
+            'local_assign_ai_pending',
+            ['submissionid' => $firstsubmission->id],
+            '*',
+            MUST_EXIST
+        );
         $this->assertSame(assign_submission::STATUS_APPROVED, $firstrecord->status);
 
         // The teacher opens a new attempt and the student submits again.
@@ -635,8 +667,12 @@ final class assign_submission_test extends \advanced_testcase {
         $this->assertEquals(0, $firstrecord->attemptnumber);
 
         // Each attempt keeps its own record.
-        $secondrecord = $DB->get_record('local_assign_ai_pending',
-            ['submissionid' => $secondsubmission->id], '*', MUST_EXIST);
+        $secondrecord = $DB->get_record(
+            'local_assign_ai_pending',
+            ['submissionid' => $secondsubmission->id],
+            '*',
+            MUST_EXIST
+        );
         $this->assertNotEquals($firstrecord->id, $secondrecord->id);
         $this->assertSame(assign_submission::STATUS_APPROVED, $secondrecord->status);
         $this->assertEquals(1, $secondrecord->attemptnumber);

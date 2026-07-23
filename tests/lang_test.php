@@ -102,12 +102,18 @@ final class lang_test extends \advanced_testcase {
             $keys = $this->load_string_keys($langcode);
 
             $missing = array_values(array_diff($reference, $keys));
-            $this->assertSame([], $missing,
-                "Language pack '{$langcode}' is missing keys: " . implode(', ', $missing));
+            $this->assertSame(
+                [],
+                $missing,
+                "Language pack '{$langcode}' is missing keys: " . implode(', ', $missing)
+            );
 
             $extra = array_values(array_diff($keys, $reference));
-            $this->assertSame([], $extra,
-                "Language pack '{$langcode}' defines extra keys: " . implode(', ', $extra));
+            $this->assertSame(
+                [],
+                $extra,
+                "Language pack '{$langcode}' defines extra keys: " . implode(', ', $extra)
+            );
         }
     }
 }

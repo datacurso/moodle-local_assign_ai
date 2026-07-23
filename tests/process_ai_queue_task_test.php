@@ -265,10 +265,18 @@ final class process_ai_queue_task_test extends \advanced_testcase {
 
         // Move the submission and the queue row back in time so the delay has elapsed.
         $submission = $assign->get_user_submission($student->id, false);
-        $DB->set_field('assign_submission', 'timecreated', $submission->timecreated - HOURSECS,
-            ['id' => $submission->id]);
-        $DB->set_field('assign_submission', 'timemodified', $submission->timemodified - HOURSECS,
-            ['id' => $submission->id]);
+        $DB->set_field(
+            'assign_submission',
+            'timecreated',
+            $submission->timecreated - HOURSECS,
+            ['id' => $submission->id]
+        );
+        $DB->set_field(
+            'assign_submission',
+            'timemodified',
+            $submission->timemodified - HOURSECS,
+            ['id' => $submission->id]
+        );
         $DB->set_field('local_assign_ai_queue', 'timetoprocess', time() - (30 * MINSECS), ['id' => $row->id]);
 
         $this->mock_ai_pipeline(json_encode([

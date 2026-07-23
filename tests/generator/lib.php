@@ -38,7 +38,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class local_assign_ai_generator extends component_generator_base {
-
     /** @var string[] Valid statuses for a pending record. */
     protected const VALID_STATUSES = [
         'initial',

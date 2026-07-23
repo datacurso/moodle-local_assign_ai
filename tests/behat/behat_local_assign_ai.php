@@ -27,7 +27,6 @@ require_once(__DIR__ . '/../../../../lib/behat/behat_base.php');
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class behat_local_assign_ai extends behat_base {
-
     /**
      * Convert page names to URLs for steps like "When I am on the "X" "local_assign_ai > Y" page".
      *

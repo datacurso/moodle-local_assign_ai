@@ -126,8 +126,14 @@ final class backup_restore_test extends \advanced_testcase {
         $CFG->backup_file_logger_level = \backup::LOG_NONE;
 
         // MODE_IMPORT keeps the backup as a directory, no zipping needed.
-        $bc = new \backup_controller(\backup::TYPE_1COURSE, $course->id,
-            \backup::FORMAT_MOODLE, \backup::INTERACTIVE_NO, \backup::MODE_IMPORT, $USER->id);
+        $bc = new \backup_controller(
+            \backup::TYPE_1COURSE,
+            $course->id,
+            \backup::FORMAT_MOODLE,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_IMPORT,
+            $USER->id
+        );
         $bc->get_plan()->get_setting('users')->set_status(\backup_setting::NOT_LOCKED);
         $bc->get_plan()->get_setting('users')->set_value($userdata);
         $backupid = $bc->get_backupid();
@@ -137,8 +143,14 @@ final class backup_restore_test extends \advanced_testcase {
         $newcourseid = \restore_dbops::create_new_course(
             $course->fullname, $course->shortname . '_r', $course->category
         );
-        $rc = new \restore_controller($backupid, $newcourseid,
-            \backup::INTERACTIVE_NO, \backup::MODE_GENERAL, $USER->id, \backup::TARGET_NEW_COURSE);
+        $rc = new \restore_controller(
+            $backupid,
+            $newcourseid,
+            \backup::INTERACTIVE_NO,
+            \backup::MODE_GENERAL,
+            $USER->id,
+            \backup::TARGET_NEW_COURSE
+        );
         $rc->get_plan()->get_setting('users')->set_status(\backup_setting::NOT_LOCKED);
         $rc->get_plan()->get_setting('users')->set_value($userdata);
 
@@ -187,10 +199,18 @@ final class backup_restore_test extends \advanced_testcase {
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
         ]);
-        $DB->set_field('local_assign_ai_config', 'autograde', 1,
-            ['assignmentid' => $assign->get_instance()->id]);
-        $DB->set_field('local_assign_ai_config', 'prompt', 'Custom grading prompt',
-            ['assignmentid' => $assign->get_instance()->id]);
+        $DB->set_field(
+            'local_assign_ai_config',
+            'autograde',
+            1,
+            ['assignmentid' => $assign->get_instance()->id]
+        );
+        $DB->set_field(
+            'local_assign_ai_config',
+            'prompt',
+            'Custom grading prompt',
+            ['assignmentid' => $assign->get_instance()->id]
+        );
 
         // A submitted attempt whose id the restored record must be remapped to.
         $this->add_submission($student, $assign, 'My essay text');
@@ -212,8 +232,12 @@ final class backup_restore_test extends \advanced_testcase {
         $newcm = $this->get_single_assign_cm($newcourseid);
 
         // The AI configuration is recreated for the restored assignment instance.
-        $newconfig = $DB->get_record('local_assign_ai_config',
-            ['assignmentid' => $newcm->instance], '*', MUST_EXIST);
+        $newconfig = $DB->get_record(
+            'local_assign_ai_config',
+            ['assignmentid' => $newcm->instance],
+            '*',
+            MUST_EXIST
+        );
         $this->assertEquals(1, $newconfig->autograde);
         $this->assertSame('Custom grading prompt', $newconfig->prompt);
 
@@ -227,8 +251,12 @@ final class backup_restore_test extends \advanced_testcase {
         $this->assertEquals($original->grade, $restored->grade);
 
         // The submission attempt id is remapped to the restored attempt row.
-        $newsubmissionid = $DB->get_field('assign_submission', 'id',
-            ['assignment' => $newcm->instance, 'userid' => $student->id], MUST_EXIST);
+        $newsubmissionid = $DB->get_field(
+            'assign_submission',
+            'id',
+            ['assignment' => $newcm->instance, 'userid' => $student->id],
+            MUST_EXIST
+        );
         $this->assertEquals($newsubmissionid, $restored->submissionid);
 
         // The approval token is regenerated so it never collides with the original one.
@@ -253,16 +281,28 @@ final class backup_restore_test extends \advanced_testcase {
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
         $this->bump_assign_sequence(5030, $course->id);
         $assign = $this->create_instance($course, ['assignsubmission_onlinetext_enabled' => 1]);
-        $DB->set_field('local_assign_ai_config', 'autograde', 1,
-            ['assignmentid' => $assign->get_instance()->id]);
-        $DB->set_field('local_assign_ai_config', 'graderid', $teacher->id,
-            ['assignmentid' => $assign->get_instance()->id]);
+        $DB->set_field(
+            'local_assign_ai_config',
+            'autograde',
+            1,
+            ['assignmentid' => $assign->get_instance()->id]
+        );
+        $DB->set_field(
+            'local_assign_ai_config',
+            'graderid',
+            $teacher->id,
+            ['assignmentid' => $assign->get_instance()->id]
+        );
 
         $cm = get_fast_modinfo($course)->get_cm($assign->get_course_module()->id);
         $newcm = duplicate_module($course, $cm);
 
-        $newconfig = $DB->get_record('local_assign_ai_config',
-            ['assignmentid' => $newcm->instance], '*', MUST_EXIST);
+        $newconfig = $DB->get_record(
+            'local_assign_ai_config',
+            ['assignmentid' => $newcm->instance],
+            '*',
+            MUST_EXIST
+        );
         $this->assertEquals(1, $newconfig->autograde);
         $this->assertEquals($teacher->id, $newconfig->graderid);
     }
@@ -281,16 +321,28 @@ final class backup_restore_test extends \advanced_testcase {
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
         $this->bump_assign_sequence(5050, $course->id);
         $assign = $this->create_instance($course, ['assignsubmission_onlinetext_enabled' => 1]);
-        $DB->set_field('local_assign_ai_config', 'autograde', 1,
-            ['assignmentid' => $assign->get_instance()->id]);
-        $DB->set_field('local_assign_ai_config', 'graderid', $teacher->id,
-            ['assignmentid' => $assign->get_instance()->id]);
+        $DB->set_field(
+            'local_assign_ai_config',
+            'autograde',
+            1,
+            ['assignmentid' => $assign->get_instance()->id]
+        );
+        $DB->set_field(
+            'local_assign_ai_config',
+            'graderid',
+            $teacher->id,
+            ['assignmentid' => $assign->get_instance()->id]
+        );
 
         $newcourseid = $this->backup_and_restore($course, false);
         $newcm = $this->get_single_assign_cm($newcourseid);
 
-        $newconfig = $DB->get_record('local_assign_ai_config',
-            ['assignmentid' => $newcm->instance], '*', MUST_EXIST);
+        $newconfig = $DB->get_record(
+            'local_assign_ai_config',
+            ['assignmentid' => $newcm->instance],
+            '*',
+            MUST_EXIST
+        );
         $this->assertEquals(1, $newconfig->autograde);
         $this->assertNull($newconfig->graderid);
     }

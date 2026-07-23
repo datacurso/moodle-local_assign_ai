@@ -109,8 +109,12 @@ final class approve_all_pending_test extends \externallib_advanced_testcase {
         $records = [];
         foreach ($students as $index => $student) {
             $this->add_submission($student, $assign, 'Essay of student ' . $index);
-            $records[$index] = $this->create_pending_record($assign, (int) $student->id, $grades[$index],
-                'AI feedback ' . $index);
+            $records[$index] = $this->create_pending_record(
+                $assign,
+                (int) $student->id,
+                $grades[$index],
+                'AI feedback ' . $index
+            );
         }
 
         $this->setUser($teacher);

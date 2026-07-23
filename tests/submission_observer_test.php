@@ -247,8 +247,12 @@ final class submission_observer_test extends \advanced_testcase {
         set_config('enableassignai', 1, 'local_assign_ai');
 
         $cmid = $assign->get_course_module()->id;
-        $DB->set_field('local_assign_ai_config', 'autograde', 1,
-            ['assignmentid' => $assign->get_instance()->id]);
+        $DB->set_field(
+            'local_assign_ai_config',
+            'autograde',
+            1,
+            ['assignmentid' => $assign->get_instance()->id]
+        );
 
         // Simulate an evaluation that was already finalized before the student edit.
         $submission = $assign->get_user_submission($student->id, false);
