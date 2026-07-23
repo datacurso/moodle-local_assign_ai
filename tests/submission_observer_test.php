@@ -238,6 +238,7 @@ final class submission_observer_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.

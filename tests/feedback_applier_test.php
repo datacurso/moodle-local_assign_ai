@@ -223,6 +223,7 @@ final class feedback_applier_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
 
         $this->getDataGenerator()->get_plugin_generator('gradingform_rubric')->create_instance(
@@ -319,7 +320,7 @@ final class feedback_applier_test extends \advanced_testcase {
         ]);
 
         $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('error_rubricmismatch');
+        $this->expectExceptionMessage('does not match the rubric');
         feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
     }
 
@@ -344,6 +345,7 @@ final class feedback_applier_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
             'grade' => 40,
         ]);
 
@@ -466,7 +468,7 @@ final class feedback_applier_test extends \advanced_testcase {
         ]);
 
         $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage('error_guidemismatch');
+        $this->expectExceptionMessage('does not match the marking guide');
         feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
     }
 
@@ -529,6 +531,7 @@ final class feedback_applier_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
             'grade' => -((int) $scale->id),
         ]);
 
@@ -571,6 +574,7 @@ final class feedback_applier_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
 
         $this->add_submission($student, $assign, 'My essay text');

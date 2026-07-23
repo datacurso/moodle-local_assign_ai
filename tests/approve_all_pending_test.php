@@ -101,6 +101,7 @@ final class approve_all_pending_test extends \externallib_advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
         $cmid = (int) $assign->get_course_module()->id;
 

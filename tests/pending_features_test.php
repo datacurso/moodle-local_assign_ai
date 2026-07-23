@@ -174,6 +174,7 @@ final class pending_features_test extends \advanced_testcase {
 
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->redirectMessages();
 
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
@@ -258,7 +259,7 @@ final class pending_features_test extends \advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
         $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
-        $this->bump_assign_sequence(5030, $course->id);
+        $this->bump_assign_sequence(5090, $course->id);
 
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,

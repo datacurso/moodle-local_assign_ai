@@ -175,6 +175,7 @@ final class assign_submission_test extends \advanced_testcase {
             'assignsubmission_file_enabled' => 1,
             'assignsubmission_file_maxfiles' => 5,
             'assignsubmission_file_maxsizebytes' => 1024 * 1024,
+            'assignfeedback_comments_enabled' => 1,
         ]);
         $this->enable_autograde((int) $assign->get_instance()->id);
 
@@ -223,6 +224,7 @@ final class assign_submission_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
         $this->enable_autograde((int) $assign->get_instance()->id);
 
@@ -263,6 +265,7 @@ final class assign_submission_test extends \advanced_testcase {
             'assignsubmission_file_enabled' => 1,
             'assignsubmission_file_maxfiles' => 5,
             'assignsubmission_file_maxsizebytes' => 1024 * 1024,
+            'assignfeedback_comments_enabled' => 1,
         ]);
         $this->enable_autograde((int) $assign->get_instance()->id);
 
@@ -430,6 +433,7 @@ final class assign_submission_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
 
         $this->add_submission($student, $assign, 'My essay text');
@@ -478,6 +482,7 @@ final class assign_submission_test extends \advanced_testcase {
         $assign = $this->create_instance($course, [
             'submissiondrafts' => 0,
             'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
         ]);
         $this->enable_autograde((int) $assign->get_instance()->id, (int) $teacher->id);
 
