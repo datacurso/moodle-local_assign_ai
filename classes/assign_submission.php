@@ -529,19 +529,23 @@ class assign_submission {
     /**
      * Builds a teacher-safe message for a failure.
      *
-     * The plugin's own localized exceptions are curated and safe to display, so they are
-     * preserved (rebuilt from their string to drop any developer debuginfo). Any other
-     * error (AI provider, network, PHP or core) may carry operational detail and is
+     * Localized exceptions from our own first-party components (this plugin and the
+     * Datacurso AI provider) are curated and safe to display, so they are preserved
+     * (rebuilt from their string to drop any developer debuginfo). Any other error
+     * (raw PHP, network, core or third-party) may carry operational detail and is
      * replaced by a generic message; the full detail is only written to the log.
      *
      * @param \Throwable $e The error that occurred.
      * @return string A message safe to store and show in the UI.
      */
     public static function ui_error_message(\Throwable $e): string {
-        if ($e instanceof \moodle_exception
-                && $e->module === 'local_assign_ai'
-                && get_string_manager()->string_exists($e->errorcode, 'local_assign_ai')) {
-            return get_string($e->errorcode, 'local_assign_ai', $e->a ?? null);
+        $trusted = ['local_assign_ai', 'aiprovider_datacurso'];
+        if (
+            $e instanceof \moodle_exception
+            && in_array($e->module, $trusted, true)
+            && get_string_manager()->string_exists($e->errorcode, $e->module)
+        ) {
+            return get_string($e->errorcode, $e->module, $e->a ?? null);
         }
 
         return get_string('error_generic', 'local_assign_ai');
