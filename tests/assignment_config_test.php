@@ -55,8 +55,12 @@ final class assignment_config_test extends \advanced_testcase {
         global $DB;
 
         $course = $this->getDataGenerator()->create_course();
+        $fillerid = self::$nextassignid;
+        // The filler consumes $fillerid and the real module takes $fillerid + 1,
+        // so the counter advances by two to keep every claimed id unique.
+        self::$nextassignid += 2;
         $DB->import_record('assign', (object) [
-            'id' => self::$nextassignid++,
+            'id' => $fillerid,
             'course' => $course->id,
             'name' => 'filler',
             'intro' => '',
@@ -237,48 +241,141 @@ final class assignment_config_test extends \advanced_testcase {
     }
 
     /**
-     * MDL-INT-001: The mass update disables AI for every assignment, with or without a config row.
+     * Writes the global "Enable AI" admin setting through the real settings tree.
      *
-     * @covers ::disable_all_assignments_ai
+     * This mimics an administrator saving the settings page: the value is stored and
+     * post_write_settings() is invoked, so any updated-callback attached to the
+     * setting runs exactly as it would in production.
+     *
+     * @param string $value The checkbox value to store ('0' or '1').
+     * @return void
      */
-    public function test_disable_all_assignments_ai_disables_every_assignment(): void {
+    private function write_global_enableai_setting(string $value): void {
+        global $CFG;
+
+        require_once($CFG->libdir . '/adminlib.php');
+
+        $adminroot = admin_get_root(true, true);
+        $page = $adminroot->locate('local_assign_ai_settings');
+        $this->assertNotEmpty($page, 'The plugin admin settings page must exist.');
+
+        foreach ($page->settings as $setting) {
+            if ($setting->name === 'defaultenableai') {
+                $original = $setting->get_setting();
+                $this->assertSame('', $setting->write_setting($value));
+                $setting->post_write_settings($original);
+                return;
+            }
+        }
+
+        $this->fail('The defaultenableai admin setting was not found.');
+    }
+
+    /**
+     * MDL-INT-001: Disabling "Enable AI" globally pauses all AI functionality without
+     * modifying the stored configuration of any assignment.
+     *
+     * @covers ::get_effective
+     * @covers ::is_global_ai_enabled
+     */
+    public function test_disabling_global_ai_preserves_stored_configuration(): void {
         global $DB;
 
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $course = $this->getDataGenerator()->create_course();
-        $withrow = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
-        $withoutrow = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
-        $anotherwithoutrow = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
-
-        $this->insert_config_row((int) $withrow->id, [
+        [$instance, $assign] = $this->create_assign();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->insert_config_row((int) $instance->id, [
             'enableai' => 1,
             'autograde' => 1,
             'usedelay' => 1,
             'delayminutes' => 30,
+            'graderid' => (int) $teacher->id,
+        ]);
+        $before = $DB->get_record('local_assign_ai_config', ['assignmentid' => $instance->id], '*', MUST_EXIST);
+
+        $this->write_global_enableai_setting('0');
+
+        // The stored row is byte-for-byte untouched.
+        $after = $DB->get_record('local_assign_ai_config', ['assignmentid' => $instance->id], '*', MUST_EXIST);
+        $this->assertEquals($before, $after);
+
+        // The effective configuration pauses every AI feature at runtime.
+        $config = assignment_config::get_effective((int) $instance->id);
+        $this->assertSame(0, $config->enableai);
+        $this->assertSame(0, $config->autograde);
+        $this->assertSame(0, $config->usedelay);
+        $this->assertNull($config->graderid);
+        $this->assertFalse(assignment_config::is_autograde_enabled($assign));
+    }
+
+    /**
+     * MDL-INT-001: Re-enabling "Enable AI" globally restores every assignment to its
+     * original stored configuration without manual reconfiguration.
+     *
+     * @covers ::get_effective
+     * @covers ::is_autograde_enabled
+     */
+    public function test_reenabling_global_ai_restores_original_configuration(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$instance, $assign] = $this->create_assign();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->insert_config_row((int) $instance->id, [
+            'enableai' => 1,
+            'autograde' => 1,
+            'usedelay' => 1,
+            'delayminutes' => 30,
+            'graderid' => (int) $teacher->id,
+        ]);
+
+        $this->write_global_enableai_setting('0');
+        $this->write_global_enableai_setting('1');
+
+        $config = assignment_config::get_effective((int) $instance->id);
+        $this->assertSame(1, $config->enableai);
+        $this->assertSame(1, $config->autograde);
+        $this->assertSame(1, $config->usedelay);
+        $this->assertSame(30, $config->delayminutes);
+        $this->assertSame((int) $teacher->id, $config->graderid);
+        $this->assertTrue(assignment_config::is_autograde_enabled($assign));
+    }
+
+    /**
+     * MDL-INT-001: Toggling the global "Enable AI" setting never executes a mass
+     * update: existing rows keep every value and timestamp, and no rows are created
+     * for assignments without configuration.
+     *
+     * @covers ::is_global_ai_enabled
+     */
+    public function test_toggling_global_ai_executes_no_mass_update(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$withrow] = $this->create_assign();
+        [$withoutrow] = $this->create_assign();
+        $this->insert_config_row((int) $withrow->id, [
+            'enableai' => 1,
+            'autograde' => 1,
         ]);
         $this->delete_config_row((int) $withoutrow->id);
-        $this->delete_config_row((int) $anotherwithoutrow->id);
 
-        assignment_config::disable_all_assignments_ai();
+        $rowsbefore = $DB->get_records('local_assign_ai_config', null, 'id');
 
-        $assignmentids = [
-            (int) $withrow->id,
+        $this->write_global_enableai_setting('0');
+        $this->write_global_enableai_setting('1');
+
+        $rowsafter = $DB->get_records('local_assign_ai_config', null, 'id');
+        $this->assertEquals($rowsbefore, $rowsafter);
+        $this->assertArrayNotHasKey(
             (int) $withoutrow->id,
-            (int) $anotherwithoutrow->id,
-        ];
-        foreach ($assignmentids as $assignmentid) {
-            $row = $DB->get_record(
-                'local_assign_ai_config',
-                ['assignmentid' => $assignmentid],
-                '*',
-                MUST_EXIST
-            );
-            $this->assertEquals(0, $row->enableai);
-            $this->assertEquals(0, $row->autograde);
-            $this->assertEquals(0, $row->usedelay);
-        }
+            array_column($rowsafter, null, 'assignmentid'),
+            'No configuration row must be created for assignments without one.'
+        );
     }
 
     /**
