@@ -120,7 +120,7 @@ class get_progress extends external_api {
             'id' => new external_value(PARAM_INT, 'Pending record id'),
             'status' => new external_value(PARAM_TEXT, 'Status value'),
             'grade' => new external_value(PARAM_INT, 'Grade', VALUE_OPTIONAL),
-            'errormessage' => new external_value(PARAM_RAW, 'Error message when the review failed', VALUE_OPTIONAL),
+            'errormessage' => new external_value(PARAM_TEXT, 'Error message when the review failed', VALUE_OPTIONAL),
         ]));
     }
 }

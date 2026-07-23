@@ -81,6 +81,7 @@ $string['enableassignai'] = 'Habilitar Tarea IA';
 $string['enableassignai_desc'] = 'Si se deshabilita, la sección "Datacurso Tareas IA" se oculta en la configuración de la actividad tarea y se pausa el procesamiento automático.';
 $string['error_advancedresponsemissing'] = 'La tarea se califica con un método avanzado ({$a}) pero la respuesta de la IA no contiene datos para ese método. La calificación no se aplicó.';
 $string['error_airequest'] = 'Error al comunicarse con el servicio de IA: {$a}';
+$string['error_generic'] = 'La revisión con IA falló. Consulta el registro del historial de IA para más detalles.';
 $string['error_guidemismatch'] = 'La respuesta de la IA no coincide con la guía de evaluación de esta tarea. La calificación no se aplicó. Criterios sin coincidencia: {$a}';
 $string['error_processing_timeout'] = 'El procesamiento superó el tiempo límite sin respuesta; reinténtalo.';
 $string['error_rubricmismatch'] = 'La respuesta de la IA no coincide con la rúbrica de esta tarea. La calificación no se aplicó. Criterios sin coincidencia: {$a}';

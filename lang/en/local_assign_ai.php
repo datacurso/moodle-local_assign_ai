@@ -81,6 +81,7 @@ $string['enableassignai'] = 'Enable Assign AI';
 $string['enableassignai_desc'] = 'If disabled, the "Datacurso Assign AI" section is hidden from assignment activity settings and automatic processing is paused.';
 $string['error_advancedresponsemissing'] = 'The assignment is graded with an advanced method ({$a}) but the AI response contains no data for it. The grade was not applied.';
 $string['error_airequest'] = 'Error communicating with the AI service: {$a}';
+$string['error_generic'] = 'The AI review failed. Check the AI history log for details.';
 $string['error_guidemismatch'] = 'The AI response does not match the marking guide of this assignment. The grade was not applied. Unmatched criteria: {$a}';
 $string['error_processing_timeout'] = 'Processing timed out without a response; please retry.';
 $string['error_rubricmismatch'] = 'The AI response does not match the rubric of this assignment. The grade was not applied. Unmatched criteria: {$a}';

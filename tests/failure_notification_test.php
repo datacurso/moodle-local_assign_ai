@@ -104,14 +104,16 @@ final class failure_notification_test extends \advanced_testcase {
         [$recordid, $teacher] = $this->setup_failure_scenario(retry_failed_submissions::MAX_RETRIES);
 
         $sink = $this->redirectMessages();
-        assign_submission::register_failure(new \Exception('Rubric mismatch: Redacción'), $recordid);
+        // A curated plugin exception: its localized detail is preserved in the notification.
+        $error = new \moodle_exception('error_rubricmismatch', 'local_assign_ai', '', 'Redacción');
+        assign_submission::register_failure($error, $recordid);
         $this->resetDebugging();
 
         $messages = $sink->get_messages();
         $this->assertCount(1, $messages);
         $this->assertEquals($teacher->id, $messages[0]->useridto);
         $this->assertSame('gradingfailed', $messages[0]->eventtype);
-        $this->assertStringContainsString('Rubric mismatch: Redacción', $messages[0]->fullmessage);
+        $this->assertStringContainsString('Redacción', $messages[0]->fullmessage);
     }
 
     /**
