@@ -30,7 +30,6 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
-require_once($CFG->dirroot . '/webservice/lib.php');
 
 /**
  * Unit tests for the submission event observers.
@@ -48,57 +47,28 @@ final class submission_observer_test extends \advanced_testcase {
     /**
      * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
      *
-     * The /assign/answer endpoint requires the Datacurso webservice to be fully configured
-     * (webservices + REST enabled, service user, role, external service, token and a verified
-     * registration), so this seeds all of it.
+     * The provider only requires a license key; site_uuid is set for determinism.
      *
      * @return void
      */
     private function configure_ai_provider(): void {
-        global $DB;
-
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
-        set_config('registration_verified', 1, 'aiprovider_datacurso');
-        set_config('enablewebservices', 1);
-        set_config('webserviceprotocols', 'rest');
-
-        $wsuser = $this->getDataGenerator()->create_user([
-            'username' => \aiprovider_datacurso\webservice_config::USERNAME,
-        ]);
-        $roleid = create_role('Datacurso WS', \aiprovider_datacurso\webservice_config::ROLESHORTNAME, '');
-        $systemcontext = \context_system::instance();
-        role_assign($roleid, $wsuser->id, $systemcontext->id);
-
-        $webservicemanager = new \webservice();
-        $serviceid = $webservicemanager->add_external_service((object) [
-            'name' => \aiprovider_datacurso\webservice_config::SERVICENAME,
-            'shortname' => \aiprovider_datacurso\webservice_config::SERVICESHORTNAME,
-            'enabled' => 1,
-            'restrictedusers' => 1,
-            'downloadfiles' => 0,
-            'uploadfiles' => 0,
-        ]);
-        $service = $DB->get_record('external_services', ['id' => $serviceid], '*', MUST_EXIST);
-        \core_external\util::generate_token(EXTERNAL_TOKEN_PERMANENT, $service, $wsuser->id, $systemcontext);
     }
 
     /**
      * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
      *
-     * One AI review makes four HTTP requests (region lookup, webservice status region lookup,
-     * registration status, and the final /assign/answer POST). Mock responses are consumed in
-     * LIFO order, so the /assign/answer body is queued first.
+     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
+     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
+     * /assign/answer body is queued first.
      *
      * @param string $answerbody Body returned for the final /assign/answer POST.
      * @return void
      */
     private function mock_ai_pipeline(string $answerbody): void {
-        $infra = json_encode(['is_for_eu' => false, 'is_registered' => true]);
         \curl::mock_response($answerbody);
-        \curl::mock_response($infra);
-        \curl::mock_response($infra);
-        \curl::mock_response($infra);
+        \curl::mock_response(json_encode(['is_for_eu' => false]));
     }
 
     /**
