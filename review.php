@@ -53,13 +53,6 @@ try {
     // Instantiate the assign object.
     $assign = new assign($context, $cm, $course);
 
-    // Validate Datacurso AI provider configuration.
-    if (!\aiprovider_datacurso\webservice_config::is_configured()) {
-        $setupurl = \aiprovider_datacurso\webservice_config::get_url();
-        $messageparams = (object)['url' => $setupurl->out(false)];
-        \core\notification::error(get_string('error_ws_not_configured', 'local_assign_ai', $messageparams));
-    }
-
     // Page configuration.
     $PAGE->set_url(new moodle_url('/local/assign_ai/review.php', ['id' => $cmid]));
     $PAGE->set_course($course);

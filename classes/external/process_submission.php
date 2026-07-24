@@ -18,13 +18,12 @@ namespace local_assign_ai\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use external_api;
-use external_function_parameters;
-use external_single_structure;
-use external_value;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_single_structure;
+use core_external\external_value;
 
 /**
  * External function for processing assignment submissions with AI.
@@ -125,6 +124,18 @@ class process_submission extends external_api {
 
         // Process a single user submission asynchronously via an ad-hoc task (like "Review all").
         if ($userid && $pendingid) {
+            // The capability was checked on $cm; make sure the client-supplied pending
+            // record actually belongs to this activity, course and user before queueing,
+            // so a valid cmid cannot be used to touch another activity's record.
+            $record = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
+            if (
+                (int) $record->assignmentid !== (int) $cm->id
+                || (int) $record->courseid !== (int) $course->id
+                || (int) $record->userid !== (int) $userid
+            ) {
+                throw new \moodle_exception('invalidpendingrecord', 'local_assign_ai');
+            }
+
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
 
             // Mark as queued and enqueue the ad-hoc review task. The UI then shows 'en cola'.

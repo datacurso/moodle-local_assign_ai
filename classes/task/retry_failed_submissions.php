@@ -30,7 +30,7 @@ use local_assign_ai\assign_submission;
  */
 class retry_failed_submissions extends \core\task\scheduled_task {
     /** @var int Maximum automatic retries before leaving a record as failed. */
-    private const MAX_RETRIES = 3;
+    public const MAX_RETRIES = 3;
 
     /**
      * Return the task name shown in admin screens.

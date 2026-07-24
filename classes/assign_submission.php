@@ -186,6 +186,16 @@ class assign_submission {
             $response = client::send_to_ai($payload);
 
             $message = $response['reply'] ?? null;
+            if ($message !== null) {
+                // The AI provider response is untrusted input: strip scripts/handlers
+                // before it is stored, rendered in the review modal or shown to students.
+                $message = clean_text($message, FORMAT_HTML);
+            }
+            if (!feedback_applier::is_comments_plugin_active($this->assign)) {
+                // Feedback comments are disabled for this assignment: the message could
+                // never be delivered to the student, so it is not stored at all.
+                $message = null;
+            }
             $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
             // Determine correct advanced grading response (rubric or assessment_guide).
@@ -297,6 +307,16 @@ class assign_submission {
             $response = client::send_to_ai($payload);
 
             $message = $response['reply'] ?? null;
+            if ($message !== null) {
+                // The AI provider response is untrusted input: strip scripts/handlers
+                // before it is stored, rendered in the review modal or shown to students.
+                $message = clean_text($message, FORMAT_HTML);
+            }
+            if (!feedback_applier::is_comments_plugin_active($this->assign)) {
+                // Feedback comments are disabled for this assignment: the message could
+                // never be delivered to the student, so it is not stored at all.
+                $message = null;
+            }
             $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
             // Determine correct advanced grading response (rubric or assessment_guide).
@@ -336,6 +356,18 @@ class assign_submission {
     }
 
     /**
+     * Generates a strong approval token.
+     *
+     * Uses Moodle's CSPRNG-backed random_string() at the full column length (64), so
+     * the token has high entropy instead of the previous short/md5(uniqid) values.
+     *
+     * @return string A 64-character random token.
+     */
+    public static function generate_approval_token(): string {
+        return random_string(64);
+    }
+
+    /**
      * Create a pending AI submission record.
      *
      * Expects a record object with the following fields:
@@ -363,7 +395,7 @@ class assign_submission {
         try {
             $now = time();
             if (empty($record->approval_token)) {
-                $record->approval_token = random_string(10);
+                $record->approval_token = self::generate_approval_token();
             }
             $record->status = $record->status ?? self::STATUS_PENDING;
             $record->usermodified = $USER->id;
@@ -495,6 +527,31 @@ class assign_submission {
     }
 
     /**
+     * Builds a teacher-safe message for a failure.
+     *
+     * Localized exceptions from our own first-party components (this plugin and the
+     * Datacurso AI provider) are curated and safe to display, so they are preserved
+     * (rebuilt from their string to drop any developer debuginfo). Any other error
+     * (raw PHP, network, core or third-party) may carry operational detail and is
+     * replaced by a generic message; the full detail is only written to the log.
+     *
+     * @param \Throwable $e The error that occurred.
+     * @return string A message safe to store and show in the UI.
+     */
+    public static function ui_error_message(\Throwable $e): string {
+        $trusted = ['local_assign_ai', 'aiprovider_datacurso'];
+        if (
+            $e instanceof \moodle_exception
+            && in_array($e->module, $trusted, true)
+            && get_string_manager()->string_exists($e->errorcode, $e->module)
+        ) {
+            return get_string($e->errorcode, $e->module, $e->a ?? null);
+        }
+
+        return get_string('error_generic', 'local_assign_ai');
+    }
+
+    /**
      * Record a processing failure in the AI log.
      *
      * Always emits a developer debugging message and, when possible, persists the failure
@@ -508,17 +565,23 @@ class assign_submission {
      * @return void
      */
     public static function register_failure(\Throwable $e, ?int $pendingid = null, ?stdClass $recorddata = null): void {
+        // Full technical detail goes to the developer log only (protected).
         debugging('local_assign_ai processing failure: ' . $e->getMessage(), DEBUG_DEVELOPER);
+
+        // The stored message is teacher-facing (history report, progress bar), so use a
+        // sanitised version that never leaks provider/network/internal detail.
+        $uimessage = self::ui_error_message($e);
 
         try {
             if ($pendingid) {
                 self::update_pending_submission($pendingid, [
                     'status' => self::STATUS_FAILED,
-                    'errormessage' => $e->getMessage(),
+                    'errormessage' => $uimessage,
                 ]);
+                self::maybe_notify_grading_failure($pendingid);
             } else if ($recorddata !== null) {
                 $recorddata->status = self::STATUS_FAILED;
-                $recorddata->errormessage = $e->getMessage();
+                $recorddata->errormessage = $uimessage;
                 if (!empty($recorddata->submissionid)) {
                     self::upsert_attempt_record($recorddata);
                 } else {
@@ -528,6 +591,61 @@ class assign_submission {
         } catch (\Throwable $inner) {
             debugging('local_assign_ai could not persist failure: ' . $inner->getMessage(), DEBUG_DEVELOPER);
         }
+    }
+
+    /**
+     * Notifies the configured grader when a record fails with its retries exhausted.
+     *
+     * The automatic retry policy ({@see \local_assign_ai\task\retry_failed_submissions})
+     * stops selecting a record once it reaches MAX_RETRIES, so a failure registered at
+     * that point is final and the grader must be told. Earlier failures stay silent
+     * because a retry is still coming.
+     *
+     * @param int $pendingid Pending record id just marked as failed.
+     * @return void
+     */
+    private static function maybe_notify_grading_failure(int $pendingid): void {
+        global $DB;
+
+        $record = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid]);
+        if (!$record || (int) $record->retries < \local_assign_ai\task\retry_failed_submissions::MAX_RETRIES) {
+            return;
+        }
+
+        [$course, $cm] = get_course_and_cm_from_cmid($record->assignmentid, 'assign');
+        $config = assignment_config::get((int) $cm->instance);
+        if (empty($config) || empty($config->graderid)) {
+            return;
+        }
+
+        $grader = \core_user::get_user($config->graderid);
+        $student = \core_user::get_user($record->userid);
+        if (!$grader || $grader->deleted) {
+            return;
+        }
+
+        $a = (object) [
+            'assignment' => $record->title,
+            'student' => $student ? fullname($student) : $record->userid,
+            'error' => $record->errormessage,
+        ];
+
+        $message = new \core\message\message();
+        $message->component = 'local_assign_ai';
+        $message->name = 'gradingfailed';
+        $message->userfrom = \core_user::get_noreply_user();
+        $message->userto = $grader;
+        $message->subject = get_string('gradingfailed_subject', 'local_assign_ai', $record->title);
+        $message->fullmessage = get_string('gradingfailed_body', 'local_assign_ai', $a);
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml = '';
+        $message->smallmessage = $message->subject;
+        $message->notification = 1;
+        $message->contexturl = (new \moodle_url('/local/assign_ai/history.php', ['id' => $record->assignmentid]))->out(false);
+        $message->contexturlname = get_string('logdetails', 'local_assign_ai');
+        $message->courseid = $course->id;
+
+        message_send($message);
     }
 
     /**
@@ -647,6 +765,13 @@ class assign_submission {
             }
         }
 
+        // For scale assignments assign->grade is negative (-scaleid); send the number of
+        // scale points so the AI returns a value in [1..N] instead of a meaningless negative.
+        $maxgrade = (int) $assignment->grade;
+        if ($maxgrade < 0) {
+            $maxgrade = count(advanced_grading::get_grade_menu($this->assign));
+        }
+
         return [
             'course_id' => $course->id,
             'course' => $course->fullname,
@@ -663,7 +788,7 @@ class assign_submission {
             'student_name' => fullname($this->user),
             'submission_assign' => self::get_submission_text($this->submission),
             'submission_files' => $this->get_submission_files(),
-            'maximum_grade' => $assignment->grade,
+            'maximum_grade' => $maxgrade,
             'prompt' => $config->prompt,
             'lang' => $config->lang,
         ];

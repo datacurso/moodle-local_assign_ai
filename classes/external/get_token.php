@@ -19,12 +19,11 @@ namespace local_assign_ai\external;
 defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
-require_once($CFG->libdir . '/externallib.php');
 
-use external_api;
-use external_function_parameters;
-use external_value;
-use external_single_structure;
+use core_external\external_api;
+use core_external\external_function_parameters;
+use core_external\external_value;
+use core_external\external_single_structure;
 
 /**
  * Class get_token
@@ -54,6 +53,21 @@ class get_token extends external_api {
      */
     public static function execute($userid, $assignmentid) {
         global $DB;
+
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'userid' => $userid,
+            'assignmentid' => $assignmentid,
+        ]);
+        $userid = $params['userid'];
+        $assignmentid = $params['assignmentid'];
+
+        // The plugin stores the cmid in assignmentid. Resolve its module context and
+        // require review permission so a user cannot read another user's token by
+        // enumerating ids.
+        $cm = get_coursemodule_from_id('assign', $assignmentid, 0, false, MUST_EXIST);
+        $context = \context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('local/assign_ai:review', $context);
 
         $sql = "
             SELECT *
