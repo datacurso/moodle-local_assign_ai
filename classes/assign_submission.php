@@ -199,22 +199,12 @@ class assign_submission {
             $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
             // Determine correct advanced grading response (rubric or assessment_guide).
-            $rawadvanced = !empty($response['rubric']) ? $response['rubric'] : ($response['assessment_guide'] ?? null);
             $rubricresponse = null;
             $assessmentguideresponse = null;
-
-            if ($rawadvanced) {
-                $advanceddata = $rawadvanced;
-                if (is_array($rawadvanced) && isset($rawadvanced['criteria'])) {
-                    $advanceddata = $rawadvanced['criteria'];
-                }
-                $jsonresponse = json_encode($advanceddata, JSON_UNESCAPED_UNICODE);
-
-                if (!empty($response['rubric'])) {
-                    $rubricresponse = $jsonresponse;
-                } else {
-                    $assessmentguideresponse = $jsonresponse;
-                }
+            if (!empty($response['rubric'])) {
+                $rubricresponse = self::encode_advanced_response($response['rubric']);
+            } else if (!empty($response['assessment_guide'])) {
+                $assessmentguideresponse = self::encode_advanced_response($response['assessment_guide']);
             }
 
             $record = (object) [
@@ -320,22 +310,12 @@ class assign_submission {
             $grade = isset($response['grade']) ? (is_numeric($response['grade']) ? (float) $response['grade'] : null) : null;
 
             // Determine correct advanced grading response (rubric or assessment_guide).
-            $rawadvanced = !empty($response['rubric']) ? $response['rubric'] : ($response['assessment_guide'] ?? null);
             $rubricresponse = null;
             $assessmentguideresponse = null;
-
-            if ($rawadvanced) {
-                $advanceddata = $rawadvanced;
-                if (is_array($rawadvanced) && isset($rawadvanced['criteria'])) {
-                    $advanceddata = $rawadvanced['criteria'];
-                }
-                $jsonresponse = json_encode($advanceddata, JSON_UNESCAPED_UNICODE);
-
-                if (!empty($response['rubric'])) {
-                    $rubricresponse = $jsonresponse;
-                } else {
-                    $assessmentguideresponse = $jsonresponse;
-                }
+            if (!empty($response['rubric'])) {
+                $rubricresponse = self::encode_advanced_response($response['rubric']);
+            } else if (!empty($response['assessment_guide'])) {
+                $assessmentguideresponse = self::encode_advanced_response($response['assessment_guide']);
             }
 
             $data = [
@@ -353,6 +333,30 @@ class assign_submission {
         } catch (\Throwable $e) {
             self::register_failure($e, $existing->id);
         }
+    }
+
+    /**
+     * Encodes an advanced grading response (rubric or assessment guide) for storage.
+     *
+     * The AI service may wrap the criteria list in a ['criteria' => [...]] envelope; this
+     * unwraps it and json-encodes the criteria array as-is, so the authoritative Moodle
+     * ids returned by the service ('id' on each criterion and on each level) survive
+     * into the stored JSON instead of being discarded by a re-mapping.
+     *
+     * @param mixed $raw Raw advanced grading block from the AI response.
+     * @return string|null JSON string, or null when there is nothing to store.
+     */
+    private static function encode_advanced_response(mixed $raw): ?string {
+        if (empty($raw)) {
+            return null;
+        }
+
+        $data = $raw;
+        if (is_array($raw) && isset($raw['criteria'])) {
+            $data = $raw['criteria'];
+        }
+
+        return json_encode($data, JSON_UNESCAPED_UNICODE);
     }
 
     /**

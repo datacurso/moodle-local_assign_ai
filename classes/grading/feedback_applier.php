@@ -124,6 +124,194 @@ class feedback_applier {
     }
 
     /**
+     * Resolves the AI rubric criteria against the Moodle rubric definition.
+     *
+     * The record's matching mode is detected first:
+     *  - 'strict': at least one AI criterion carries a numeric Moodle id. Every criterion
+     *    must then resolve through its criterion id and its first level id; the name and
+     *    the points are never used, not even for criteria lacking an id in a mixed record.
+     *  - 'legacy': no AI criterion carries an id (records stored before the AI service
+     *    stamped ids). The criterion resolves by normalized name, the level by points.
+     *
+     * Each entry under 'criteria' contains:
+     *  - criterion (string): AI criterion name as received.
+     *  - points (float|null): points of the first AI level, when present.
+     *  - comment (string): remark of the first AI level.
+     *  - criterionid (int|null): resolved Moodle criterion id, or null when unresolved.
+     *  - criterionmatch (string|null): 'id' or 'name' when resolved, null otherwise.
+     *  - levelid (int|null): resolved Moodle level id, or null when unresolved.
+     *  - levelmatch (string|null): 'id' or 'points' when resolved, null otherwise.
+     *  - failure (string|null): null when fully resolved, otherwise the reason:
+     *    'missing_criterion_id', 'unknown_criterion_id', 'missing_level_id' or
+     *    'unknown_level_id' in strict mode; 'name_not_found' or 'points_not_found'
+     *    in legacy mode.
+     *
+     * @param array $rubricdata Decoded rubric_response entries ([{id?, criterion, levels: [{id?, points, comment}]}]).
+     * @param array $moodlecriteria Rubric definition criteria indexed by criterion id (rubric_criteria).
+     * @return array ['mode' => 'strict'|'legacy', 'criteria' => array] with one entry per AI criterion.
+     */
+    public static function resolve_rubric_criteria(array $rubricdata, array $moodlecriteria): array {
+        $strict = false;
+        foreach ($rubricdata as $criteriondata) {
+            if (is_array($criteriondata) && isset($criteriondata['id']) && is_numeric($criteriondata['id'])) {
+                $strict = true;
+                break;
+            }
+        }
+
+        $results = [];
+
+        foreach ($rubricdata as $criteriondata) {
+            if (!is_array($criteriondata)) {
+                $criteriondata = [];
+            }
+
+            $ainame = trim((string) ($criteriondata['criterion'] ?? ''));
+            $levels = $criteriondata['levels'] ?? [];
+            $leveldata = (is_array($levels) && !empty($levels)) ? reset($levels) : null;
+            $leveldata = is_array($leveldata) ? $leveldata : null;
+            $aipoints = ($leveldata !== null && isset($leveldata['points']) && is_numeric($leveldata['points']))
+                ? (float) $leveldata['points']
+                : null;
+
+            $result = [
+                'criterion' => $ainame,
+                'points' => $aipoints,
+                'comment' => (string) ($leveldata['comment'] ?? ''),
+                'criterionid' => null,
+                'criterionmatch' => null,
+                'levelid' => null,
+                'levelmatch' => null,
+                'failure' => null,
+            ];
+
+            $result = $strict
+                ? self::resolve_criterion_strict($criteriondata, $leveldata, $moodlecriteria, $result)
+                : self::resolve_criterion_legacy($ainame, $aipoints, $moodlecriteria, $result);
+
+            $results[] = $result;
+        }
+
+        return [
+            'mode' => $strict ? 'strict' : 'legacy',
+            'criteria' => $results,
+        ];
+    }
+
+    /**
+     * Resolves one AI criterion strictly by its Moodle ids (no name/points fallback).
+     *
+     * @param array $criteriondata Raw AI criterion entry.
+     * @param array|null $leveldata First AI level entry, when present.
+     * @param array $moodlecriteria Rubric definition criteria indexed by criterion id.
+     * @param array $result Base resolution entry to complete.
+     * @return array The completed resolution entry.
+     */
+    private static function resolve_criterion_strict(
+        array $criteriondata,
+        ?array $leveldata,
+        array $moodlecriteria,
+        array $result
+    ): array {
+        $aicriterionid = (isset($criteriondata['id']) && is_numeric($criteriondata['id']))
+            ? (int) $criteriondata['id']
+            : null;
+        if ($aicriterionid === null) {
+            $result['failure'] = 'missing_criterion_id';
+            return $result;
+        }
+        if (!isset($moodlecriteria[$aicriterionid])) {
+            $result['failure'] = 'unknown_criterion_id';
+            return $result;
+        }
+
+        $result['criterionid'] = $aicriterionid;
+        $result['criterionmatch'] = 'id';
+
+        $ailevelid = ($leveldata !== null && isset($leveldata['id']) && is_numeric($leveldata['id']))
+            ? (int) $leveldata['id']
+            : null;
+        if ($ailevelid === null) {
+            $result['failure'] = 'missing_level_id';
+            return $result;
+        }
+
+        $criterionlevels = $moodlecriteria[$aicriterionid]['levels'] ?? [];
+        if (!isset($criterionlevels[$ailevelid])) {
+            $result['failure'] = 'unknown_level_id';
+            return $result;
+        }
+
+        $result['levelid'] = $ailevelid;
+        $result['levelmatch'] = 'id';
+        return $result;
+    }
+
+    /**
+     * Resolves one AI criterion by normalized name and level points (legacy records).
+     *
+     * @param string $ainame Trimmed AI criterion name.
+     * @param float|null $aipoints Points of the first AI level, when present.
+     * @param array $moodlecriteria Rubric definition criteria indexed by criterion id.
+     * @param array $result Base resolution entry to complete.
+     * @return array The completed resolution entry.
+     */
+    private static function resolve_criterion_legacy(
+        string $ainame,
+        ?float $aipoints,
+        array $moodlecriteria,
+        array $result
+    ): array {
+        if ($ainame !== '') {
+            $normalizedainame = self::normalize_criterion_name($ainame);
+            foreach ($moodlecriteria as $criterionid => $criterion) {
+                if (self::normalize_criterion_name((string) ($criterion['description'] ?? '')) === $normalizedainame) {
+                    $result['criterionid'] = (int) $criterionid;
+                    $result['criterionmatch'] = 'name';
+                    break;
+                }
+            }
+        }
+        if ($result['criterionid'] === null) {
+            $result['failure'] = 'name_not_found';
+            return $result;
+        }
+
+        if ($aipoints !== null) {
+            $criterionlevels = $moodlecriteria[$result['criterionid']]['levels'] ?? [];
+            foreach ($criterionlevels as $levelid => $level) {
+                if (abs((float) $level['score'] - $aipoints) < 0.0001) {
+                    $result['levelid'] = (int) $levelid;
+                    $result['levelmatch'] = 'points';
+                    break;
+                }
+            }
+        }
+        if ($result['levelid'] === null) {
+            $result['failure'] = 'points_not_found';
+        }
+
+        return $result;
+    }
+
+    /**
+     * Normalizes a criterion name for the legacy name-based matching.
+     *
+     * Applies the same transformation to both the AI and the Moodle side: strip tags,
+     * collapse every whitespace run (including \r\n) to a single space, remove accents
+     * and lowercase, so names mangled by the LLM still match their criterion.
+     *
+     * @param string $name Raw criterion name/description.
+     * @return string Normalized name.
+     */
+    private static function normalize_criterion_name(string $name): string {
+        $name = trim(strip_tags($name));
+        $name = preg_replace('/\s+/u', ' ', $name);
+        $name = \core_text::specialtoascii($name);
+        return \core_text::strtolower($name);
+    }
+
+    /**
      * Handles rubric grading application.
      *
      * @param assign $assign The assignment instance.
@@ -159,55 +347,33 @@ class feedback_applier {
         $moodlecriteria = $definition->rubric_criteria;
         $unmatched = [];
 
-        foreach ($rubricdata as $criteriondata) {
-            $criteriondesc = trim($criteriondata['criterion'] ?? '');
-            $levels = $criteriondata['levels'] ?? [];
-
-            if (empty($levels) || $criteriondesc === '') {
+        $resolved = self::resolve_rubric_criteria($rubricdata, $moodlecriteria);
+        foreach ($resolved['criteria'] as $resolution) {
+            if ($resolution['failure'] !== null) {
+                $name = $resolution['criterion'] !== '' ? $resolution['criterion'] : '(unnamed)';
+                $unmatched[] = $name . ' (' . $resolution['failure'] . ')';
                 continue;
             }
 
-            $aiclean = trim(strip_tags($criteriondesc));
-            $matched = false;
-
-            foreach ($moodlecriteria as $criterionid => $criterion) {
-                $moodleclean = trim(strip_tags($criterion['description']));
-
-                if ($moodleclean === $aiclean) {
-                    $leveldata = reset($levels);
-                    $points = (float) ($leveldata['points'] ?? 0);
-                    $remark = $leveldata['comment'] ?? '';
-
-                    foreach ($criterion['levels'] as $levelid => $level) {
-                        $levelscore = (float) $level['score'];
-                        if (abs($levelscore - $points) < 0.0001) {
-                            $fillingdata['criteria'][$criterionid] = [
-                                'levelid' => $levelid,
-                                'remark' => $remark,
-                            ];
-                            $matched = true;
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (!$matched) {
-                $unmatched[] = $aiclean;
-            }
+            $fillingdata['criteria'][$resolution['criterionid']] = [
+                'levelid' => $resolution['levelid'],
+                'remark' => $resolution['comment'],
+            ];
         }
 
         // Every rubric criterion must be filled: unmatched AI criteria or Moodle
         // criteria left without a level mean the rubric cannot be applied.
         foreach ($moodlecriteria as $criterionid => $criterion) {
             if (!isset($fillingdata['criteria'][$criterionid])) {
-                $unmatched[] = trim(strip_tags($criterion['description']));
+                $unmatched[] = trim(strip_tags($criterion['description'])) . ' (not_evaluated)';
             }
         }
 
         if (!empty($unmatched)) {
-            throw new \moodle_exception('error_rubricmismatch', 'local_assign_ai', '', implode(', ', array_unique($unmatched)));
+            // Persist the mode and the per-criterion failure reasons in the exception
+            // message so the pending record's errormessage carries the full diagnosis.
+            $detail = '[mode: ' . $resolved['mode'] . '] ' . implode('; ', array_unique($unmatched));
+            throw new \moodle_exception('error_rubricmismatch', 'local_assign_ai', '', $detail);
         }
 
         try {

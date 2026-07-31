@@ -605,6 +605,258 @@ final class feedback_applier_test extends \advanced_testcase {
     }
 
     /**
+     * Builds a synthetic Moodle rubric definition (as in gradingform_rubric definitions).
+     *
+     * @return array Criteria indexed by criterion id.
+     */
+    private function get_moodle_rubric_criteria(): array {
+        return [
+            11 => [
+                'id' => 11,
+                'description' => "Redacción y ortografía\r\ncuidada",
+                'levels' => [
+                    101 => ['id' => 101, 'score' => 0.0, 'definition' => 'Poor'],
+                    102 => ['id' => 102, 'score' => 5.0, 'definition' => 'Good'],
+                ],
+            ],
+            12 => [
+                'id' => 12,
+                'description' => '<p>Structure</p>',
+                'levels' => [
+                    201 => ['id' => 201, 'score' => 2.0, 'definition' => 'Weak'],
+                    202 => ['id' => 202, 'score' => 8.0, 'definition' => 'Strong'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * A record where a criterion carries ids resolves strictly by those ids.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_strict_matches_by_id(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'id' => 12,
+                'criterion' => 'A totally mangled name',
+                'levels' => [['id' => 202, 'points' => 999, 'comment' => 'Great structure']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('strict', $result['mode']);
+        $this->assertCount(1, $result['criteria']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame(12, $resolved['criterionid']);
+        $this->assertSame('id', $resolved['criterionmatch']);
+        $this->assertSame(202, $resolved['levelid']);
+        $this->assertSame('id', $resolved['levelmatch']);
+        $this->assertNull($resolved['failure']);
+        $this->assertSame('Great structure', $resolved['comment']);
+    }
+
+    /**
+     * In a mixed record a criterion without id must fail, never fall back to its name.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_strict_mixed_record_never_falls_back_to_name(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'id' => 11,
+                'criterion' => 'Redacción y ortografía cuidada',
+                'levels' => [['id' => 102, 'points' => 5, 'comment' => '']],
+            ],
+            [
+                // No id: even though the name matches criterion 12 exactly, it must fail.
+                'criterion' => 'Structure',
+                'levels' => [['id' => 202, 'points' => 8, 'comment' => '']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('strict', $result['mode']);
+        $this->assertNull($result['criteria'][0]['failure']);
+        $second = $result['criteria'][1];
+        $this->assertSame('missing_criterion_id', $second['failure']);
+        $this->assertNull($second['criterionid']);
+        $this->assertNull($second['criterionmatch']);
+        $this->assertNull($second['levelid']);
+        $this->assertNull($second['levelmatch']);
+    }
+
+    /**
+     * An unknown criterion id fails in strict mode even when the name would match.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_strict_unknown_criterion_id_never_falls_back(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'id' => 999,
+                'criterion' => 'Structure',
+                'levels' => [['id' => 202, 'points' => 8, 'comment' => '']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('strict', $result['mode']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame('unknown_criterion_id', $resolved['failure']);
+        $this->assertNull($resolved['criterionid']);
+        $this->assertNull($resolved['criterionmatch']);
+        $this->assertNull($resolved['levelid']);
+    }
+
+    /**
+     * In strict mode a level without id fails even when its points would match.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_strict_missing_level_id(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'id' => 12,
+                'criterion' => 'Structure',
+                // Points match level 202 exactly but must be ignored in strict mode.
+                'levels' => [['points' => 8, 'comment' => '']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('strict', $result['mode']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame(12, $resolved['criterionid']);
+        $this->assertSame('id', $resolved['criterionmatch']);
+        $this->assertSame('missing_level_id', $resolved['failure']);
+        $this->assertNull($resolved['levelid']);
+        $this->assertNull($resolved['levelmatch']);
+    }
+
+    /**
+     * In strict mode an unknown level id fails even when its points would match.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_strict_unknown_level_id(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'id' => 12,
+                'criterion' => 'Structure',
+                // Points match level 201 exactly but must be ignored in strict mode.
+                'levels' => [['id' => 555, 'points' => 2.0, 'comment' => '']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('strict', $result['mode']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame('unknown_level_id', $resolved['failure']);
+        $this->assertSame(12, $resolved['criterionid']);
+        $this->assertNull($resolved['levelid']);
+        $this->assertNull($resolved['levelmatch']);
+    }
+
+    /**
+     * A record without ids keeps resolving by mangled name and points (legacy).
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_legacy_matches_by_normalized_name_and_points(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'criterion' => "  REDACCION y ortografia\r\ncuidada ",
+                'levels' => [['points' => 5, 'comment' => 'Bien']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('legacy', $result['mode']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame(11, $resolved['criterionid']);
+        $this->assertSame('name', $resolved['criterionmatch']);
+        $this->assertSame(102, $resolved['levelid']);
+        $this->assertSame('points', $resolved['levelmatch']);
+        $this->assertNull($resolved['failure']);
+    }
+
+    /**
+     * A legacy criterion whose name matches nothing reports name_not_found.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_legacy_name_not_found(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'criterion' => 'Nonexistent criterion',
+                'levels' => [['points' => 4, 'comment' => '']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('legacy', $result['mode']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame('name_not_found', $resolved['failure']);
+        $this->assertNull($resolved['criterionid']);
+        $this->assertNull($resolved['criterionmatch']);
+        $this->assertNull($resolved['levelid']);
+        $this->assertSame('Nonexistent criterion', $resolved['criterion']);
+        $this->assertSame(4.0, $resolved['points']);
+    }
+
+    /**
+     * A legacy criterion whose points fit no level reports points_not_found.
+     *
+     * @covers ::resolve_rubric_criteria
+     */
+    public function test_resolve_rubric_criteria_legacy_points_not_found(): void {
+        $result = feedback_applier::resolve_rubric_criteria([
+            [
+                'criterion' => 'Structure',
+                'levels' => [['points' => 3.5, 'comment' => '']],
+            ],
+        ], $this->get_moodle_rubric_criteria());
+
+        $this->assertSame('legacy', $result['mode']);
+        $resolved = $result['criteria'][0];
+        $this->assertSame(12, $resolved['criterionid']);
+        $this->assertSame('name', $resolved['criterionmatch']);
+        $this->assertSame('points_not_found', $resolved['failure']);
+        $this->assertNull($resolved['levelid']);
+        $this->assertNull($resolved['levelmatch']);
+    }
+
+    /**
+     * The rubric mismatch exception message carries the mode and per-criterion failure reason.
+     *
+     * @covers ::apply_ai_feedback
+     */
+    public function test_apply_ai_feedback_rubric_mismatch_message_includes_failure_reason(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $rubricgenerator = $this->getDataGenerator()->get_plugin_generator('gradingform_rubric');
+        $rubricgenerator->get_test_rubric($assign->get_context(), 'mod_assign', 'submissions');
+
+        // The criterion carries an unknown id: the record is strict, so the matching
+        // name must not rescue it and the failure reason must reach the message.
+        $record = $this->build_record($student->id, json_encode([
+            [
+                'id' => 999999,
+                'criterion' => 'Spelling is important',
+                'levels' => [['id' => 999999, 'points' => 2, 'comment' => 'x']],
+            ],
+        ]), null);
+
+        try {
+            feedback_applier::apply_ai_feedback($assign, $record, get_admin()->id);
+            $this->fail('Expected a moodle_exception for the rubric mismatch.');
+        } catch (\moodle_exception $e) {
+            $this->assertStringContainsString('unknown_criterion_id', $e->getMessage());
+            $this->assertStringContainsString('strict', $e->getMessage());
+            $this->assertStringContainsString('Spelling is important', $e->getMessage());
+        }
+        $this->resetDebugging();
+
+        $this->assert_no_effective_grade($assign, $student->id);
+    }
+
+    /**
      * A matching guide response grades through the guide (control).
      *
      * @covers ::apply_ai_feedback

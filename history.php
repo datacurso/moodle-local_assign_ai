@@ -24,6 +24,7 @@
 
 use core_reportbuilder\system_report_factory;
 use local_assign_ai\assign_submission;
+use local_assign_ai\grading\feedback_applier;
 use local_assign_ai\output\header_logo;
 use local_assign_ai\reportbuilder\systemreports\history as history_report;
 
@@ -164,6 +165,72 @@ if ($logid !== null) {
         $lines[] = '';
         $lines[] = get_string('logerror', 'local_assign_ai') . ':';
         $lines[] = (string) $record->errormessage;
+    }
+
+    // Rubric matching diagnostics: show how each AI criterion resolves against the
+    // current rubric definition (by id, by name, or not at all) plus the raw JSON.
+    // A diagnostics failure must never break the log page, hence the try/catch.
+    if (!empty($record->rubric_response)) {
+        try {
+            $lines[] = '';
+            $rubricdata = json_decode((string) $record->rubric_response, true);
+            if (!is_array($rubricdata)) {
+                $lines[] = get_string('logrubricinvalidjson', 'local_assign_ai');
+                $lines[] = (string) $record->rubric_response;
+            } else {
+                $definition = null;
+                $gradingmanager = get_grading_manager($context, 'mod_assign', 'submissions');
+                if ($gradingmanager->get_active_method() === 'rubric') {
+                    $controller = $gradingmanager->get_controller('rubric');
+                    $definition = $controller->get_definition();
+                }
+
+                if ($definition && !empty($definition->rubric_criteria)) {
+                    $resolved = feedback_applier::resolve_rubric_criteria($rubricdata, $definition->rubric_criteria);
+                    $resolutions = $resolved['criteria'];
+                    $total = count($resolutions);
+                    $matched = 0;
+                    $detaillines = [];
+                    foreach ($resolutions as $resolution) {
+                        $criterionoutcome = match ($resolution['criterionmatch']) {
+                            'id' => get_string('logrubriccriterionbyid', 'local_assign_ai', $resolution['criterionid']),
+                            'name' => get_string('logrubriccriterionbyname', 'local_assign_ai', $resolution['criterionid']),
+                            default => get_string('logrubriccriterionnotmatched', 'local_assign_ai'),
+                        };
+                        $leveloutcome = match ($resolution['levelmatch']) {
+                            'id' => get_string('logrubriclevelbyid', 'local_assign_ai', $resolution['levelid']),
+                            'points' => get_string('logrubriclevelbypoints', 'local_assign_ai', $resolution['levelid']),
+                            default => get_string('logrubriclevelnotmatched', 'local_assign_ai'),
+                        };
+                        if ($resolution['failure'] === null) {
+                            $matched++;
+                        }
+                        $detailline = '- ' . $resolution['criterion'] . ': ' . $criterionoutcome . '; ' . $leveloutcome;
+                        if ($resolution['failure'] !== null) {
+                            $detailline .= ' ('
+                                . get_string('logrubricfailurereason', 'local_assign_ai', $resolution['failure']) . ')';
+                        }
+                        $detaillines[] = $detailline;
+                    }
+
+                    $lines[] = $resolved['mode'] === 'strict'
+                        ? get_string('logrubricmodestrict', 'local_assign_ai')
+                        : get_string('logrubricmodelegacy', 'local_assign_ai');
+                    $counts = (object) ['matched' => $matched, 'total' => $total];
+                    $lines[] = $matched === $total && $total > 0
+                        ? get_string('logrubricmatchok', 'local_assign_ai', $counts)
+                        : get_string('logrubricmatchfailed', 'local_assign_ai', $counts);
+                    $lines = array_merge($lines, $detaillines);
+                } else {
+                    $lines[] = get_string('logrubricnodefinition', 'local_assign_ai');
+                }
+
+                $lines[] = get_string('logrubricjson', 'local_assign_ai') . ':';
+                $lines[] = json_encode($rubricdata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+        } catch (\Throwable $e) {
+            $lines[] = get_string('logrubricdiagfailed', 'local_assign_ai');
+        }
     }
     $logtext = implode("\n", $lines);
 

@@ -96,10 +96,40 @@ const verifyRubricApplied = (rubricData, root) => {
     const rows = Array.from(root.querySelectorAll('tr.criterion'));
     const mismatches = [];
 
+    // Per-record mode detection, mirroring inject_rubric: any criterion with a Moodle
+    // id makes the whole record 'strict' (exact radio verification only, no fallback).
+    const strictMode = rubricData.some((criterionData) =>
+        criterionData && criterionData.id !== null && criterionData.id !== undefined && criterionData.id !== '');
+
     rubricData.forEach((criterionData) => {
         const name = criterionData?.criterion || '';
         const expected = parseFloat(criterionData?.levels?.[0]?.points ?? '');
+        const criterionId = criterionData?.id ?? null;
+        const levelId = criterionData?.levels?.[0]?.id ?? null;
 
+        if (strictMode) {
+            // Strict: only the exact expected radio being checked counts as applied.
+            if (criterionId === null || criterionId === '' || levelId === null || levelId === '') {
+                mismatches.push({ criterion: name, reason: 'missing_ids', expected });
+                return;
+            }
+            const nameSelector = 'input[name$="[criteria][' + criterionId + '][levelid]"]';
+            const radio = root.querySelector(nameSelector + '[value="' + levelId + '"]');
+            if (!radio) {
+                mismatches.push({ criterion: name, reason: 'radio_not_found', expected });
+                return;
+            }
+            const cell = radio.closest('td.level');
+            const isSelected = !!radio.checked || (cell && (cell.classList.contains('checked') ||
+                cell.getAttribute('aria-checked') === 'true'));
+            if (!isSelected) {
+                mismatches.push({ criterion: name, reason: 'no_level_selected', expected });
+            }
+            return;
+        }
+
+        // Legacy record (no ids anywhere): locate the row by its normalized
+        // description text and compare the selected points below.
         const row = rows.find((rowItem) => {
             const cell = rowItem.querySelector('td.description');
             if (!cell) {
