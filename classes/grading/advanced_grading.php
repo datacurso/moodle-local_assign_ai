@@ -167,8 +167,10 @@ class advanced_grading {
             $comment = $filled['remark'] ?? '';
 
             $data[] = [
+                'id' => (int) $criterionid,
                 'criterion' => $criterion['description'],
                 'levels' => [[
+                    'id' => (int) $levelid,
                     'points' => (float) $level['score'],
                     'comment' => $comment,
                 ]],

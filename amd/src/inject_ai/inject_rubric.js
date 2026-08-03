@@ -89,6 +89,12 @@ export const injectRubric = (rubricData, strRubricError, options = {}) => {
         return false;
     }
 
+    // Per-record mode detection: when any criterion carries a Moodle id the record is
+    // 'strict' and every criterion must inject through its exact criterion/level ids,
+    // never falling back to text or points. Records without ids anywhere are 'legacy'.
+    const strictMode = rubricData.some((criterionData) =>
+        criterionData && criterionData.id !== null && criterionData.id !== undefined && criterionData.id !== '');
+
     rubricData.forEach((criterionData) => {
         const criterionName = criterionData.criterion;
         const targetPoints = criterionData.levels[0].points;
@@ -111,14 +117,35 @@ export const injectRubric = (rubricData, strRubricError, options = {}) => {
             classAfterMutation: false,
         };
 
-        const row = criterionRows.find((rowItem) => {
-            const descriptionCell = rowItem.querySelector('td.description');
-            if (!descriptionCell) {
-                return false;
+        const criterionId = criterionData.id ?? null;
+        const levelId = criterionData.levels[0].id ?? null;
+        let directRadio = null;
+        let row = null;
+
+        if (strictMode) {
+            // Strict: only the exact radio identified by the authoritative Moodle ids
+            // ("...[criteria][<criterionid>][levelid]" with the level id as value) is
+            // acceptable. A criterion lacking ids, or whose radio is absent, counts as
+            // not applied: there is no text or points fallback.
+            if (criterionId !== null && criterionId !== '' && levelId !== null && levelId !== '') {
+                const nameSelector = 'input[name$="[criteria][' + criterionId + '][levelid]"]';
+                directRadio = root.querySelector(nameSelector + '[value="' + levelId + '"]');
+                if (directRadio) {
+                    row = directRadio.closest('tr.criterion');
+                }
             }
-            const rowCriterionName = descriptionCell.textContent.trim();
-            return normalizeString(rowCriterionName) === normalizeString(criterionName);
-        });
+        } else {
+            // Legacy record (no ids anywhere): locate the row by its normalized
+            // description text and resolve the level by points below.
+            row = criterionRows.find((rowItem) => {
+                const descriptionCell = rowItem.querySelector('td.description');
+                if (!descriptionCell) {
+                    return false;
+                }
+                const rowCriterionName = descriptionCell.textContent.trim();
+                return normalizeString(rowCriterionName) === normalizeString(criterionName || '');
+            });
+        }
 
         if (!row) {
             details.push(criterionResult);
@@ -143,22 +170,35 @@ export const injectRubric = (rubricData, strRubricError, options = {}) => {
             criterionResult.selectedPointsBefore = parseFloat(scoreSpan.textContent.trim());
         });
 
-        levelCells.forEach((levelCell) => {
-            const scoreSpan = levelCell.querySelector('.scorevalue');
-            if (!scoreSpan) {
-                return;
-            }
+        // Resolve the target level: strict records always reach this point with the
+        // exact radio already resolved; legacy records match the level by points
+        // through the .scorevalue cells within the row.
+        let radioInput = null;
+        let levelCell = null;
+        if (directRadio) {
+            radioInput = directRadio;
+            levelCell = directRadio.closest('td.level');
+        } else {
+            Array.from(levelCells).some((cell) => {
+                const scoreSpan = cell.querySelector('.scorevalue');
+                if (!scoreSpan) {
+                    return false;
+                }
+                const points = parseFloat(scoreSpan.textContent.trim());
+                if (Math.abs(points - targetPoints) >= 0.1) {
+                    return false;
+                }
+                const radio = cell.querySelector('input[type="radio"]');
+                if (!radio) {
+                    return false;
+                }
+                radioInput = radio;
+                levelCell = cell;
+                return true;
+            });
+        }
 
-            const points = parseFloat(scoreSpan.textContent.trim());
-            if (Math.abs(points - targetPoints) >= 0.1) {
-                return;
-            }
-
-            const radioInput = levelCell.querySelector('input[type="radio"]');
-            if (!radioInput) {
-                return;
-            }
-
+        if (radioInput && levelCell) {
             criterionResult.levelFound = true;
             criterionResult.radioFound = true;
             criterionResult.radioDisabled = !!radioInput.disabled;
@@ -210,9 +250,12 @@ export const injectRubric = (rubricData, strRubricError, options = {}) => {
             }
 
             if (radioInput.checked) {
-                criterionResult.selectedPointsAfter = points;
+                const scoreSpan = levelCell.querySelector('.scorevalue');
+                criterionResult.selectedPointsAfter = scoreSpan
+                    ? parseFloat(scoreSpan.textContent.trim())
+                    : targetPoints;
             }
-        });
+        }
 
         const remarkTextarea = row.querySelector('td.remark textarea');
         if (remarkTextarea && comment) {
