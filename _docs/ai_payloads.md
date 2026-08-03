@@ -154,7 +154,13 @@ examples of the structures the plugin expects.
 
 ### Rubric response
 
-The plugin accepts either an array of criteria or an object with `criteria`.
+The plugin accepts either an array of criteria or an object with `criteria`. Each criterion
+carries the authoritative Moodle criterion id (`id`) and the chosen level carries the Moodle
+level id (`id`). The matching mode is detected per record: when any criterion carries an id
+the whole record is matched strictly by criterion and level ids (a criterion with a missing
+or unknown id fails, with no fallback to its name or points); only responses without ids
+anywhere (older records/service versions) use the legacy criterion-name and level-points
+matching.
 
 ```json
 {
@@ -163,15 +169,17 @@ The plugin accepts either an array of criteria or an object with `criteria`.
   "rubric": {
     "criteria": [
       {
+        "id": 1,
         "criterion": "Thesis",
         "levels": [
-          {"points": 5, "comment": "Clear and focused thesis."}
+          {"id": 10, "points": 5, "comment": "Clear and focused thesis."}
         ]
       },
       {
+        "id": 2,
         "criterion": "Evidence",
         "levels": [
-          {"points": 3, "comment": "Adequate evidence, could be stronger."}
+          {"id": 21, "points": 3, "comment": "Adequate evidence, could be stronger."}
         ]
       }
     ]
