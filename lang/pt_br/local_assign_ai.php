@@ -80,7 +80,6 @@ $string['enableai_help'] = 'Se desabilitado, as demais opções desta seção n�
 $string['enableassignai'] = 'Habilitar Tarefa IA';
 $string['enableassignai_desc'] = 'Se desabilitado, a seção "Datacurso Assign AI" é ocultada nas configurações da atividade tarefa e o processamento automático é pausado.';
 $string['error_advancedresponsemissing'] = 'A tarefa é avaliada com um método avançado ({$a}), mas a resposta da IA não contém dados para esse método. A nota não foi aplicada.';
-$string['error_airequest'] = 'Erro ao se comunicar com o serviço de IA: {$a}';
 $string['error_generic'] = 'A revisão por IA falhou. Consulte o registro do histórico de IA para mais detalhes.';
 $string['error_guidemismatch'] = 'A resposta da IA não corresponde ao guia de avaliação desta tarefa. A nota não foi aplicada. Critérios sem correspondência: {$a}';
 $string['error_processing_timeout'] = 'O processamento expirou sem resposta; tente novamente.';

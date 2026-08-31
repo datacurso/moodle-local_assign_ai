@@ -64,11 +64,17 @@ class approve_all_pending extends external_api {
         ]);
 
         $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
+
         $context = \context_module::instance($cm->id);
         $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
 
         self::validate_context($context);
         require_capability('local/assign_ai:changestatus', $context);
+
+        // The submitted courseid must match the real course of the module; a mismatch would silently approve nothing.
+        if ((int) $params['courseid'] !== (int) $cm->course) {
+            throw new \moodle_exception('invalidcourseid');
+        }
 
         $assign = new \assign($context, $cm, $course);
 

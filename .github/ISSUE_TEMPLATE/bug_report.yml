@@ -1,0 +1,107 @@
+name: Bug Report
+description: Report incorrect behaviour in the plugin
+title: "fix(<scope>): <short summary>"
+labels: ["bug", "status:needs-review"]
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched the existing issues and this is not a duplicate
+          required: true
+        - label: I understand this issue needs the status:approved label before a pull request can be opened
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: What is wrong, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps someone else can follow to see the same result.
+      placeholder: |
+        1. Create an assignment with AI enabled and automatic approval
+        2. Back up the course with "include user data" unchecked
+        3. Restore the backup into a new course
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened instead. Include the exact error message if there is one.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: moodle
+    attributes:
+      label: Moodle version
+      options:
+        - "4.5"
+        - "5.0"
+        - "5.1"
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: php
+    attributes:
+      label: PHP version
+      options:
+        - "8.1"
+        - "8.2"
+        - "8.3"
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - MariaDB
+        - MySQL
+        - PostgreSQL
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: pluginversion
+    attributes:
+      label: Plugin version
+      description: The release shown in Site administration > Plugins overview.
+      placeholder: "1.1.7"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Cron output, PHP errors or debugging messages. Pasted text is formatted automatically.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, affected courses, workarounds already in place.
