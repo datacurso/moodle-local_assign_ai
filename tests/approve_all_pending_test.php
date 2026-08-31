@@ -201,4 +201,44 @@ final class approve_all_pending_test extends \externallib_advanced_testcase {
 
         $this->resetDebugging();
     }
+
+    /**
+     * A courseid that does not match the real course of the module is rejected with
+     * an invalidcourseid exception and no pending record is approved.
+     *
+     * @covers ::execute
+     */
+    public function test_execute_rejects_mismatched_courseid(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+        ]);
+        $cmid = (int) $assign->get_course_module()->id;
+
+        $this->add_submission($student, $assign, 'Essay');
+        $record = $this->create_pending_record($assign, (int) $student->id, 60, 'AI feedback');
+
+        // A second course whose id does not match the real course of the module.
+        $othercourse = $this->getDataGenerator()->create_course();
+
+        $this->setUser($teacher);
+        try {
+            approve_all_pending::execute((int) $othercourse->id, $cmid);
+            $this->fail('Expected moodle_exception (invalidcourseid) was not thrown.');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('invalidcourseid', $e->errorcode);
+        }
+
+        // The pending record was not touched: it is still pending.
+        $record = $DB->get_record('local_assign_ai_pending', ['id' => $record->id], '*', MUST_EXIST);
+        $this->assertSame(assign_submission::STATUS_PENDING, $record->status);
+    }
 }
