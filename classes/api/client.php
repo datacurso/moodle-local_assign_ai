@@ -27,6 +27,19 @@ use local_assign_ai\local\payload_anonymizer;
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class client {
+    /** @var callable|null Factory returning the API object, replaced by tests to avoid the external provider. */
+    private static $apifactory = null;
+
+    /**
+     * Overrides how the provider API object is built. Intended for unit tests only.
+     *
+     * @param callable|null $factory Returns an object exposing request(), or null to restore the default.
+     * @return void
+     */
+    public static function set_api_factory(?callable $factory): void {
+        self::$apifactory = $factory;
+    }
+
     /**
      * Sends the payload to the AI provider and returns the response.
      *
@@ -38,7 +51,7 @@ class client {
         $payload = $anonymized['payload'];
         $replacements = $anonymized['replacements'];
 
-        $client = new ai_services_api();
+        $client = self::$apifactory ? (self::$apifactory)() : new ai_services_api();
 
         $response = $client->request('POST', '/assign/answer', $payload);
 
