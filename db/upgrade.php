@@ -381,7 +381,7 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
     }
 
     if ($oldversion < 2026092901) {
-        // Sites that skipped the 2025120803 step can lack assessment_guide_response.
+        // Define field assessment_guide_response to be added to local_assign_ai_pending.
         $table = new xmldb_table('local_assign_ai_pending');
         $field = new xmldb_field('assessment_guide_response', XMLDB_TYPE_TEXT, null, null, null, null, null, 'rubric_response');
 
