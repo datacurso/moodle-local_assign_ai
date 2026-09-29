@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
+require_once(__DIR__ . '/fixtures/ai_client_mock.php');
 
 /**
  * Unit tests for the submission event observers.
@@ -43,33 +44,7 @@ require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
  */
 final class submission_observer_test extends \advanced_testcase {
     use \mod_assign_test_generator;
-
-    /**
-     * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
-     *
-     * The provider only requires a license key; site_uuid is set for determinism.
-     *
-     * @return void
-     */
-    private function configure_ai_provider(): void {
-        set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
-        set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
-    }
-
-    /**
-     * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
-     *
-     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
-     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
-     * /assign/answer body is queued first.
-     *
-     * @param string $answerbody Body returned for the final /assign/answer POST.
-     * @return void
-     */
-    private function mock_ai_pipeline(string $answerbody): void {
-        \curl::mock_response($answerbody);
-        \curl::mock_response(json_encode(['is_for_eu' => false]));
-    }
+    use ai_client_mock;
 
     /**
      * Bump the assign instance id sequence past the given id.

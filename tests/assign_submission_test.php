@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
+require_once(__DIR__ . '/fixtures/ai_client_mock.php');
 
 /**
  * Unit tests for the AI submission processor.
@@ -39,49 +40,7 @@ require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
  */
 final class assign_submission_test extends \advanced_testcase {
     use \mod_assign_test_generator;
-
-    /**
-     * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
-     *
-     * The provider only requires a license key; site_uuid is set for determinism.
-     *
-     * @return void
-     */
-    private function configure_ai_provider(): void {
-        set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
-        set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
-    }
-
-    /**
-     * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
-     *
-     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
-     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
-     * /assign/answer body is queued first.
-     *
-     * @param string $answerbody Body returned for the final /assign/answer POST.
-     * @return void
-     */
-    private function mock_ai_pipeline(string $answerbody): void {
-        \curl::mock_response($answerbody);
-        \curl::mock_response(json_encode(['is_for_eu' => false]));
-    }
-
-    /**
-     * Queue the mocked responses of a successful AI review with the given grade and reply.
-     *
-     * @param int $grade Grade returned by the mocked AI service.
-     * @param string $reply Feedback text returned by the mocked AI service.
-     * @return void
-     */
-    private function mock_ai_success(int $grade, string $reply): void {
-        $this->mock_ai_pipeline(json_encode([
-            'reply' => $reply,
-            'grade' => $grade,
-            'rubric' => null,
-            'assessment_guide' => null,
-        ]));
-    }
+    use ai_client_mock;
 
     /**
      * Bump the assign instance id sequence past the given id.
@@ -310,7 +269,7 @@ final class assign_submission_test extends \advanced_testcase {
             ['id' => $submission->id]
         );
 
-        // The service rejects the payload: the HTTP client surfaces it as an "empty response" error.
+        // The service rejects the payload: the AI client raises an error for the empty response.
         $this->mock_ai_pipeline('');
 
         $processor = new assign_submission((int) $student->id, $assign);
@@ -318,7 +277,7 @@ final class assign_submission_test extends \advanced_testcase {
 
         $record = $DB->get_record('local_assign_ai_pending', ['userid' => $student->id], '*', MUST_EXIST);
         $this->assertSame(assign_submission::STATUS_FAILED, $record->status);
-        $this->assertSame(get_string('emptyresponse', 'aiprovider_datacurso'), $record->errormessage);
+        $this->assertSame(get_string('error_generic', 'local_assign_ai'), $record->errormessage);
         $this->assertNull($record->grade);
 
         $this->resetDebugging();
@@ -346,7 +305,7 @@ final class assign_submission_test extends \advanced_testcase {
 
         $this->add_submission($student, $assign, 'My essay text');
 
-        // No curl mock is queued: any HTTP attempt would fail and mark the record as failed.
+        // No fake AI response is queued: any HTTP attempt would fail and mark the record as failed.
         $processor = new assign_submission((int) $student->id, $assign);
         $processor->process_submission_ai();
 
