@@ -54,6 +54,41 @@ final class amd_dependencies_test extends \advanced_testcase {
     }
 
     /**
+     * Every direct TinyMCE initialisation in amd/src passes the GPL license key.
+     *
+     * TinyMCE 8 (shipped with Moodle 5.2) opens the editor in read-only mode when no
+     * license_key is given; core only sets it in its own editor_tiny configuration.
+     */
+    public function test_tinymce_init_sets_gpl_license_key(): void {
+        $srcdir = \core_component::get_component_directory('local_assign_ai') . '/amd/src';
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($srcdir, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        $checked = 0;
+        $missing = [];
+        foreach ($iterator as $file) {
+            if ($file->getExtension() !== 'js') {
+                continue;
+            }
+            $source = file_get_contents($file->getPathname());
+            preg_match_all('/\.init\(\{(.*?)\}\);/s', $source, $matches);
+            foreach ($matches[1] as $config) {
+                if (strpos($source, 'getTinyMCE') === false) {
+                    continue;
+                }
+                $checked++;
+                if (!preg_match('/\blicense_key\s*:\s*[\'"]gpl[\'"]/', $config)) {
+                    $missing[] = substr($file->getPathname(), strlen($srcdir) + 1);
+                }
+            }
+        }
+
+        $this->assertGreaterThan(0, $checked, 'No TinyMCE initialisation found in amd/src.');
+        $this->assertSame([], $missing, 'TinyMCE initialised without license_key gpl in: ' . implode(', ', $missing));
+    }
+
+    /**
      * Collects the core AMD modules required by every source file under amd/src.
      *
      * Covers ES2015 imports (`import x from 'core/x'`) and AMD define() dependency lists.
