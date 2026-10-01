@@ -80,6 +80,8 @@ export const init = () => {
                     const base = TinyEditor.getStandardConfig ? TinyEditor.getStandardConfig() : {};
                     await tinymce.init({
                         ...base,
+                        // TinyMCE 8 (Moodle 5.2) opens the editor read-only without a license key.
+                        license_key: 'gpl',
                         target: textarea,
                         menubar: base.menubar ?? false,
                         plugins: base.plugins ?? 'lists link table code',
