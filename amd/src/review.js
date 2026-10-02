@@ -21,7 +21,7 @@
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import ModalFactory from 'core/modal_factory';
+import Modal from 'core/modal';
 import ModalEvents from 'core/modal_events';
 import Ajax from 'core/ajax';
 import Notification from 'core/notification';
@@ -62,8 +62,7 @@ export const init = () => {
                 });
 
                 // Create the modal.
-                const modal = await ModalFactory.create({
-                    type: ModalFactory.types.DEFAULT,
+                const modal = await Modal.create({
                     title: title,
                     body: bodyHtml,
                     large: true,
@@ -81,6 +80,8 @@ export const init = () => {
                     const base = TinyEditor.getStandardConfig ? TinyEditor.getStandardConfig() : {};
                     await tinymce.init({
                         ...base,
+                        // TinyMCE 8 (Moodle 5.2) opens the editor read-only without a license key.
+                        license_key: 'gpl',
                         target: textarea,
                         menubar: base.menubar ?? false,
                         plugins: base.plugins ?? 'lists link table code',

@@ -43,13 +43,33 @@ final class assign_submission_test extends \advanced_testcase {
     /**
      * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
      *
-     * The provider only requires a license key; site_uuid is set for determinism.
+     * Moodle 4.5 reads the license key from the plugin config and Moodle 5.0 from an enabled
+     * provider instance, so both are set; site_uuid is set for determinism.
      *
      * @return void
      */
     private function configure_ai_provider(): void {
+        global $DB;
+
+        // The CI pipeline does not install declared dependencies, so without the Datacurso provider
+        // there is no AI client to call and these pipeline tests have nothing to measure.
+        if (!class_exists(\aiprovider_datacurso\httpclient\ai_services_api::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed; the AI pipeline cannot run.');
+        }
+
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
+
+        // Moodle 5.0 reads the license key from an enabled provider instance instead of the plugin config.
+        $manager = new \core_ai\manager($DB);
+        if (method_exists($manager, 'create_provider_instance')) {
+            $manager->create_provider_instance(
+                classname: \aiprovider_datacurso\provider::class,
+                name: 'phpunit',
+                enabled: true,
+                config: ['licensekey' => 'phpunit-license-key'],
+            );
+        }
     }
 
     /**
