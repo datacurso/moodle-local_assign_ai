@@ -51,6 +51,12 @@ final class assign_submission_test extends \advanced_testcase {
     private function configure_ai_provider(): void {
         global $DB;
 
+        // The CI pipeline does not install declared dependencies, so without the Datacurso provider
+        // there is no AI client to call and these pipeline tests have nothing to measure.
+        if (!class_exists(\aiprovider_datacurso\httpclient\ai_services_api::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed; the AI pipeline cannot run.');
+        }
+
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
 
