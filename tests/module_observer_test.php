@@ -126,7 +126,12 @@ final class module_observer_test extends \advanced_testcase {
         $this->assertTrue($DB->record_exists('local_assign_ai_config', ['assignmentid' => $deleted->id]));
         $this->assertTrue($DB->record_exists('local_assign_ai_config', ['assignmentid' => $kept->id]));
 
-        course_delete_module($deleted->cmid);
+        // Moodle 5.2 deprecates course_delete_module() (MDL-86856); Moodle 4.5 has no cmactions::delete().
+        if (method_exists(\core_courseformat\local\cmactions::class, 'delete')) {
+            \core_courseformat\formatactions::cm($course)->delete((int) $deleted->cmid);
+        } else {
+            course_delete_module($deleted->cmid);
+        }
 
         // The deleted assignment leaves no configuration or AI feedback behind.
         $this->assertFalse($DB->record_exists('local_assign_ai_config', ['assignmentid' => $deleted->id]));

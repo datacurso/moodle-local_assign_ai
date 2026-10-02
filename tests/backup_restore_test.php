@@ -297,7 +297,12 @@ final class backup_restore_test extends \advanced_testcase {
         );
 
         $cm = get_fast_modinfo($course)->get_cm($assign->get_course_module()->id);
-        $newcm = duplicate_module($course, $cm);
+        // Moodle 5.2 deprecates duplicate_module() (MDL-86858); Moodle 4.5 has no cmactions::duplicate().
+        if (method_exists(\core_courseformat\local\cmactions::class, 'duplicate')) {
+            $newcm = \core_courseformat\formatactions::cm($course)->duplicate($cm->id);
+        } else {
+            $newcm = duplicate_module($course, $cm);
+        }
 
         $newconfig = $DB->get_record(
             'local_assign_ai_config',
