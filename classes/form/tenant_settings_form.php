@@ -93,7 +93,9 @@ class tenant_settings_form extends \moodleform {
     public function validation($data, $files): array {
         $errors = parent::validation($data, $files);
 
-        if ((int) $data['defaultdelayminutes'] < 1) {
+        // The delay is only visible (and posted) while AI, autograde and the delay are all switched on.
+        $delayinuse = !empty($data['defaultenableai']) && !empty($data['defaultautograde']) && !empty($data['defaultusedelay']);
+        if ($delayinuse && (int) ($data['defaultdelayminutes'] ?? 0) < 1) {
             $errors['defaultdelayminutes'] = get_string('err_numeric', 'form');
         }
 

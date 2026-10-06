@@ -69,13 +69,7 @@ if ($data = $form->get_data()) {
         throw new moodle_exception('nopermissions', 'error', '', get_string('tenantsettings', 'local_assign_ai'));
     }
 
-    foreach (tenant_config::SETTING_NAMES as $name) {
-        $value = $data->$name ?? '';
-        if ($name === 'defaultdelayminutes') {
-            $value = max(1, (int) $value);
-        }
-        tenant_config::set($name, $target, $value);
-    }
+    tenant_config::save_form_data($target, $data);
 
     redirect(
         new moodle_url('/local/assign_ai/tenant_settings.php', ['tenantid' => $target]),

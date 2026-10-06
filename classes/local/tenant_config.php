@@ -93,6 +93,29 @@ class tenant_config {
     }
 
     /**
+     * Stores the data submitted by the tenant settings form.
+     *
+     * Controls hidden by the form (for example the delay while the delay is off) are not posted;
+     * they keep the value already stored instead of being overwritten with an empty one.
+     *
+     * @param int $tenantid Tenant id (must be a real tenant, > 0).
+     * @param \stdClass $data Data returned by the form.
+     * @return void
+     */
+    public static function save_form_data(int $tenantid, \stdClass $data): void {
+        foreach (self::SETTING_NAMES as $name) {
+            if (!isset($data->$name)) {
+                continue;
+            }
+            $value = $data->$name;
+            if ($name === 'defaultdelayminutes') {
+                $value = max(1, (int) $value);
+            }
+            self::set($name, $tenantid, $value);
+        }
+    }
+
+    /**
      * Returns every value stored for a tenant (without site fallback).
      *
      * @param int $tenantid Tenant id.
