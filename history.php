@@ -55,9 +55,8 @@ if (!has_capability('local/assign_ai:review', $context)) {
 }
 
 // Stop here when the master switch of the course tenant (or of the site) is off.
-if (!\local_assign_ai\config\assignment_config::is_ai_available(
-    \local_assign_ai\local\tenant_context::resolve_for_current_user((int) $course->id)
-)) {
+$tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int) $course->id);
+if (!\local_assign_ai\config\assignment_config::is_ai_available($tenantid)) {
     throw new moodle_exception(
         'aiunavailable',
         'local_assign_ai',
