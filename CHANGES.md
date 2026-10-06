@@ -1,3 +1,23 @@
+## [1.1.8-wp] - 2026-10-06
+
+**Compatibility note:** Moodle Workplace 4.5 branch (`-wp` release). The plugin still loads on a plain Moodle LMS, where tenant features are inactive.
+
+### Added
+
+- Moodle Workplace: the global defaults (`enableassignai`, `defaultenableai`, `defaultautograde`, `defaultusedelay`, `defaultdelayminutes`, `defaultprompt`) can now be set per tenant. Values are stored in the new `local_assign_ai_tenant_config` table and fall back to the site settings when a tenant has none
+- Moodle Workplace: new tenant settings page (Site administration > Plugins > Local plugins > Tenant settings), editable by tenant administrators for their own tenant and by site administrators for any tenant
+- New capability `local/assign_ai:managetenantsettings`, granted to managers and to the Workplace tenant administrator role (the upgrade step assigns it to existing tenant administrator roles)
+
+### Fixed
+
+- Moodle Workplace: AI requests sent from cron and ad hoc tasks now use the licence of the course tenant (or the student's tenant when the course is outside a tenant category) instead of the licence of the tenant of the administrator running the task
+
+### Changed
+
+- Assignment defaults are resolved through a single `assignment_config::get_default()` / `get_defaults()` path, replacing the duplicated block in `lib.php`
+- Restoring an assignment into a course of another tenant keeps clearing the configured grader; this behaviour is now covered by a test
+- Removed the `moodle-release` GitHub workflow from the Workplace branch
+
 ## [1.1.8] - 2026-10-01
 
 **Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.2**.
