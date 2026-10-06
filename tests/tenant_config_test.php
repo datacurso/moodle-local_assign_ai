@@ -190,6 +190,7 @@ final class tenant_config_test extends \advanced_testcase {
         if (class_exists('\tool_tenant\tenancy')) {
             $this->markTestSkipped('Only meaningful on a site without Workplace.');
         }
+        $this->resetAfterTest();
 
         $course = $this->getDataGenerator()->create_course();
         $user = $this->getDataGenerator()->create_user();
