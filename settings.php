@@ -110,7 +110,9 @@ if ($hassiteconfig) {
 // Tenant level defaults page, registered only on Moodle Workplace. Tenant administrators do not hold
 // moodle/site:config, so access is granted through local/assign_ai:managetenantsettings instead.
 if (class_exists('\tool_tenant\tenancy') && class_exists('\tool_wp\admin_externalpage')) {
-    $ADMIN->add('localplugins', new \tool_wp\admin_externalpage(
+    // The 'localplugins' category only exists for users with moodle/site:config, so the page lives under
+    // the core 'ai' category, which tenant administrators can also reach.
+    $ADMIN->add($ADMIN->locate('ai') ? 'ai' : 'localplugins', new \tool_wp\admin_externalpage(
         'local_assign_ai_tenantsettings',
         get_string('tenantsettings', 'local_assign_ai'),
         (new moodle_url('/local/assign_ai/tenant_settings.php'))->out(),
