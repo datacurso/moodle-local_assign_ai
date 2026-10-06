@@ -145,15 +145,52 @@ class assignment_config {
     }
 
     /**
-     * Returns the effective configuration for an assignment, falling back to site defaults.
+     * Returns the effective configuration for an assignment, falling back to the defaults of its tenant.
      *
      * @param int $assignmentid The assignment instance ID (from {assign}).
      * @return \stdClass
      */
     public static function get_effective(int $assignmentid): \stdClass {
-        $record = self::get($assignmentid);
+        return self::build_effective(
+            self::get($assignmentid),
+            tenant_context::get_tenant_id_for_assignment($assignmentid)
+        );
+    }
 
-        $tenantid = tenant_context::get_tenant_id_for_assignment($assignmentid);
+    /**
+     * Returns the configuration a new assignment of a course starts with.
+     *
+     * A new assignment has no instance yet, so its tenant is resolved from the course being edited.
+     *
+     * @param int $courseid Course id.
+     * @return \stdClass
+     */
+    public static function get_effective_for_course(int $courseid): \stdClass {
+        return self::build_effective(null, tenant_context::resolve($courseid));
+    }
+
+    /**
+     * Whether AI processing may run for an assignment: the tenant switches and its own switch are on.
+     *
+     * @param int $assignmentid The assignment instance ID (from {assign}).
+     * @return bool
+     */
+    public static function is_ai_enabled_for_assignment(int $assignmentid): bool {
+        if (!self::is_feature_enabled(tenant_context::get_tenant_id_for_assignment($assignmentid))) {
+            return false;
+        }
+
+        return !empty(self::get_effective($assignmentid)->enableai);
+    }
+
+    /**
+     * Merges the stored row (if any) over the defaults of a tenant.
+     *
+     * @param \stdClass|null $record Stored assignment configuration.
+     * @param int $tenantid Tenant id used for the defaults.
+     * @return \stdClass
+     */
+    private static function build_effective(?\stdClass $record, int $tenantid): \stdClass {
         $defaults = self::get_defaults($tenantid);
 
         $config = (object) [

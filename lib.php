@@ -124,7 +124,10 @@ function local_assign_ai_coursemodule_standard_elements($formwrapper, $mform) {
     $globalenabled = \local_assign_ai\config\assignment_config::is_global_ai_enabled($tenantid);
 
     $assignid = $formwrapper->get_current()->instance ?? 0;
-    $config = \local_assign_ai\config\assignment_config::get_effective((int)$assignid);
+    // A new assignment has no instance yet: pre-fill from the defaults of the tenant of the course being edited.
+    $config = $assignid
+        ? \local_assign_ai\config\assignment_config::get_effective((int)$assignid)
+        : \local_assign_ai\config\assignment_config::get_effective_for_course((int)$courseid);
 
     $enableai = (int)($config->enableai ?? 1);
     if (!$globalenabled) {
@@ -317,7 +320,10 @@ function local_assign_ai_coursemodule_edit_post_actions($data, $course) {
         }
     }
 
-    $defaults = \local_assign_ai\config\assignment_config::get_defaults($tenantid);
+    // Same tenant as the form pre-fill: the one of the course, so create and update seed identical values.
+    $defaults = \local_assign_ai\config\assignment_config::get_defaults(
+        \local_assign_ai\local\tenant_context::resolve((int)$course->id)
+    );
     $defaultenableai = $defaults->enableai;
     $defaultautograde = $defaults->autograde;
     $defaultusedelay = $defaults->usedelay;
