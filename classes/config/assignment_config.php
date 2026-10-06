@@ -170,6 +170,16 @@ class assignment_config {
     }
 
     /**
+     * Whether the AI may run at all for a tenant: both master switches (feature and default AI) are on.
+     *
+     * @param int|null $tenantid Tenant id, null for the tenant of the current user.
+     * @return bool
+     */
+    public static function is_ai_available(?int $tenantid = null): bool {
+        return self::is_feature_enabled($tenantid) && self::is_global_ai_enabled($tenantid);
+    }
+
+    /**
      * Whether AI processing may run for an assignment: the tenant switches and its own switch are on.
      *
      * @param int $assignmentid The assignment instance ID (from {assign}).

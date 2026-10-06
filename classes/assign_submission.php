@@ -153,9 +153,7 @@ class assign_submission {
 
         $assignment = $this->assigninstance;
         $cmid = $this->assign->get_course_module()->id;
-        $config = assignment_config::get_effective((int)$assignment->id);
-
-        if (empty($config->enableai)) {
+        if (!assignment_config::is_ai_enabled_for_assignment((int)$assignment->id)) {
             return;
         }
 
@@ -276,8 +274,7 @@ class assign_submission {
             return;
         }
 
-        $config = assignment_config::get_effective((int)$this->assigninstance->id);
-        if (empty($config->enableai)) {
+        if (!assignment_config::is_ai_enabled_for_assignment((int)$this->assigninstance->id)) {
             self::update_pending_submission($pendingid, [
                 'status' => self::STATUS_FAILED,
                 'errormessage' => get_string('reviewaidisabled', 'local_assign_ai'),

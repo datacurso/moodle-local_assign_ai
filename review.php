@@ -50,6 +50,17 @@ try {
         );
     }
 
+    // Stop here when the master switch of the course tenant (or of the site) is off.
+    if (!\local_assign_ai\config\assignment_config::is_ai_available(
+        \local_assign_ai\local\tenant_context::resolve_for_current_user((int) $course->id)
+    )) {
+        throw new moodle_exception(
+            'aiunavailable',
+            'local_assign_ai',
+            new moodle_url('/course/view.php', ['id' => $course->id])
+        );
+    }
+
     // Instantiate the assign object.
     $assign = new assign($context, $cm, $course);
 
