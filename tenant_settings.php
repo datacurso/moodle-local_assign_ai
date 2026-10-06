@@ -29,6 +29,7 @@ require_once(__DIR__ . '/../../config.php');
 use local_assign_ai\form\tenant_settings_form;
 use local_assign_ai\local\tenant_config;
 use local_assign_ai\local\tenant_context;
+use local_assign_ai\output\tenant_selector;
 
 require_login(null, false);
 
@@ -55,6 +56,7 @@ if (!$tenantid) {
 
 $url = new moodle_url('/local/assign_ai/tenant_settings.php', ['tenantid' => $tenantid]);
 $PAGE->set_url($url);
+$PAGE->set_title(get_string('tenantsettings', 'local_assign_ai'));
 
 $form = new tenant_settings_form($url, ['tenants' => $tenants, 'tenantid' => $tenantid]);
 
@@ -82,17 +84,9 @@ if ($data = $form->get_data()) {
 $form->load_tenant_values();
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('tenantsettings', 'local_assign_ai'));
+// The admin page already prints the page name as its heading, so no extra heading is rendered here.
 if (count($tenants) > 1) {
-    echo $OUTPUT->single_select(
-        new moodle_url('/local/assign_ai/tenant_settings.php'),
-        'tenantid',
-        $tenants,
-        $tenantid,
-        null,
-        null,
-        ['label' => get_string('tenant', 'local_assign_ai')]
-    );
+    echo $OUTPUT->render(tenant_selector::create($tenants, $tenantid));
 }
 $form->display();
 echo $OUTPUT->footer();
