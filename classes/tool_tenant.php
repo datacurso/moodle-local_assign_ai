@@ -14,24 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
+namespace local_assign_ai;
+
 /**
- * Code to be executed after the plugin's database scheme has been installed is defined here.
+ * Callbacks used by tool_tenant (Moodle Workplace). Ignored on a plain Moodle LMS.
  *
  * @package     local_assign_ai
- * @category    upgrade
- * @copyright   2025 Datacurso
+ * @copyright   2026 Datacurso
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-/**
- * Custom code to be run on installing the plugin.
- */
-function xmldb_local_assign_ai_install() {
-    // On Moodle Workplace, let tenant administrators manage their tenant settings.
-    if (class_exists('\tool_tenant\manager')) {
-        update_capabilities('local_assign_ai');
-        \tool_tenant\manager::add_plugin_capabilities_to_tenant_admin_role('local_assign_ai');
+class tool_tenant {
+    /**
+     * Capabilities of this plugin that are allowed for the "Tenant administrator" role.
+     *
+     * @return array
+     */
+    public static function get_tenant_admin_capabilities(): array {
+        return [
+            'local/assign_ai:managetenantsettings' => CAP_ALLOW,
+        ];
     }
-
-    return true;
 }
