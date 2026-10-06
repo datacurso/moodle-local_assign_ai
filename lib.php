@@ -42,8 +42,9 @@ function local_assign_ai_extend_settings_navigation(settings_navigation $nav, co
         return;
     }
 
-    // Hide assign AI entries entirely when the site master switch is disabled.
-    if (!\local_assign_ai\config\assignment_config::is_feature_enabled()) {
+    // Hide assign AI entries entirely when the site (or tenant) master switch is disabled.
+    $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int)$PAGE->cm->course);
+    if (!\local_assign_ai\config\assignment_config::is_feature_enabled($tenantid)) {
         return;
     }
 
@@ -114,11 +115,13 @@ function local_assign_ai_coursemodule_standard_elements($formwrapper, $mform) {
         return;
     }
 
-    if (!\local_assign_ai\config\assignment_config::is_feature_enabled()) {
+    $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int)$courseid);
+
+    if (!\local_assign_ai\config\assignment_config::is_feature_enabled($tenantid)) {
         return;
     }
 
-    $globalenabled = \local_assign_ai\config\assignment_config::is_global_ai_enabled();
+    $globalenabled = \local_assign_ai\config\assignment_config::is_global_ai_enabled($tenantid);
 
     $assignid = $formwrapper->get_current()->instance ?? 0;
     $config = \local_assign_ai\config\assignment_config::get_effective((int)$assignid);
@@ -294,7 +297,9 @@ function local_assign_ai_coursemodule_edit_post_actions($data, $course) {
         return $data;
     }
 
-    if (!\local_assign_ai\config\assignment_config::is_feature_enabled()) {
+    $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int)$course->id);
+
+    if (!\local_assign_ai\config\assignment_config::is_feature_enabled($tenantid)) {
         return $data;
     }
 
@@ -312,31 +317,19 @@ function local_assign_ai_coursemodule_edit_post_actions($data, $course) {
         }
     }
 
-    $rawdefaultenableai = get_config('local_assign_ai', 'defaultenableai');
-    $rawdefaultautograde = get_config('local_assign_ai', 'defaultautograde');
-    $rawdefaultusedelay = get_config('local_assign_ai', 'defaultusedelay');
-    $rawdefaultdelayminutes = get_config('local_assign_ai', 'defaultdelayminutes');
-    $rawdefaultprompt = get_config('local_assign_ai', 'defaultprompt');
-    $rawdefaultlang = get_config('core', 'lang');
-
-    $defaultenableai = ($rawdefaultenableai === false || $rawdefaultenableai === '') ? 1 : (int)$rawdefaultenableai;
-    $defaultautograde = ($rawdefaultautograde === false || $rawdefaultautograde === '') ? 0 : (int)$rawdefaultautograde;
-    $defaultusedelay = ($rawdefaultusedelay === false || $rawdefaultusedelay === '') ? 0 : (int)$rawdefaultusedelay;
-    $defaultdelayminutes = ($rawdefaultdelayminutes === false || $rawdefaultdelayminutes === '')
-        ? 60
-        : max(1, (int)$rawdefaultdelayminutes);
-    $defaultprompt = ($rawdefaultprompt === false || trim((string)$rawdefaultprompt) === '')
-        ? get_string('promptdefaulttext', 'local_assign_ai')
-        : (string)$rawdefaultprompt;
-    $defaultlang = ($rawdefaultlang === false || trim((string)$rawdefaultlang) === '')
-        ? current_language()
-        : trim((string)$rawdefaultlang);
+    $defaults = \local_assign_ai\config\assignment_config::get_defaults($tenantid);
+    $defaultenableai = $defaults->enableai;
+    $defaultautograde = $defaults->autograde;
+    $defaultusedelay = $defaults->usedelay;
+    $defaultdelayminutes = $defaults->delayminutes;
+    $defaultprompt = $defaults->prompt;
+    $defaultlang = $defaults->lang;
 
     $enableai = property_exists($data, 'local_assign_ai_enableai')
         ? (empty($data->local_assign_ai_enableai) ? 0 : 1)
         : $defaultenableai;
 
-    if (!\local_assign_ai\config\assignment_config::is_global_ai_enabled()) {
+    if (!\local_assign_ai\config\assignment_config::is_global_ai_enabled($tenantid)) {
         $enableai = 0;
     }
 

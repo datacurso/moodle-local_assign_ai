@@ -17,6 +17,8 @@
 namespace local_assign_ai\config;
 
 use assign;
+use local_assign_ai\local\tenant_config;
+use local_assign_ai\local\tenant_context;
 
 /**
  * Assignment configuration helpers for local_assign_ai.
@@ -27,12 +29,60 @@ use assign;
  */
 class assignment_config {
     /**
+     * Returns a global default for a tenant.
+     *
+     * Every read of a site level default goes through here, so a Workplace tenant can override it.
+     * Without tenancy (or a stored tenant value) the site wide plugin config is returned.
+     *
+     * @param string $name Setting name.
+     * @param int|null $tenantid Tenant id, null for the tenant of the current user, 0 for the site value.
+     * @return mixed Raw stored value, or false when it is not set anywhere.
+     */
+    public static function get_default(string $name, ?int $tenantid = null) {
+        $tenantid = $tenantid ?? tenant_context::get_current_tenant_id();
+        return tenant_config::get($name, $tenantid);
+    }
+
+    /**
+     * Returns the normalised global defaults of a tenant.
+     *
+     * @param int|null $tenantid Tenant id, null for the tenant of the current user, 0 for the site values.
+     * @return \stdClass With enableai, autograde, usedelay, delayminutes, prompt and lang.
+     */
+    public static function get_defaults(?int $tenantid = null): \stdClass {
+        $tenantid = $tenantid ?? tenant_context::get_current_tenant_id();
+
+        $rawenableai = self::get_default('defaultenableai', $tenantid);
+        $rawautograde = self::get_default('defaultautograde', $tenantid);
+        $rawusedelay = self::get_default('defaultusedelay', $tenantid);
+        $rawdelayminutes = self::get_default('defaultdelayminutes', $tenantid);
+        $rawprompt = self::get_default('defaultprompt', $tenantid);
+        $rawlang = get_config('core', 'lang');
+
+        return (object) [
+            'enableai' => ($rawenableai === false || $rawenableai === '') ? 1 : (int)$rawenableai,
+            'autograde' => ($rawautograde === false || $rawautograde === '') ? 0 : (int)$rawautograde,
+            'usedelay' => ($rawusedelay === false || $rawusedelay === '') ? 0 : (int)$rawusedelay,
+            'delayminutes' => ($rawdelayminutes === false || $rawdelayminutes === '')
+                ? 60
+                : max(1, (int)$rawdelayminutes),
+            'prompt' => ($rawprompt === false || trim((string)$rawprompt) === '')
+                ? get_string('promptdefaulttext', 'local_assign_ai')
+                : (string)$rawprompt,
+            'lang' => ($rawlang === false || trim((string)$rawlang) === '')
+                ? current_language()
+                : trim((string)$rawlang),
+        ];
+    }
+
+    /**
      * Checks whether assign AI features are globally enabled.
      *
+     * @param int|null $tenantid Tenant id, null for the tenant of the current user.
      * @return bool
      */
-    public static function is_feature_enabled(): bool {
-        $enabled = get_config('local_assign_ai', 'enableassignai');
+    public static function is_feature_enabled(?int $tenantid = null): bool {
+        $enabled = self::get_default('enableassignai', $tenantid);
         if ($enabled === false || $enabled === '') {
             return true;
         }
@@ -43,10 +93,11 @@ class assignment_config {
     /**
      * Checks whether assignment AI can be enabled globally.
      *
+     * @param int|null $tenantid Tenant id, null for the tenant of the current user.
      * @return bool
      */
-    public static function is_global_ai_enabled(): bool {
-        $enabled = get_config('local_assign_ai', 'defaultenableai');
+    public static function is_global_ai_enabled(?int $tenantid = null): bool {
+        $enabled = self::get_default('defaultenableai', $tenantid);
         if ($enabled === false || $enabled === '') {
             return true;
         }
@@ -84,11 +135,12 @@ class assignment_config {
      * @return bool
      */
     public static function is_autograde_enabled(assign $assign): bool {
-        if (!self::is_feature_enabled()) {
+        $assignmentid = (int)$assign->get_instance()->id;
+        if (!self::is_feature_enabled(tenant_context::get_tenant_id_for_assignment($assignmentid))) {
             return false;
         }
 
-        $config = self::get_effective((int)$assign->get_instance()->id);
+        $config = self::get_effective($assignmentid);
         return !empty($config->enableai) && !empty($config->autograde);
     }
 
@@ -101,34 +153,17 @@ class assignment_config {
     public static function get_effective(int $assignmentid): \stdClass {
         $record = self::get($assignmentid);
 
-        $rawdefaultenableai = get_config('local_assign_ai', 'defaultenableai');
-        $rawdefaultautograde = get_config('local_assign_ai', 'defaultautograde');
-        $rawdefaultusedelay = get_config('local_assign_ai', 'defaultusedelay');
-        $rawdefaultdelayminutes = get_config('local_assign_ai', 'defaultdelayminutes');
-        $rawdefaultprompt = get_config('local_assign_ai', 'defaultprompt');
-        $rawdefaultlang = get_config('core', 'lang');
-
-        $defaultenableai = ($rawdefaultenableai === false || $rawdefaultenableai === '') ? 1 : (int)$rawdefaultenableai;
-        $defaultautograde = ($rawdefaultautograde === false || $rawdefaultautograde === '') ? 0 : (int)$rawdefaultautograde;
-        $defaultusedelay = ($rawdefaultusedelay === false || $rawdefaultusedelay === '') ? 0 : (int)$rawdefaultusedelay;
-        $defaultdelayminutes = ($rawdefaultdelayminutes === false || $rawdefaultdelayminutes === '')
-            ? 60
-            : max(1, (int)$rawdefaultdelayminutes);
-        $defaultprompt = ($rawdefaultprompt === false || trim((string)$rawdefaultprompt) === '')
-            ? get_string('promptdefaulttext', 'local_assign_ai')
-            : (string)$rawdefaultprompt;
-        $defaultlang = ($rawdefaultlang === false || trim((string)$rawdefaultlang) === '')
-            ? current_language()
-            : trim((string)$rawdefaultlang);
+        $tenantid = tenant_context::get_tenant_id_for_assignment($assignmentid);
+        $defaults = self::get_defaults($tenantid);
 
         $config = (object) [
-            'enableai' => $defaultenableai,
-            'autograde' => $defaultautograde,
-            'usedelay' => $defaultusedelay,
-            'delayminutes' => $defaultdelayminutes,
+            'enableai' => $defaults->enableai,
+            'autograde' => $defaults->autograde,
+            'usedelay' => $defaults->usedelay,
+            'delayminutes' => $defaults->delayminutes,
             'graderid' => null,
-            'prompt' => $defaultprompt,
-            'lang' => $defaultlang,
+            'prompt' => $defaults->prompt,
+            'lang' => $defaults->lang,
         ];
 
         if (!$record) {
@@ -157,7 +192,7 @@ class assignment_config {
             $config->lang = trim((string)$record->lang);
         }
 
-        if (!self::is_global_ai_enabled()) {
+        if (!self::is_global_ai_enabled($tenantid)) {
             $config->enableai = 0;
             $config->autograde = 0;
             $config->usedelay = 0;

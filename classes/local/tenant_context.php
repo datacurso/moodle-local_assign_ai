@@ -134,6 +134,18 @@ class tenant_context {
     }
 
     /**
+     * Resolves the tenant for an interactive request: the course tenant, else the tenant of the current user.
+     *
+     * @param int $courseid Course id.
+     * @return int
+     */
+    public static function resolve_for_current_user(int $courseid): int {
+        global $USER;
+
+        return self::resolve($courseid, (int) ($USER->id ?? 0));
+    }
+
+    /**
      * Returns the tenants whose settings the user may edit, keyed by tenant id.
      *
      * Site administrators may edit every tenant; other users only their own tenant,
