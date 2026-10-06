@@ -54,6 +54,16 @@ if (!has_capability('local/assign_ai:review', $context)) {
     );
 }
 
+// Stop here when the master switch of the course tenant (or of the site) is off.
+$tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int) $course->id);
+if (!\local_assign_ai\config\assignment_config::is_ai_available($tenantid)) {
+    throw new moodle_exception(
+        'aiunavailable',
+        'local_assign_ai',
+        new moodle_url('/course/view.php', ['id' => $course->id])
+    );
+}
+
 $reviewurl = new moodle_url('/local/assign_ai/review.php', ['id' => $cmid]);
 
 // Retry a single review (re-queue as an ad-hoc task). Available on every history row.

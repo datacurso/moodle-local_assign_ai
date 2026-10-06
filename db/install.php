@@ -27,6 +27,11 @@
  * Custom code to be run on installing the plugin.
  */
 function xmldb_local_assign_ai_install() {
+    // On Moodle Workplace, let tenant administrators manage their tenant settings.
+    if (class_exists('\tool_tenant\manager')) {
+        update_capabilities('local_assign_ai');
+        \tool_tenant\manager::add_plugin_capabilities_to_tenant_admin_role('local_assign_ai');
+    }
 
     return true;
 }

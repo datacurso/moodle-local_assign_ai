@@ -31,14 +31,15 @@ class client {
      * Sends the payload to the AI provider and returns the response.
      *
      * @param array $payload The request payload.
+     * @param int $tenantid Workplace tenant whose licence is used (0 to let the provider resolve it from the current user).
      * @return array The AI response.
      */
-    public static function send_to_ai($payload) {
+    public static function send_to_ai($payload, int $tenantid = 0) {
         $anonymized = payload_anonymizer::anonymize($payload);
         $payload = $anonymized['payload'];
         $replacements = $anonymized['replacements'];
 
-        $client = new ai_services_api();
+        $client = self::build_provider_client($tenantid);
 
         $response = $client->request('POST', '/assign/answer', $payload);
 
@@ -48,5 +49,32 @@ class client {
             'rubric' => $response['rubric'] ?? null,
             'assessment_guide' => $response['assessment_guide'] ?? null,
         ];
+    }
+
+    /**
+     * Builds the provider client for a tenant.
+     *
+     * Cron and ad hoc tasks run as an administrator, so the provider cannot infer the tenant (and its
+     * licence) from the current user. When a tenant is known it is passed explicitly; otherwise the
+     * provider keeps its default behaviour.
+     *
+     * @param int $tenantid Tenant id, 0 when there is no tenancy.
+     * @return ai_services_api
+     */
+    public static function build_provider_client(int $tenantid = 0): ai_services_api {
+        return new ai_services_api(...self::get_provider_client_arguments($tenantid));
+    }
+
+    /**
+     * Returns the constructor arguments of the provider client for a tenant.
+     *
+     * The second argument of {@see ai_services_api::__construct()} is the tenant id; the licence key
+     * (first argument) stays null so the provider reads the licence of that tenant.
+     *
+     * @param int $tenantid Tenant id, 0 when there is no tenancy.
+     * @return array
+     */
+    public static function get_provider_client_arguments(int $tenantid = 0): array {
+        return $tenantid > 0 ? [null, $tenantid] : [];
     }
 }

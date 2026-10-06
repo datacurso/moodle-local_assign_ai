@@ -14,22 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
+namespace local_assign_ai;
+
 /**
- * Plugin version and other meta-data are defined here.
+ * Callbacks used by tool_tenant (Moodle Workplace). Ignored on a plain Moodle LMS.
  *
  * @package     local_assign_ai
- * @copyright   2025 Datacurso
+ * @copyright   2026 Datacurso
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-defined('MOODLE_INTERNAL') || die();
-
-$plugin->component = 'local_assign_ai';
-$plugin->release = '1.1.8-wp';
-$plugin->version = 2026110325;
-$plugin->requires = 2024100700; // Moodle 4.5.
-$plugin->maturity = MATURITY_STABLE;
-$plugin->supported = [405, 502];
-$plugin->dependencies = [
-    'aiprovider_datacurso' => 2026072300,
-];
+class tool_tenant {
+    /**
+     * Capabilities of this plugin that are allowed for the "Tenant administrator" role.
+     *
+     * @return array
+     */
+    public static function get_tenant_admin_capabilities(): array {
+        return [
+            'local/assign_ai:managetenantsettings' => CAP_ALLOW,
+        ];
+    }
+}

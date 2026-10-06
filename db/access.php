@@ -52,4 +52,12 @@ $capabilities = [
             'manager'        => CAP_ALLOW,
         ],
     ],
+    // Edit the tenant level defaults of the plugin (Moodle Workplace only).
+    'local/assign_ai:managetenantsettings' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];

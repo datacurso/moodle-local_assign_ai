@@ -84,12 +84,13 @@ class process_ai_queue extends \core\task\scheduled_task {
                     $context = \context_module::instance($cmid);
                     $assign = new \assign($context, $cm, $course);
 
-                    $config = assignment_config::get_effective((int)$assign->get_instance()->id);
-                    if (empty($config->enableai)) {
-                        $item->processed = 1;
-                        $DB->update_record('local_assign_ai_queue', $item);
+                    // The switch may have been turned off (site, tenant or assignment) after the row was queued:
+                    // drop the row instead of turning it into a record.
+                    if (!assignment_config::is_ai_enabled_for_assignment((int)$assign->get_instance()->id)) {
+                        $DB->delete_records('local_assign_ai_queue', ['id' => $item->id]);
                         continue;
                     }
+                    $config = assignment_config::get_effective((int)$assign->get_instance()->id);
 
                     $submission = $assign->get_user_submission($userid, false);
                     if (!$submission || $submission->status !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
