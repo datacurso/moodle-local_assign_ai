@@ -183,7 +183,10 @@ class assign_submission {
         $recordid = null;
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai($payload);
+            $response = client::send_to_ai(
+                $payload,
+                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
+            );
 
             $message = $response['reply'] ?? null;
             if ($message !== null) {
@@ -294,7 +297,10 @@ class assign_submission {
         // parsing and record update) into the log.
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai($payload);
+            $response = client::send_to_ai(
+                $payload,
+                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
+            );
 
             $message = $response['reply'] ?? null;
             if ($message !== null) {
