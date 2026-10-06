@@ -40,7 +40,7 @@ class tenant_selector {
 
         $current = new \moodle_url('/local/assign_ai/tenant_settings.php', ['tenantid' => $tenantid]);
         $select = new \url_select($options, $current->out(false), null, 'local_assign_ai_tenantselector');
-        $select->set_label(get_string('tenant', 'local_assign_ai'));
+        $select->set_label(get_string('tenant', 'local_assign_ai'), ['class' => 'me-2 mb-0']);
 
         return $select;
     }

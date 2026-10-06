@@ -11,6 +11,10 @@
 ### Fixed
 
 - Moodle Workplace: AI requests sent from cron and ad hoc tasks now use the licence of the course tenant (or the student's tenant when the course is outside a tenant category) instead of the licence of the tenant of the administrator running the task
+- Moodle Workplace: the tenant settings form can be saved again. The delay is only validated while it is visible (AI, autograde and delay switched on), so turning the AI or the delay off no longer fails on a hidden field
+- Moodle Workplace: new assignments are pre-filled, and seeded when created, with the defaults of the tenant of the course instead of the site values
+- Moodle Workplace: the tenant selector on the tenant settings page navigates as soon as a tenant is chosen, the page is titled "Assign AI tenant settings" and the heading is no longer duplicated
+- Moodle Workplace: a tenant (or site) with the Assign AI switches off no longer starts AI processing. The review and history pages show the unavailable notice, `process_submission` is refused, the retry task skips it and delay queue rows queued before the switch went off are deleted instead of being processed
 
 ### Changed
 
