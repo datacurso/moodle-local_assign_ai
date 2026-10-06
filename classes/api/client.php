@@ -62,10 +62,19 @@ class client {
      * @return ai_services_api
      */
     public static function build_provider_client(int $tenantid = 0): ai_services_api {
-        if ($tenantid > 0) {
-            return new ai_services_api(null, $tenantid);
-        }
+        return new ai_services_api(...self::get_provider_client_arguments($tenantid));
+    }
 
-        return new ai_services_api();
+    /**
+     * Returns the constructor arguments of the provider client for a tenant.
+     *
+     * The second argument of {@see ai_services_api::__construct()} is the tenant id; the licence key
+     * (first argument) stays null so the provider reads the licence of that tenant.
+     *
+     * @param int $tenantid Tenant id, 0 when there is no tenancy.
+     * @return array
+     */
+    public static function get_provider_client_arguments(int $tenantid = 0): array {
+        return $tenantid > 0 ? [null, $tenantid] : [];
     }
 }
