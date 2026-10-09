@@ -14,22 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
+namespace local_assign_ai\api;
+
+use aiprovider_datacurso\httpclient\ai_services_api;
+
 /**
- * Plugin version and other meta-data are defined here.
+ * Factory for the Datacurso HTTP client used by {@see client}.
+ *
+ * It is resolved through the DI container so tests can replace the HTTP client and inspect
+ * the exact outbound payload, while production keeps creating one fresh client per request.
  *
  * @package     local_assign_ai
- * @copyright   2025 Datacurso
+ * @copyright   2026 Datacurso
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-defined('MOODLE_INTERNAL') || die();
-
-$plugin->component = 'local_assign_ai';
-$plugin->release = '1.1.9';
-$plugin->version = 2026110324;
-$plugin->requires = 2024100700; // Moodle 4.5.
-$plugin->maturity = MATURITY_STABLE;
-$plugin->supported = [405, 502];
-$plugin->dependencies = [
-    'aiprovider_datacurso' => 2026100900,
-];
+class ai_client_factory {
+    /**
+     * Create a new Datacurso AI services HTTP client.
+     *
+     * @return ai_services_api
+     */
+    public function create(): ai_services_api {
+        return new ai_services_api();
+    }
+}

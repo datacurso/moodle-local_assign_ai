@@ -30,6 +30,15 @@ The payload is built in `local/assign_ai/classes/assign_submission.php` and alwa
 the same base fields. The only difference between grading types is which advanced grading
 object is present (`rubric` or `assessment_guide`).
 
+Before the request leaves the site, `\local_assign_ai\local\payload_anonymizer::anonymize()`
+restricts the payload to the documented allowlist (`payload_anonymizer::ALLOWED_FIELDS`), drops
+any other key, replaces `student_name` with the `[STUDENT_NAME]` placeholder and replaces
+`userid` with a pseudonymous site-scoped token derived from the reviewer id. The allowlist
+filtering and the token come from the provider's shared helper
+`\aiprovider_datacurso\local\outbound_privacy` (aiprovider_datacurso 1.6.0 or later). The examples below
+show the payload as it is actually sent. See [privacy.md](./privacy.md) for the justification of
+each field.
+
 ### Simple grading payload
 
 ```json
@@ -43,10 +52,13 @@ object is present (`rubric` or `assessment_guide`).
   "assignment_activity_instructions": "Include references in APA format...",
   "rubric": null,
   "assessment_guide": null,
-  "userid": 789,
-  "student_name": "Student Name",
+  "userid": "3f1c9b2e7a4d5c6b8e9f0a1b2c3d4e5f",
+  "student_name": "[STUDENT_NAME]",
   "submission_assign": "Student submission text",
-  "maximum_grade": 100
+  "submission_files": [],
+  "maximum_grade": 100,
+  "prompt": "Additional grading instructions written by the teacher",
+  "lang": "en"
 }
 ```
 
@@ -86,10 +98,13 @@ When the assignment uses a rubric, `rubric` is populated and `assessment_guide` 
     ]
   },
   "assessment_guide": null,
-  "userid": 789,
-  "student_name": "Student Name",
+  "userid": "3f1c9b2e7a4d5c6b8e9f0a1b2c3d4e5f",
+  "student_name": "[STUDENT_NAME]",
   "submission_assign": "Student submission text",
-  "maximum_grade": 100
+  "submission_files": [],
+  "maximum_grade": 100,
+  "prompt": "Additional grading instructions written by the teacher",
+  "lang": "en"
 }
 ```
 
@@ -131,10 +146,13 @@ When the assignment uses a marking guide, `assessment_guide` is populated and `r
       "Needs more evidence"
     ]
   },
-  "userid": 789,
-  "student_name": "Student Name",
+  "userid": "3f1c9b2e7a4d5c6b8e9f0a1b2c3d4e5f",
+  "student_name": "[STUDENT_NAME]",
   "submission_assign": "Student submission text",
-  "maximum_grade": 100
+  "submission_files": [],
+  "maximum_grade": 100,
+  "prompt": "Additional grading instructions written by the teacher",
+  "lang": "en"
 }
 ```
 
