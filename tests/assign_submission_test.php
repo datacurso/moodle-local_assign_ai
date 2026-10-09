@@ -60,6 +60,17 @@ final class assign_submission_test extends \advanced_testcase {
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
 
+        // aiprovider_datacurso 1.6.0 remembers the licence region in its config (fingerprinted by
+        // the licence key) for a week, so it is preset here and no region lookup happens during
+        // the tests; every curl mock is therefore consumed by the /assign/answer POST only.
+        set_config(\aiprovider_datacurso\local\license_region::REGION, '0', 'aiprovider_datacurso');
+        set_config(
+            \aiprovider_datacurso\local\license_region::FINGERPRINT,
+            sha1('phpunit-license-key'),
+            'aiprovider_datacurso'
+        );
+        set_config(\aiprovider_datacurso\local\license_region::CHECKED, time(), 'aiprovider_datacurso');
+
         // Moodle 5.0 reads the license key from an enabled provider instance instead of the plugin config.
         $manager = new \core_ai\manager($DB);
         if (method_exists($manager, 'create_provider_instance')) {
@@ -75,16 +86,14 @@ final class assign_submission_test extends \advanced_testcase {
     /**
      * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
      *
-     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
-     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
-     * /assign/answer body is queued first.
+     * The licence region is preset by configure_ai_provider(), so one AI review makes a single
+     * HTTP request: the /assign/answer POST.
      *
      * @param string $answerbody Body returned for the final /assign/answer POST.
      * @return void
      */
     private function mock_ai_pipeline(string $answerbody): void {
         \curl::mock_response($answerbody);
-        \curl::mock_response(json_encode(['is_for_eu' => false]));
     }
 
     /**
@@ -736,6 +745,66 @@ final class assign_submission_test extends \advanced_testcase {
         $graderow0again = $freshassign->get_user_grade($student->id, false, 0);
         $this->assertEquals(6.0, (float) $graderow0again->grade, 'Attempt 0 grade must remain 6 after attempt 1 is graded');
 
+        $this->resetDebugging();
+    }
+
+    /**
+     * LAA-PRIV-001: The payload handed to the Datacurso HTTP client carries a pseudonymous
+     * reviewer token instead of the raw Moodle user id, the student name placeholder, and
+     * nothing outside the documented allowlist.
+     *
+     * @covers ::process_submission_ai
+     */
+    public function test_outbound_payload_is_pseudonymised_and_restricted_to_the_allowlist(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->configure_ai_provider();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->bump_assign_sequence(2120, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
+        ]);
+        $this->enable_autograde((int) $assign->get_instance()->id, (int) $teacher->id);
+
+        $this->add_submission($student, $assign, 'My essay text');
+
+        // Spy on the HTTP client so the exact outbound body can be inspected.
+        $captured = null;
+        $spy = $this->getMockBuilder(\aiprovider_datacurso\httpclient\ai_services_api::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['request'])
+            ->getMock();
+        $spy->method('request')->willReturnCallback(
+            function (string $method, string $path, array $body = []) use (&$captured): array {
+                $captured = $body;
+                return ['reply' => 'Spy feedback', 'grade' => 7, 'rubric' => null, 'assessment_guide' => null];
+            }
+        );
+        $factory = $this->createStub(\local_assign_ai\api\ai_client_factory::class);
+        $factory->method('create')->willReturn($spy);
+        \core\di::set(\local_assign_ai\api\ai_client_factory::class, $factory);
+
+        $processor = new assign_submission((int) $student->id, $assign);
+        $processor->process_submission_ai();
+
+        $this->assertIsArray($captured, 'The AI request must go through the HTTP client.');
+        $expectedtoken = \aiprovider_datacurso\local\outbound_privacy::pseudonymise_userid((int) $teacher->id);
+        $this->assertSame($expectedtoken, $captured['userid']);
+        $this->assertNotSame((string) $teacher->id, $captured['userid']);
+        $this->assertNotSame((string) $student->id, $captured['userid']);
+        $this->assertSame('[STUDENT_NAME]', $captured['student_name']);
+        $this->assertEqualsCanonicalizing(
+            \local_assign_ai\local\payload_anonymizer::ALLOWED_FIELDS,
+            array_keys($captured)
+        );
+
+        // feedback_applier emits developer debugging while applying the grader's feedback.
         $this->resetDebugging();
     }
 }

@@ -70,8 +70,16 @@ class provider implements
             'local_assign_ai_config',
             [
                 'assignmentid' => 'privacy:metadata:local_assign_ai_config:assignmentid',
+                'enableai'     => 'privacy:metadata:local_assign_ai_config:enableai',
+                'autograde'    => 'privacy:metadata:local_assign_ai_config:autograde',
                 'graderid'     => 'privacy:metadata:local_assign_ai_config:graderid',
                 'usermodified' => 'privacy:metadata:local_assign_ai_config:usermodified',
+                'usedelay'     => 'privacy:metadata:local_assign_ai_config:usedelay',
+                'delayminutes' => 'privacy:metadata:local_assign_ai_config:delayminutes',
+                'prompt'       => 'privacy:metadata:local_assign_ai_config:prompt',
+                'lang'         => 'privacy:metadata:local_assign_ai_config:lang',
+                'timecreated'  => 'privacy:metadata:local_assign_ai_config:timecreated',
+                'timemodified' => 'privacy:metadata:local_assign_ai_config:timemodified',
             ],
             'privacy:metadata:local_assign_ai_config'
         );
