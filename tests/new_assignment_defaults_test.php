@@ -109,6 +109,9 @@ final class new_assignment_defaults_test extends \advanced_testcase {
      * Without tenancy a new assignment still gets the site defaults.
      */
     public function test_new_assignment_uses_site_defaults_without_tenant(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Site values only apply without Workplace; tenancy resolves to plugin defaults.');
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
         set_config('defaultautograde', 1, 'local_assign_ai');

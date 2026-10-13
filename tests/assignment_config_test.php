@@ -166,6 +166,9 @@ final class assignment_config_test extends \advanced_testcase {
      * @covers ::is_autograde_enabled
      */
     public function test_site_defaults_apply_without_assignment_row(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Site values only apply without Workplace; tenancy resolves to plugin defaults.');
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -391,6 +394,9 @@ final class assignment_config_test extends \advanced_testcase {
      * @covers ::is_global_ai_enabled
      */
     public function test_is_global_ai_enabled_reflects_default_setting(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Site values only apply without Workplace; tenancy resolves to plugin defaults.');
+        }
         $this->resetAfterTest();
 
         set_config('defaultenableai', 1, 'local_assign_ai');

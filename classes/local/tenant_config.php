@@ -21,7 +21,7 @@ namespace local_assign_ai\local;
  *
  * Values live in {local_assign_ai_tenant_config}. A tenant is its own platform: a tenant without a
  * stored value resolves to the built-in plugin default, never to the site wide plugin configuration
- * and never to the value of another tenant. Only tenant 0 (no tenancy) reads the site configuration.
+ * and never to the value of another tenant. Only tenant 0 on a site without tenancy reads the site configuration.
  *
  * @package     local_assign_ai
  * @copyright   2026 Datacurso
@@ -68,11 +68,12 @@ class tenant_config {
     /**
      * Returns a setting for a tenant.
      *
-     * Tenant above zero: the value the tenant stored, otherwise the plugin default. Tenant 0: the site
-     * wide plugin configuration, as on a plain Moodle LMS.
+     * Tenant above zero: the value the tenant stored, otherwise the plugin default. Tenant 0 on a site with
+     * tenancy (Workplace, a course outside every tenant category and no user tenant): the plugin default,
+     * never the site value. Tenant 0 on a plain Moodle LMS: the site wide plugin configuration.
      *
      * @param string $name Setting name.
-     * @param int $tenantid Tenant id (0 reads the site value).
+     * @param int $tenantid Tenant id (0 reads the site value on a plain LMS, the plugin default under tenancy).
      * @param mixed $default Returned when the setting is not defined anywhere.
      * @return mixed The stored value as string, or the plugin default, or $default (false by default).
      */
@@ -84,7 +85,9 @@ class tenant_config {
             if ($value !== false) {
                 return $value === null ? '' : $value;
             }
+        }
 
+        if ($tenantid > 0 || tenant_context::is_tenancy_available()) {
             return self::get_plugin_default($name, $default);
         }
 
