@@ -45,6 +45,15 @@ final class master_switch_test extends \advanced_testcase {
     }
 
     /**
+     * Skips the test on Moodle Workplace, where a site level switch does not exist (every tenant has its own).
+     */
+    private function require_no_tenancy(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('There is no site level switch on Moodle Workplace.');
+        }
+    }
+
+    /**
      * Creates a course (inside a new tenant when requested) with an assignment and a student.
      *
      * @param bool $intenant Whether the course belongs to a new tenant.
@@ -109,6 +118,8 @@ final class master_switch_test extends \advanced_testcase {
         $this->resetAfterTest();
         if ($intenant) {
             $this->require_tenancy();
+        } else {
+            $this->require_no_tenancy();
         }
         [, , $assignid, , $tenantid] = $this->create_environment($intenant);
 
@@ -134,6 +145,8 @@ final class master_switch_test extends \advanced_testcase {
         $this->resetAfterTest();
         if ($intenant) {
             $this->require_tenancy();
+        } else {
+            $this->require_no_tenancy();
         }
         [, $cmid, , $studentid, $tenantid] = $this->create_environment($intenant);
 
@@ -165,6 +178,8 @@ final class master_switch_test extends \advanced_testcase {
         $this->resetAfterTest();
         if ($intenant) {
             $this->require_tenancy();
+        } else {
+            $this->require_no_tenancy();
         }
         [$courseid, $cmid, , $studentid, $tenantid] = $this->create_environment($intenant);
         $failedid = assign_submission::create_pending_submission((object) [
@@ -200,6 +215,8 @@ final class master_switch_test extends \advanced_testcase {
         $this->resetAfterTest();
         if ($intenant) {
             $this->require_tenancy();
+        } else {
+            $this->require_no_tenancy();
         }
         [$courseid, $cmid, , $studentid, $tenantid] = $this->create_environment($intenant);
         $pendingid = assign_submission::create_pending_submission((object) [

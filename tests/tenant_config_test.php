@@ -93,21 +93,103 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
-     * Without a tenant id the DAO reads the site wide plugin config.
+     * Setting names mapped to the plugin built-in default they must resolve to.
+     *
+     * @return array
      */
-    public function test_tenant_config_falls_back_to_site_config(): void {
+    public static function plugin_defaults_provider(): array {
+        return [
+            'enableassignai' => ['enableassignai', 1],
+            'defaultenableai' => ['defaultenableai', 1],
+            'defaultautograde' => ['defaultautograde', 0],
+            'defaultusedelay' => ['defaultusedelay', 0],
+            'defaultdelayminutes' => ['defaultdelayminutes', 60],
+        ];
+    }
+
+    /**
+     * Site values that differ from every plugin default.
+     */
+    private function set_divergent_site_config(): void {
+        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('defaultenableai', 0, 'local_assign_ai');
+        set_config('defaultautograde', 1, 'local_assign_ai');
+        set_config('defaultusedelay', 1, 'local_assign_ai');
+        set_config('defaultdelayminutes', 5, 'local_assign_ai');
+        set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
+    }
+
+    /**
+     * A tenant without stored rows gets the plugin default, whatever the site configuration holds.
+     *
+     * @dataProvider plugin_defaults_provider
+     * @param string $name Setting name.
+     * @param int $expected Plugin built-in default.
+     */
+    public function test_tenant_without_rows_uses_plugin_default_not_site_config(string $name, int $expected): void {
+        $this->resetAfterTest();
+        $this->set_divergent_site_config();
+
+        $this->assertEquals($expected, tenant_config::get($name, 77));
+        $this->assertEquals($expected, assignment_config::get_default($name, 77));
+    }
+
+    /**
+     * The default prompt of a tenant without rows is the plugin text, not the site prompt.
+     */
+    public function test_tenant_without_rows_uses_plugin_default_prompt(): void {
+        $this->resetAfterTest();
+        $this->set_divergent_site_config();
+
+        $expected = get_string('promptdefaulttext', 'local_assign_ai');
+        $this->assertSame($expected, tenant_config::get('defaultprompt', 77));
+        $this->assertSame($expected, assignment_config::get_defaults(77)->prompt);
+    }
+
+    /**
+     * Unknown names keep returning the caller supplied default.
+     */
+    public function test_tenant_config_unknown_name_returns_caller_default(): void {
         $this->resetAfterTest();
 
-        set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
-
-        $this->assertSame('Site prompt', tenant_config::get('defaultprompt', 0));
-        $this->assertSame('Site prompt', tenant_config::get('defaultprompt', 77));
         $this->assertFalse(tenant_config::get('doesnotexist', 77));
         $this->assertSame('x', tenant_config::get('doesnotexist', 77, 'x'));
     }
 
     /**
-     * Stored tenant values override the site value, and are isolated per tenant.
+     * Changing the site configuration never alters the values a tenant resolves.
+     */
+    public function test_site_config_changes_do_not_alter_a_tenant(): void {
+        $this->resetAfterTest();
+
+        tenant_config::set('defaultprompt', 5, 'Tenant five');
+        $before = [assignment_config::get_defaults(5), assignment_config::get_defaults(6)];
+        $enabledbefore = assignment_config::is_ai_available(5);
+
+        $this->set_divergent_site_config();
+
+        $this->assertEquals($before[0], assignment_config::get_defaults(5));
+        $this->assertEquals($before[1], assignment_config::get_defaults(6));
+        $this->assertSame($enabledbefore, assignment_config::is_ai_available(5));
+        $this->assertTrue(assignment_config::is_ai_available(6));
+    }
+
+    /**
+     * Without tenancy, tenant 0 reads the site wide plugin config as before.
+     */
+    public function test_tenant_zero_reads_site_config_without_tenancy(): void {
+        if (class_exists('\tool_tenant\tenancy')) {
+            $this->markTestSkipped('Only meaningful on a site without Workplace.');
+        }
+        $this->resetAfterTest();
+
+        set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
+
+        $this->assertSame('Site prompt', tenant_config::get('defaultprompt', 0));
+    }
+
+    /**
+     * Stored tenant values override the plugin default, and are isolated per tenant.
      */
     public function test_tenant_config_set_and_get_per_tenant(): void {
         $this->resetAfterTest();
@@ -118,7 +200,10 @@ final class tenant_config_test extends \advanced_testcase {
 
         $this->assertSame('Tenant five', tenant_config::get('defaultprompt', 5));
         $this->assertSame('Tenant six', tenant_config::get('defaultprompt', 6));
-        $this->assertSame('Site prompt', tenant_config::get('defaultprompt', 7));
+        $this->assertSame(
+            get_string('promptdefaulttext', 'local_assign_ai'),
+            tenant_config::get('defaultprompt', 7)
+        );
 
         tenant_config::set('defaultprompt', 5, 'Updated');
         $this->assertSame('Updated', tenant_config::get('defaultprompt', 5));
@@ -146,12 +231,12 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
-     * Deleting a tenant value restores the site fallback.
+     * Deleting a tenant value restores the plugin default, never the site value.
      */
     public function test_tenant_config_delete(): void {
         $this->resetAfterTest();
 
-        set_config('defaultdelayminutes', 60, 'local_assign_ai');
+        set_config('defaultdelayminutes', 30, 'local_assign_ai');
         tenant_config::set('defaultdelayminutes', 3, 15);
         $this->assertEquals(15, tenant_config::get('defaultdelayminutes', 3));
 
@@ -175,6 +260,9 @@ final class tenant_config_test extends \advanced_testcase {
      * Site level behaviour (no tenancy) is unchanged: tenant 0 reads site config.
      */
     public function test_get_default_without_tenant_reads_site_config(): void {
+        if (class_exists('\tool_tenant\tenancy')) {
+            $this->markTestSkipped('Only meaningful on a site without Workplace.');
+        }
         $this->resetAfterTest();
 
         set_config('defaultautograde', 1, 'local_assign_ai');
@@ -252,7 +340,7 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
-     * Each tenant reads its own defaults, falling back to the site value when it has none.
+     * Each tenant reads its own defaults, falling back to the plugin defaults when it has none.
      */
     public function test_effective_config_uses_the_course_tenant_defaults(): void {
         $this->require_tenancy();
@@ -263,7 +351,7 @@ final class tenant_config_test extends \advanced_testcase {
         $tenantb = $this->create_tenant('Tenant F');
 
         set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
-        set_config('defaultdelayminutes', 60, 'local_assign_ai');
+        set_config('defaultdelayminutes', 5, 'local_assign_ai');
         tenant_config::set('defaultprompt', (int) $tenanta->id, 'Prompt A');
         tenant_config::set('defaultautograde', (int) $tenanta->id, 1);
 
@@ -277,12 +365,13 @@ final class tenant_config_test extends \advanced_testcase {
 
         $this->assertSame('Prompt A', $effectivea->prompt);
         $this->assertSame(1, $effectivea->autograde);
-        $this->assertSame('Site prompt', $effectiveb->prompt);
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), $effectiveb->prompt);
         $this->assertSame(0, $effectiveb->autograde);
+        $this->assertSame(60, $effectiveb->delayminutes);
     }
 
     /**
-     * The tenant master switch only pauses the AI for that tenant.
+     * The tenant master switch only pauses the AI for that tenant, and the site switch never does.
      */
     public function test_feature_switch_is_per_tenant(): void {
         $this->require_tenancy();
@@ -290,8 +379,7 @@ final class tenant_config_test extends \advanced_testcase {
 
         $tenanta = $this->create_tenant('Tenant G');
         $tenantb = $this->create_tenant('Tenant H');
-        set_config('enableassignai', 1, 'local_assign_ai');
-        set_config('defaultenableai', 1, 'local_assign_ai');
+        $this->set_divergent_site_config();
         tenant_config::set('enableassignai', (int) $tenanta->id, 0);
         tenant_config::set('defaultenableai', (int) $tenanta->id, 0);
 
@@ -299,6 +387,84 @@ final class tenant_config_test extends \advanced_testcase {
         $this->assertTrue(assignment_config::is_feature_enabled((int) $tenantb->id));
         $this->assertFalse(assignment_config::is_global_ai_enabled((int) $tenanta->id));
         $this->assertTrue(assignment_config::is_global_ai_enabled((int) $tenantb->id));
+        $this->assertTrue(assignment_config::is_ai_available((int) $tenantb->id));
+    }
+
+    /**
+     * Tenant B keeps working when tenant A is switched off, and every setting stays isolated.
+     */
+    public function test_switching_a_tenant_off_does_not_affect_another(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+
+        $tenanta = $this->create_tenant('Tenant K');
+        $tenantb = $this->create_tenant('Tenant L');
+        tenant_config::set('defaultprompt', (int) $tenantb->id, 'Prompt B');
+        $before = assignment_config::get_defaults((int) $tenantb->id);
+
+        tenant_config::set('enableassignai', (int) $tenanta->id, 0);
+        tenant_config::set('defaultenableai', (int) $tenanta->id, 0);
+        tenant_config::set('defaultprompt', (int) $tenanta->id, 'Prompt A');
+
+        $this->assertFalse(assignment_config::is_ai_available((int) $tenanta->id));
+        $this->assertTrue(assignment_config::is_ai_available((int) $tenantb->id));
+        $this->assertEquals($before, assignment_config::get_defaults((int) $tenantb->id));
+    }
+
+    /**
+     * Under Workplace, tenant 0 (a course outside every tenant category and no user tenant) resolves to the plugin
+     * defaults and never to the site configuration.
+     */
+    public function test_tenant_zero_uses_plugin_defaults_under_tenancy(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->set_divergent_site_config();
+
+        foreach (array_keys(self::plugin_defaults_provider()) as $name) {
+            $this->assertEquals(tenant_config::get_plugin_default($name), tenant_config::get($name, 0));
+            $this->assertEquals(tenant_config::get_plugin_default($name), assignment_config::get_default($name, 0));
+        }
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), tenant_config::get('defaultprompt', 0));
+        $this->assertTrue(assignment_config::is_ai_available(0));
+        $this->assertSame(0, assignment_config::get_defaults(0)->autograde);
+    }
+
+    /**
+     * A course outside every tenant category, for a user without a tenant, uses the plugin defaults.
+     */
+    public function test_course_outside_tenants_uses_plugin_defaults_under_tenancy(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->set_divergent_site_config();
+
+        $course = $this->getDataGenerator()->create_course();
+        $tenantid = tenant_context::resolve((int) $course->id, 0);
+
+        $this->assertSame(0, $tenantid);
+        $effective = assignment_config::get_effective_for_course((int) $course->id);
+        $this->assertSame(1, $effective->enableai);
+        $this->assertSame(0, $effective->autograde);
+        $this->assertSame(60, $effective->delayminutes);
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), $effective->prompt);
+    }
+
+    /**
+     * Without Workplace the site settings page is still registered.
+     */
+    public function test_site_settings_page_is_registered_without_tenancy(): void {
+        global $CFG;
+
+        if (class_exists('\tool_tenant\tenancy')) {
+            $this->markTestSkipped('Only meaningful on a site without Workplace.');
+        }
+        $this->resetAfterTest();
+        // The page is only registered for users holding moodle/site:config.
+        $this->setAdminUser();
+
+        require_once($CFG->libdir . '/adminlib.php');
+        $adminroot = admin_get_root(true, true);
+
+        $this->assertNotEmpty($adminroot->locate('local_assign_ai_settings'));
     }
 
     /**

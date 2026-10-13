@@ -109,6 +109,9 @@ final class new_assignment_defaults_test extends \advanced_testcase {
      * Without tenancy a new assignment still gets the site defaults.
      */
     public function test_new_assignment_uses_site_defaults_without_tenant(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Site values only apply without Workplace; tenancy resolves to plugin defaults.');
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
         set_config('defaultautograde', 1, 'local_assign_ai');
@@ -149,6 +152,36 @@ final class new_assignment_defaults_test extends \advanced_testcase {
         $this->assertEquals('Tenant prompt', $mform->getElement('local_assign_ai_prompt')->getValue());
         $this->assertEquals([1], $mform->getElement('local_assign_ai_autograde')->getValue());
         $this->assertEquals([25], (array) $mform->getElement('local_assign_ai_delayminutes')->getValue());
+    }
+
+    /**
+     * A tenant that saved nothing starts new assignments with the plugin defaults, whatever the site holds.
+     */
+    public function test_new_assignment_of_a_tenant_without_rows_uses_plugin_defaults(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $tenant = $this->create_tenant('Tenant without rows');
+        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('defaultenableai', 0, 'local_assign_ai');
+        set_config('defaultautograde', 1, 'local_assign_ai');
+        set_config('defaultdelayminutes', 5, 'local_assign_ai');
+        set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
+        $course = $this->getDataGenerator()->create_course(['category' => $tenant->categoryid]);
+
+        $effective = assignment_config::get_effective_for_course((int) $course->id);
+        $this->assertSame(1, $effective->enableai);
+        $this->assertSame(0, $effective->autograde);
+        $this->assertSame(60, $effective->delayminutes);
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), $effective->prompt);
+        $this->assertTrue(assignment_config::is_ai_available((int) $tenant->id));
+
+        $mform = $this->build_new_assignment_form($course);
+        $this->assertEquals(
+            get_string('promptdefaulttext', 'local_assign_ai'),
+            $mform->getElement('local_assign_ai_prompt')->getValue()
+        );
     }
 
     /**

@@ -166,6 +166,9 @@ final class assignment_config_test extends \advanced_testcase {
      * @covers ::is_autograde_enabled
      */
     public function test_site_defaults_apply_without_assignment_row(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Site values only apply without Workplace; tenancy resolves to plugin defaults.');
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -224,6 +227,9 @@ final class assignment_config_test extends \advanced_testcase {
      * @covers ::is_autograde_enabled
      */
     public function test_master_switch_disables_feature_regardless_of_assignment_rows(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('There is no site level switch on Moodle Workplace.');
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -252,6 +258,10 @@ final class assignment_config_test extends \advanced_testcase {
      */
     private function write_global_enableai_setting(string $value): void {
         global $CFG;
+
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('The site settings page is not registered on Moodle Workplace.');
+        }
 
         require_once($CFG->libdir . '/adminlib.php');
 
@@ -384,6 +394,9 @@ final class assignment_config_test extends \advanced_testcase {
      * @covers ::is_global_ai_enabled
      */
     public function test_is_global_ai_enabled_reflects_default_setting(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Site values only apply without Workplace; tenancy resolves to plugin defaults.');
+        }
         $this->resetAfterTest();
 
         set_config('defaultenableai', 1, 'local_assign_ai');

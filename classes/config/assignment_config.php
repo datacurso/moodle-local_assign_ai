@@ -31,8 +31,9 @@ class assignment_config {
     /**
      * Returns a global default for a tenant.
      *
-     * Every read of a site level default goes through here, so a Workplace tenant can override it.
-     * Without tenancy (or a stored tenant value) the site wide plugin config is returned.
+     * Every read of a global default goes through here. A Workplace tenant gets the value it stored or
+     * the plugin default, never the site value; only tenant 0 (no tenancy) reads the site wide config.
+     * Callers should pass the tenant resolved from the course or assignment instead of relying on null.
      *
      * @param string $name Setting name.
      * @param int|null $tenantid Tenant id, null for the tenant of the current user, 0 for the site value.

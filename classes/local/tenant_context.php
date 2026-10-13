@@ -191,4 +191,18 @@ class tenant_context {
     public static function can_manage_tenant_settings(int $tenantid, ?int $userid = null): bool {
         return array_key_exists($tenantid, self::get_manageable_tenants($userid));
     }
+
+    /**
+     * Returns the display name of a tenant.
+     *
+     * @param int $tenantid Tenant id.
+     * @return string The formatted tenant name, empty when there is no such tenant or no tenancy.
+     */
+    public static function get_tenant_name(int $tenantid): string {
+        if (!self::is_tenancy_available() || $tenantid <= 0) {
+            return '';
+        }
+
+        return (string) \tool_tenant\tenancy::get_tenant_name_from_id($tenantid);
+    }
 }

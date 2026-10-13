@@ -1,3 +1,18 @@
+## [1.1.9-wp] - 2026-10-13
+
+**Compatibility note:** Moodle Workplace 4.5 branch (`-wp` release). The plugin still loads on a plain Moodle LMS, where the site settings page and site values keep working as before.
+
+### Changed
+
+- Moodle Workplace: every tenant now has a completely independent configuration. A setting resolves to the value the tenant saved, or otherwise to the plugin built-in default; it never reads the site value and never the value of another tenant
+- Moodle Workplace: nothing is stored at site level any more and no site defaults are seeded, so nothing at site level can switch on, switch off or change all tenants at once. Each tenant is managed from its own configuration page
+- Moodle Workplace: the Assign AI switches (`enableassignai`, `defaultenableai`) are per tenant: switching one tenant off pauses only that tenant
+- Moodle Workplace: the global configuration of each tenant is the standard Assign AI settings page of Moodle LMS (`/admin/settings.php?section=local_assign_ai_settings`, same look and fields), now read and written per tenant. Site administrators find it in Site administration > Plugins > Local plugins > "Assign AI"; tenant administrators, who cannot see Local plugins, find the same page under Site administration > AI. Nobody sees two entries
+- Moodle Workplace: the page edits the active Workplace tenant (the tenant selected with the Workplace tenant switcher; a tenant administrator always edits the own tenant) and a notice names it. The tenant is never taken from the request, a save is refused when no tenant is active, and a tenant starts with the plugin defaults: the page is pre-filled with the values the tenant saved, or with the plugin defaults, never with the site values
+- Moodle Workplace: the custom tenant settings page (`tenant_settings.php`), its form and its tenant dropdown are removed, together with the `tenantid` URL parameter. Applying the default settings on install no longer touches any tenant
+- Moodle Workplace: a course outside every tenant category, for a user without a tenant (tenant 0), resolves to the plugin built-in defaults instead of the site values. A plain Moodle LMS is unchanged
+- The plugin built-in defaults are defined once in `tenant_config` and reused by the LMS settings page
+
 ## [1.1.8-wp] - 2026-10-06
 
 **Compatibility note:** Moodle Workplace 4.5 branch (`-wp` release). The plugin still loads on a plain Moodle LMS, where tenant features are inactive.
