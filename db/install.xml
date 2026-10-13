@@ -85,5 +85,19 @@
       </KEYS>
     </TABLE>
 
+    <TABLE NAME="local_assign_ai_tenant_config" COMMENT="Tenant scoped defaults for the plugin settings (Moodle Workplace)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+        <FIELD NAME="tenantid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" />
+        <FIELD NAME="name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" />
+        <FIELD NAME="value" TYPE="text" NOTNULL="false" SEQUENCE="false" />
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" />
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+        <KEY NAME="tenantid_name_uniq" TYPE="unique" FIELDS="tenantid, name" />
+      </KEYS>
+    </TABLE>
+
   </TABLES>
 </XMLDB>

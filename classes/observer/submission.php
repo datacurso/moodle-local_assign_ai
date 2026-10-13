@@ -25,6 +25,7 @@ use mod_assign\event\submission_graded;
 use mod_assign\event\assessable_submitted;
 use local_assign_ai\task\process_submission_ai;
 use local_assign_ai\config\assignment_config;
+use local_assign_ai\local\tenant_context;
 use local_assign_ai\pending\manager as pending_manager;
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
@@ -150,7 +151,7 @@ class submission {
      */
     public static function submission_created(submission_created $event) {
         try {
-            if (!assignment_config::is_feature_enabled()) {
+            if (!assignment_config::is_feature_enabled(tenant_context::resolve_for_current_user((int) $event->courseid))) {
                 return;
             }
 
@@ -201,7 +202,7 @@ class submission {
      */
     public static function submission_updated(submission_updated $event) {
         try {
-            if (!assignment_config::is_feature_enabled()) {
+            if (!assignment_config::is_feature_enabled(tenant_context::resolve_for_current_user((int) $event->courseid))) {
                 return;
             }
 
@@ -334,7 +335,7 @@ class submission {
      */
     public static function assessable_submitted(assessable_submitted $event) {
         try {
-            if (!assignment_config::is_feature_enabled()) {
+            if (!assignment_config::is_feature_enabled(tenant_context::resolve_for_current_user((int) $event->courseid))) {
                 return;
             }
 

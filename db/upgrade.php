@@ -380,5 +380,38 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026110315, 'local', 'assign_ai');
     }
 
+    if ($oldversion < 2026110324) {
+        // Tenant scoped defaults for the plugin settings (Moodle Workplace).
+        $table = new xmldb_table('local_assign_ai_tenant_config');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('tenantid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('name', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('value', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('tenantid_name_uniq', XMLDB_KEY_UNIQUE, ['tenantid', 'name']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110324, 'local', 'assign_ai');
+    }
+
+    if ($oldversion < 2026110325) {
+        // Allow tenant administrators to manage their tenant settings (only when Workplace is present).
+        if (class_exists('\tool_tenant\manager')) {
+            // The capability must exist before it can be assigned; core registers it only after this step.
+            update_capabilities('local_assign_ai');
+            \tool_tenant\manager::add_plugin_capabilities_to_tenant_admin_role('local_assign_ai');
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110325, 'local', 'assign_ai');
+    }
+
     return true;
 }

@@ -83,6 +83,12 @@ class process_submission extends external_api {
         self::validate_context($context);
         require_capability('local/assign_ai:review', $context);
 
+        // The master switch of the course tenant (or of the site) stops new AI processing.
+        $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int) $course->id);
+        if (!\local_assign_ai\config\assignment_config::is_ai_available($tenantid)) {
+            throw new \moodle_exception('aiunavailable', 'local_assign_ai');
+        }
+
         $processed = 0;
 
         // If processing all submissions → queue background task.

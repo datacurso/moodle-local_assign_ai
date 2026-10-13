@@ -117,9 +117,10 @@ final class backup_restore_test extends \advanced_testcase {
      *
      * @param \stdClass $course The course to back up.
      * @param bool $userdata Whether user data is included in the backup and the restore.
+     * @param int|null $categoryid Category of the restored course (defaults to the source category).
      * @return int The id of the newly restored course.
      */
-    private function backup_and_restore(\stdClass $course, bool $userdata): int {
+    private function backup_and_restore(\stdClass $course, bool $userdata, ?int $categoryid = null): int {
         global $CFG, $USER;
 
         // Turn off file logging, otherwise it can't delete the file (Windows).
@@ -143,7 +144,7 @@ final class backup_restore_test extends \advanced_testcase {
         $newcourseid = \restore_dbops::create_new_course(
             $course->fullname,
             $course->shortname . '_r',
-            $course->category
+            $categoryid ?? $course->category
         );
         $rc = new \restore_controller(
             $backupid,
@@ -352,6 +353,47 @@ final class backup_restore_test extends \advanced_testcase {
         );
         $this->assertEquals(1, $newconfig->autograde);
         $this->assertNull($newconfig->graderid);
+    }
+
+    /**
+     * Restoring into a course that belongs to a different Workplace tenant behaves like any other
+     * cross-course restore: the grader is cleared, the rest of the configuration is kept, and the
+     * restored assignment resolves the settings of the destination tenant.
+     */
+    public function test_cross_tenant_restore_clears_grader_and_uses_destination_tenant(): void {
+        global $DB;
+
+        if (!class_exists('\tool_tenant\tenancy')) {
+            $this->markTestSkipped('Moodle Workplace (tool_tenant) is not installed.');
+        }
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $generator = $this->getDataGenerator()->get_plugin_generator('tool_tenant');
+        $sourcecategory = $this->getDataGenerator()->create_category();
+        $destinationcategory = $this->getDataGenerator()->create_category();
+        $source = $generator->create_tenant(['name' => 'Source tenant', 'categoryid' => $sourcecategory->id]);
+        $destination = $generator->create_tenant(['name' => 'Destination tenant', 'categoryid' => $destinationcategory->id]);
+        \local_assign_ai\local\tenant_config::set('defaultprompt', (int) $destination->id, 'Destination prompt');
+
+        $course = $this->getDataGenerator()->create_course(['category' => $source->categoryid]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->bump_assign_sequence(5060, $course->id);
+        $assign = $this->create_instance($course, ['assignsubmission_onlinetext_enabled' => 1]);
+        $DB->set_field('local_assign_ai_config', 'autograde', 1, ['assignmentid' => $assign->get_instance()->id]);
+        $DB->set_field('local_assign_ai_config', 'graderid', $teacher->id, ['assignmentid' => $assign->get_instance()->id]);
+
+        $newcourseid = $this->backup_and_restore($course, false, (int) $destination->categoryid);
+        $newcm = $this->get_single_assign_cm($newcourseid);
+
+        $newconfig = $DB->get_record('local_assign_ai_config', ['assignmentid' => $newcm->instance], '*', MUST_EXIST);
+        $this->assertEquals(1, $newconfig->autograde);
+        $this->assertNull($newconfig->graderid);
+        $this->assertSame(
+            (int) $destination->id,
+            \local_assign_ai\local\tenant_context::get_tenant_id_for_assignment((int) $newcm->instance)
+        );
     }
 
     /**

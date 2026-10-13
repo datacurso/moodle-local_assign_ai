@@ -153,9 +153,7 @@ class assign_submission {
 
         $assignment = $this->assigninstance;
         $cmid = $this->assign->get_course_module()->id;
-        $config = assignment_config::get_effective((int)$assignment->id);
-
-        if (empty($config->enableai)) {
+        if (!assignment_config::is_ai_enabled_for_assignment((int)$assignment->id)) {
             return;
         }
 
@@ -183,7 +181,10 @@ class assign_submission {
         $recordid = null;
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai($payload);
+            $response = client::send_to_ai(
+                $payload,
+                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
+            );
 
             $message = $response['reply'] ?? null;
             if ($message !== null) {
@@ -273,8 +274,7 @@ class assign_submission {
             return;
         }
 
-        $config = assignment_config::get_effective((int)$this->assigninstance->id);
-        if (empty($config->enableai)) {
+        if (!assignment_config::is_ai_enabled_for_assignment((int)$this->assigninstance->id)) {
             self::update_pending_submission($pendingid, [
                 'status' => self::STATUS_FAILED,
                 'errormessage' => get_string('reviewaidisabled', 'local_assign_ai'),
@@ -294,7 +294,10 @@ class assign_submission {
         // parsing and record update) into the log.
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai($payload);
+            $response = client::send_to_ai(
+                $payload,
+                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
+            );
 
             $message = $response['reply'] ?? null;
             if ($message !== null) {

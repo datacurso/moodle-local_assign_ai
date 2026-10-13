@@ -64,6 +64,12 @@ class retry_failed_submissions extends \core\task\scheduled_task {
                 continue;
             }
 
+            // A tenant (or the site) that switched the AI off gets no automatic retries.
+            $tenantid = \local_assign_ai\local\tenant_context::resolve((int) $record->courseid, (int) $record->userid);
+            if (!\local_assign_ai\config\assignment_config::is_ai_available($tenantid)) {
+                continue;
+            }
+
             // Increment the automatic retry counter, then re-queue through the normal review path.
             assign_submission::update_pending_submission((int) $record->id, [
                 'retries' => (int) $record->retries + 1,
