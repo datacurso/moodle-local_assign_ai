@@ -17,8 +17,8 @@ marketing.
 
 The outbound boundary is `\local_assign_ai\local\payload_anonymizer::anonymize()`. It is
 applied to every payload before the HTTP client is called and enforces the allowlist below
-(`payload_anonymizer::ALLOWED_FIELDS`, applied through the provider's
-`outbound_privacy::apply_allowlist()`): **any key not listed here is dropped**, so the
+(`payload_anonymizer::ALLOWED_FIELDS`, owned and applied by the plugin): **any key not
+listed here is dropped**, so the
 outbound contract cannot grow silently when the internal payload builder changes.
 
 | Field | Justification |
@@ -44,19 +44,19 @@ outbound contract cannot grow silently when the internal payload builder changes
 
 - `userid` is **not** the Moodle user id. It is the reviewer id (the teacher who triggered
   the review, otherwise the configured grader, otherwise the student as last resort)
-  replaced by a stable, non-reversible, site-scoped token produced by the provider's shared
-  helper `\aiprovider_datacurso\local\outbound_privacy::pseudonymise_userid()`
-  (aiprovider_datacurso 1.6.0 or later): an HMAC-SHA256 of the user id keyed with the site
-  identifier and the provider's frozen `outbound_privacy::PSEUDONYM_KEY_SUFFIX`, truncated to
-  32 hex characters. The same user on the same site always yields the same token, so the
-  provider can keep per-user accounting, but the raw id cannot be recovered from it and tokens
-  cannot be correlated across sites. Assign AI does not implement any pseudonymisation of its
-  own: `payload_anonymizer::anonymize()` delegates to that helper, and the provider's HTTP
-  client applies the same helper again, so a raw id can never leave even if a caller bypasses
-  the plugin boundary.
+  replaced by a stable, non-reversible, site-scoped token. The pseudonymisation is delegated
+  to the provider's shared helper `\aiprovider_datacurso\local\outbound_privacy`
+  (`pseudonymise_userid_value()`, aiprovider_datacurso 1.6.0 or later), so the whole
+  Datacurso suite derives the same per-user token with one formula: an HMAC-SHA256 of the
+  user id keyed with the site identifier and the provider's frozen
+  `outbound_privacy::PSEUDONYM_KEY_SUFFIX`, truncated to 32 hex characters. The same user on
+  the same site always yields the same token, so the provider can keep per-user accounting,
+  but the raw id cannot be recovered from it and tokens cannot be correlated across sites.
+  The provider's HTTP client applies the same helper again, so a raw id can never leave even
+  if a caller bypasses the plugin boundary.
 - `student_name` is replaced by the placeholder `[STUDENT_NAME]` before sending. The real
   name is kept on the site only, and is substituted back into the AI reply after it returns
-  (`payload_anonymizer::deanonymize_text()`, which delegates to `outbound_privacy::restore_text()`).
+  (`payload_anonymizer::deanonymize_text()`). The placeholder and its restore are plugin-owned.
 
 Files are sent only when the student actually uploaded files for the submission, because
 they are the object of grading; a text-only submission sends no files.

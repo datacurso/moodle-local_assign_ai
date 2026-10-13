@@ -33,8 +33,8 @@ object is present (`rubric` or `assessment_guide`).
 Before the request leaves the site, `\local_assign_ai\local\payload_anonymizer::anonymize()`
 restricts the payload to the documented allowlist (`payload_anonymizer::ALLOWED_FIELDS`), drops
 any other key, replaces `student_name` with the `[STUDENT_NAME]` placeholder and replaces
-`userid` with a pseudonymous site-scoped token derived from the reviewer id. The allowlist
-filtering and the token come from the provider's shared helper
+`userid` with a pseudonymous site-scoped token derived from the reviewer id. The allowlist and
+the placeholder are plugin-owned; the token comes from the provider's shared helper
 `\aiprovider_datacurso\local\outbound_privacy` (aiprovider_datacurso 1.6.0 or later). The examples below
 show the payload as it is actually sent. See [privacy.md](./privacy.md) for the justification of
 each field.

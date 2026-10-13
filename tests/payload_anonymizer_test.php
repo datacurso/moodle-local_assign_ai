@@ -122,6 +122,16 @@ final class payload_anonymizer_test extends \advanced_testcase {
     }
 
     /**
+     * MDL-UNIT-002: Empty reply text or no replacements leave the text untouched.
+     *
+     * @covers ::deanonymize_text
+     */
+    public function test_deanonymize_text_leaves_empty_text_and_empty_replacements_untouched(): void {
+        $this->assertSame('', payload_anonymizer::deanonymize_text('', ['[STUDENT_NAME]' => 'María Pérez']));
+        $this->assertSame('Plain reply', payload_anonymizer::deanonymize_text('Plain reply', []));
+    }
+
+    /**
      * LAA-PRIV-001: Only the documented allowlist of fields leaves the site; any extra key is dropped
      * so the outbound contract cannot grow silently.
      *

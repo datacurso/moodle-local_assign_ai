@@ -29,12 +29,12 @@ use aiprovider_datacurso\local\outbound_privacy;
 /**
  * Outbound boundary of the plugin towards the AI provider.
  *
- * Every payload handed to the AI provider goes through {@see anonymize()}. The class owns only
- * what is specific to this plugin: the per-endpoint field allowlist ({@see ALLOWED_FIELDS}) and
- * the fact that the `student_name` field travels as a placeholder. The mechanics (allowlist
- * filtering, the site-scoped userid pseudonym and the placeholder restore) are delegated to the
- * provider's shared helper {@see outbound_privacy}, so the plugin and aiprovider_datacurso always
- * agree on the outbound token. See _docs/privacy.md for the justification of each field.
+ * Every payload handed to the AI provider goes through {@see anonymize()}. The plugin owns
+ * everything that is specific to its endpoint: the field allowlist ({@see ALLOWED_FIELDS}) and
+ * the student-name placeholder, together with its restore in the AI reply. The only shared
+ * piece is the userid pseudonym, delegated to the provider's {@see outbound_privacy} so the
+ * whole Datacurso suite derives the same per-user token with one formula. See _docs/privacy.md
+ * for the justification of each field.
  */
 class payload_anonymizer {
     /**
@@ -64,28 +64,29 @@ class payload_anonymizer {
         'lang',
     ];
 
+    /** @var string Placeholder that replaces the student full name in the outbound payload. */
+    private const STUDENT_NAME_PLACEHOLDER = '[STUDENT_NAME]';
+
     /**
      * Anonymize an outbound payload.
      *
-     * Drops every key outside {@see ALLOWED_FIELDS}, replaces the userid with the provider's
-     * site-scoped pseudonym and swaps the student name for {@see outbound_privacy::PLACEHOLDER_NAME}.
+     * Drops every key outside {@see ALLOWED_FIELDS}, replaces a numeric userid with the
+     * provider's site-scoped pseudonym and swaps the student name for its placeholder.
      *
      * @param array $payload Original payload.
      * @return array{payload: array, replacements: array<string, string>}
      */
     public static function anonymize(array $payload): array {
-        $payload = outbound_privacy::apply_allowlist($payload, self::ALLOWED_FIELDS);
+        $payload = array_intersect_key($payload, array_flip(self::ALLOWED_FIELDS));
 
         if (isset($payload['userid']) && is_numeric($payload['userid'])) {
             $payload['userid'] = outbound_privacy::pseudonymise_userid_value($payload['userid']);
         }
 
-        // The provider helper only records name placeholders when given a user record; here the
-        // payload already carries the rendered full name, so the single replacement is built from it.
         $replacements = [];
         if (isset($payload['student_name']) && is_string($payload['student_name']) && $payload['student_name'] !== '') {
-            $replacements[outbound_privacy::PLACEHOLDER_NAME] = $payload['student_name'];
-            $payload['student_name'] = outbound_privacy::PLACEHOLDER_NAME;
+            $replacements[self::STUDENT_NAME_PLACEHOLDER] = $payload['student_name'];
+            $payload['student_name'] = self::STUDENT_NAME_PLACEHOLDER;
         }
 
         return [
@@ -102,6 +103,10 @@ class payload_anonymizer {
      * @return string
      */
     public static function deanonymize_text(string $text, array $replacements): string {
-        return outbound_privacy::restore_text($text, $replacements);
+        if ($text === '' || empty($replacements)) {
+            return $text;
+        }
+
+        return str_replace(array_keys($replacements), array_values($replacements), $text);
     }
 }
