@@ -31,12 +31,6 @@ class tenant_context {
     /** @var int Tenant id used when there is no tenancy. */
     public const NO_TENANT = 0;
 
-    /** @var string Admin tree name of the settings page listed under "Local plugins" (site administrators). */
-    public const ADMIN_PAGE_LOCAL = 'local_assign_ai_tenantsettings';
-
-    /** @var string Admin tree name of the settings page listed under "AI" (users without Local plugins). */
-    public const ADMIN_PAGE_AI = 'local_assign_ai_tenantsettings_ai';
-
     /**
      * Whether this site provides tenancy through tool_tenant.
      *
@@ -199,50 +193,16 @@ class tenant_context {
     }
 
     /**
-     * Returns the admin tree name of the settings page entry the user reaches.
+     * Returns the display name of a tenant.
      *
-     * Users holding moodle/site:config see "Local plugins" and get that entry; the others (tenant
-     * administrators) only see the "AI" category and get the other one.
-     *
-     * @return string
+     * @param int $tenantid Tenant id.
+     * @return string The formatted tenant name, empty when there is no such tenant or no tenancy.
      */
-    public static function get_admin_page_name(): string {
-        $hassiteconfig = has_capability('moodle/site:config', \context_system::instance());
-        return $hassiteconfig ? self::ADMIN_PAGE_LOCAL : self::ADMIN_PAGE_AI;
-    }
-
-    /**
-     * Returns the tenant whose settings the user edits: the active Workplace tenant.
-     *
-     * That is the tenant the site administrator switched to with the Workplace tenant switcher, or the own
-     * tenant of a tenant administrator. There is no other way to choose a tenant.
-     *
-     * @param int|null $userid User id, defaults to the current user.
-     * @return int Tenant id, or 0 when there is no active tenant or the user cannot manage it.
-     */
-    public static function get_settings_tenant_id(?int $userid = null): int {
-        global $USER;
-
-        $userid = $userid ?? (int) ($USER->id ?? 0);
-        $tenantid = self::get_tenant_id_for_user($userid);
-        if ($tenantid <= 0 || !self::can_manage_tenant_settings($tenantid, $userid)) {
-            return self::NO_TENANT;
+    public static function get_tenant_name(int $tenantid): string {
+        if (!self::is_tenancy_available() || $tenantid <= 0) {
+            return '';
         }
 
-        return $tenantid;
-    }
-
-    /**
-     * Whether a tenant id received from a request is the one the user is allowed to save.
-     *
-     * The form posts the tenant it was built for; a tampered value must never reach another tenant.
-     *
-     * @param int $posted Tenant id received from the request.
-     * @param int|null $userid User id, defaults to the current user.
-     * @return bool
-     */
-    public static function is_valid_settings_target(int $posted, ?int $userid = null): bool {
-        $active = self::get_settings_tenant_id($userid);
-        return $active > 0 && $posted === $active;
+        return (string) \tool_tenant\tenancy::get_tenant_name_from_id($tenantid);
     }
 }
