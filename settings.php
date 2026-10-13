@@ -25,21 +25,52 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-// Moodle Workplace: every tenant is its own platform, so there is no site level settings page (it would be a
-// control that switches or changes all tenants at once) and no site defaults are seeded. Each tenant manages
-// its own values from the tenant settings page below. A plain Moodle LMS keeps the site settings page.
-if ($hassiteconfig && !class_exists('\tool_tenant\tenancy')) {
-    foreach (\local_assign_ai\local\tenant_config::SETTING_NAMES as $name) {
+use local_assign_ai\local\tenant_config;
+use local_assign_ai\local\tenant_context;
+
+// The same standard settings page serves Moodle LMS and Moodle Workplace (URL
+// /admin/settings.php?section=local_assign_ai_settings). On a plain LMS the values are the site wide plugin
+// configuration. On Workplace every tenant is its own platform: the tenant aware setting types read and write the
+// values of the active tenant (the tenant selected with the Workplace tenant switcher, or the own tenant of a tenant
+// administrator), no site defaults are seeded and nothing at site level can change all the tenants at once.
+$tenantaware = tenant_context::is_tenancy_available();
+
+if (!$tenantaware && $hassiteconfig) {
+    foreach (tenant_config::SETTING_NAMES as $name) {
         $current = get_config('local_assign_ai', $name);
         if ($current === false || $current === '') {
-            set_config($name, \local_assign_ai\local\tenant_config::get_plugin_default($name), 'local_assign_ai');
+            set_config($name, tenant_config::get_plugin_default($name), 'local_assign_ai');
         }
     }
+}
 
-    $settings = new admin_settingpage('local_assign_ai_settings', new lang_string('pluginname', 'local_assign_ai'));
+// Site administrators find the page under Site administration > Plugins > Local plugins. Tenant administrators do not
+// hold moodle/site:config and cannot see Local plugins, so they get it under the core 'ai' category. Every user sees
+// exactly one entry; access is granted through local/assign_ai:managetenantsettings.
+$parentcategory = null;
+if ($hassiteconfig) {
+    $parentcategory = 'localplugins';
+} else if ($tenantaware && $ADMIN->locate('ai')) {
+    $parentcategory = 'ai';
+}
+
+if ($parentcategory !== null) {
+    $checkbox = $tenantaware ? '\local_assign_ai\admin\tenant_configcheckbox' : 'admin_setting_configcheckbox';
+    $text = $tenantaware ? '\local_assign_ai\admin\tenant_configtext' : 'admin_setting_configtext';
+    $textarea = $tenantaware ? '\local_assign_ai\admin\tenant_configtextarea' : 'admin_setting_configtextarea';
+
+    $settings = new admin_settingpage(
+        'local_assign_ai_settings',
+        new lang_string('pluginname', 'local_assign_ai'),
+        $tenantaware ? 'local/assign_ai:managetenantsettings' : 'moodle/site:config'
+    );
 
     if ($ADMIN->fulltree) {
-        $settings->add(new admin_setting_configcheckbox(
+        if ($tenantaware) {
+            $settings->add(new \local_assign_ai\admin\tenant_notice('local_assign_ai/tenantnotice'));
+        }
+
+        $settings->add(new $checkbox(
             'local_assign_ai/enableassignai',
             get_string('enableassignai', 'local_assign_ai'),
             get_string('enableassignai_desc', 'local_assign_ai'),
@@ -49,28 +80,28 @@ if ($hassiteconfig && !class_exists('\tool_tenant\tenancy')) {
         // Disabling this setting pauses all AI functionality at runtime through
         // assignment_config::get_effective(); stored per-assignment configuration is
         // preserved so re-enabling restores every assignment's original behaviour.
-        $settings->add(new admin_setting_configcheckbox(
+        $settings->add(new $checkbox(
             'local_assign_ai/defaultenableai',
             get_string('defaultenableai', 'local_assign_ai'),
             get_string('defaultenableai_desc', 'local_assign_ai'),
             1
         ));
 
-        $settings->add(new admin_setting_configcheckbox(
+        $settings->add(new $checkbox(
             'local_assign_ai/defaultautograde',
             get_string('defaultautograde', 'local_assign_ai'),
             get_string('defaultautograde_desc', 'local_assign_ai'),
             0
         ));
 
-        $settings->add(new admin_setting_configcheckbox(
+        $settings->add(new $checkbox(
             'local_assign_ai/defaultusedelay',
             get_string('defaultusedelay', 'local_assign_ai'),
             get_string('defaultusedelay_desc', 'local_assign_ai'),
             0
         ));
 
-        $settings->add(new admin_setting_configtext(
+        $settings->add(new $text(
             'local_assign_ai/defaultdelayminutes',
             get_string('defaultdelayminutes', 'local_assign_ai'),
             get_string('defaultdelayminutes_desc', 'local_assign_ai'),
@@ -78,7 +109,7 @@ if ($hassiteconfig && !class_exists('\tool_tenant\tenancy')) {
             PARAM_INT
         ));
 
-        $settings->add(new admin_setting_configtextarea(
+        $settings->add(new $textarea(
             'local_assign_ai/defaultprompt',
             get_string('defaultprompt', 'local_assign_ai'),
             get_string('defaultprompt_desc', 'local_assign_ai'),
@@ -98,34 +129,5 @@ if ($hassiteconfig && !class_exists('\tool_tenant\tenancy')) {
         $settings->hide_if('local_assign_ai/defaultdelayminutes', 'local_assign_ai/defaultusedelay', 'eq', 0);
     }
 
-    $ADMIN->add('localplugins', $settings);
-}
-
-// Moodle Workplace: the global configuration of each tenant lives where the LMS global settings live. Site
-// administrators find it under Site administration > Plugins > Local plugins and edit the active tenant (the one
-// selected with the Workplace tenant switcher). Tenant administrators do not hold moodle/site:config and cannot see
-// Local plugins, so they get the entry under the core 'ai' category and always edit their own tenant. Every user sees
-// exactly one entry; access is granted through local/assign_ai:managetenantsettings.
-if (class_exists('\tool_tenant\tenancy') && class_exists('\tool_wp\admin_externalpage')) {
-    $tenantpageurl = (new moodle_url('/local/assign_ai/tenant_settings.php'))->out();
-    $tenantpageaccess = static function (): bool {
-        return !empty(\local_assign_ai\local\tenant_context::get_manageable_tenants());
-    };
-
-    if ($hassiteconfig) {
-        $ADMIN->add('localplugins', new \tool_wp\admin_externalpage(
-            \local_assign_ai\local\tenant_context::ADMIN_PAGE_LOCAL,
-            get_string('pluginname', 'local_assign_ai'),
-            $tenantpageurl,
-            $tenantpageaccess
-        ));
-    } else {
-        $tenantpagecategory = $ADMIN->locate('ai') ? 'ai' : 'localplugins';
-        $ADMIN->add($tenantpagecategory, new \tool_wp\admin_externalpage(
-            \local_assign_ai\local\tenant_context::ADMIN_PAGE_AI,
-            get_string('pluginname', 'local_assign_ai'),
-            $tenantpageurl,
-            $tenantpageaccess
-        ));
-    }
+    $ADMIN->add($parentcategory, $settings);
 }
