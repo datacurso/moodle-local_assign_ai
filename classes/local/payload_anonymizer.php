@@ -24,17 +24,16 @@
 
 namespace local_assign_ai\local;
 
-use aiprovider_datacurso\local\outbound_privacy;
-
 /**
  * Outbound boundary of the plugin towards the AI provider.
  *
  * Every payload handed to the AI provider goes through {@see anonymize()}. The plugin owns
  * everything that is specific to its endpoint: the field allowlist ({@see ALLOWED_FIELDS}) and
  * the student-name placeholder, together with its restore in the AI reply. The only shared
- * piece is the userid pseudonym, delegated to the provider's {@see outbound_privacy} so the
- * whole Datacurso suite derives the same per-user token with one formula. See _docs/privacy.md
- * for the justification of each field.
+ * piece is the userid pseudonym, obtained from the {@see userid_pseudonymiser} port resolved
+ * through the DI container: production binds {@see provider_pseudonymiser}, which delegates to
+ * the AI provider's shared helper so the whole Datacurso suite derives the same per-user token
+ * with one formula. See _docs/privacy.md for the justification of each field.
  */
 class payload_anonymizer {
     /**
@@ -71,7 +70,8 @@ class payload_anonymizer {
      * Anonymize an outbound payload.
      *
      * Drops every key outside {@see ALLOWED_FIELDS}, replaces a numeric userid with the
-     * provider's site-scoped pseudonym and swaps the student name for its placeholder.
+     * site-scoped pseudonym of the bound {@see userid_pseudonymiser} and swaps the student
+     * name for its placeholder.
      *
      * @param array $payload Original payload.
      * @return array{payload: array, replacements: array<string, string>}
@@ -80,7 +80,7 @@ class payload_anonymizer {
         $payload = array_intersect_key($payload, array_flip(self::ALLOWED_FIELDS));
 
         if (isset($payload['userid']) && is_numeric($payload['userid'])) {
-            $payload['userid'] = outbound_privacy::pseudonymise_userid_value($payload['userid']);
+            $payload['userid'] = \core\di::get(userid_pseudonymiser::class)->pseudonymise($payload['userid']);
         }
 
         $replacements = [];

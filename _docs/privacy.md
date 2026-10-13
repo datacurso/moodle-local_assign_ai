@@ -51,9 +51,12 @@ outbound contract cannot grow silently when the internal payload builder changes
   the reviewer id keyed with a per-site secret owned by aiprovider_datacurso and never sent to
   the services, truncated to 32 hex characters. The same user on the same site always yields
   the same token, so the provider can keep per-user accounting, but the raw id cannot be
-  recovered from it and tokens cannot be correlated across sites. The provider's HTTP client
-  applies the same helper again, so a raw id can never leave even if a caller bypasses the
-  plugin boundary.
+  recovered from it and tokens cannot be correlated across sites. The plugin resolves the
+  pseudonymiser through the DI container (port `\local_assign_ai\local\userid_pseudonymiser`,
+  bound in `db/hooks.php`); the production adapter `provider_pseudonymiser` delegates to the
+  provider, and the anonymiser unit tests bind a fake so they do not depend on the installed provider version. The
+  provider's HTTP client applies the same helper again, so a raw id can never leave even if a
+  caller bypasses the plugin boundary.
 - `student_name` is replaced by the placeholder `[STUDENT_NAME]` before sending. The real
   name is kept on the site only, and is substituted back into the AI reply after it returns
   (`payload_anonymizer::deanonymize_text()`). The placeholder and its restore are plugin-owned.

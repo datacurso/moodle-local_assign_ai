@@ -25,8 +25,12 @@
 
 namespace local_assign_ai;
 
-use aiprovider_datacurso\local\outbound_privacy;
 use local_assign_ai\local\payload_anonymizer;
+use local_assign_ai\local\userid_pseudonymiser;
+
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/fixtures/fake_userid_pseudonymiser.php');
 
 /**
  * Unit tests for the payload anonymizer.
@@ -35,6 +39,18 @@ use local_assign_ai\local\payload_anonymizer;
  * @group local_assign_ai
  */
 final class payload_anonymizer_test extends \advanced_testcase {
+    /** @var fake_userid_pseudonymiser The fake bound in the container for every test. */
+    private fake_userid_pseudonymiser $pseudonymiser;
+
+    /**
+     * Bind a deterministic fake pseudonymiser so no test depends on the AI provider.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        $this->pseudonymiser = new fake_userid_pseudonymiser();
+        \core\di::set(userid_pseudonymiser::class, $this->pseudonymiser);
+    }
+
     /**
      * Build a payload carrying every allowlisted outbound field.
      *
@@ -167,21 +183,22 @@ final class payload_anonymizer_test extends \advanced_testcase {
         $this->assertIsString($token);
         $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $token);
         $this->assertNotSame('12', $token);
-        $this->assertSame(outbound_privacy::pseudonymise_userid(12), $token);
+        $this->assertSame($this->pseudonymiser->pseudonymise(12), $token);
         $this->assertSame($token, $again['payload']['userid']);
         $this->assertNotSame($token, $other['payload']['userid']);
         $this->assertStringNotContainsString('"userid":"12"', json_encode($first['payload']));
     }
 
     /**
-     * LAA-PRIV-001: The outbound userid is the token produced by the provider's shared helper, so
-     * the plugin and aiprovider_datacurso always agree on the per-user key.
+     * LAA-PRIV-001: The outbound userid is exactly the token returned by the pseudonymiser bound in
+     * the container, so the plugin never derives a token of its own.
      *
      * @covers ::anonymize
      */
-    public function test_userid_matches_the_provider_pseudonym(): void {
+    public function test_userid_is_the_token_returned_by_the_bound_pseudonymiser(): void {
         $result = payload_anonymizer::anonymize($this->full_payload(['userid' => '12']));
 
-        $this->assertSame(outbound_privacy::pseudonymise_userid(12), $result['payload']['userid']);
+        $this->assertSame($this->pseudonymiser->pseudonymise(12), $result['payload']['userid']);
+        $this->assertSame(str_repeat('a', 24) . '0000000c', $result['payload']['userid']);
     }
 }

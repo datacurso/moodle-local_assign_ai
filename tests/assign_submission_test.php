@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
+require_once(__DIR__ . '/fixtures/fake_userid_pseudonymiser.php');
 
 /**
  * Unit tests for the AI submission processor.
@@ -786,6 +787,10 @@ final class assign_submission_test extends \advanced_testcase {
                 return ['reply' => 'Spy feedback', 'grade' => 7, 'rubric' => null, 'assessment_guide' => null];
             }
         );
+        // Bind the fake pseudonymiser so the expected token does not depend on the provider version.
+        $pseudonymiser = new fake_userid_pseudonymiser();
+        \core\di::set(\local_assign_ai\local\userid_pseudonymiser::class, $pseudonymiser);
+
         $factory = $this->createStub(\local_assign_ai\api\ai_client_factory::class);
         $factory->method('create')->willReturn($spy);
         \core\di::set(\local_assign_ai\api\ai_client_factory::class, $factory);
@@ -794,7 +799,7 @@ final class assign_submission_test extends \advanced_testcase {
         $processor->process_submission_ai();
 
         $this->assertIsArray($captured, 'The AI request must go through the HTTP client.');
-        $expectedtoken = \aiprovider_datacurso\local\outbound_privacy::pseudonymise_userid((int) $teacher->id);
+        $expectedtoken = $pseudonymiser->pseudonymise((int) $teacher->id);
         $this->assertSame($expectedtoken, $captured['userid']);
         $this->assertNotSame((string) $teacher->id, $captured['userid']);
         $this->assertNotSame((string) $student->id, $captured['userid']);
