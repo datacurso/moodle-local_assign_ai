@@ -33,17 +33,14 @@ class tenant_settings_form extends \moodleform {
     /**
      * Form definition.
      *
-     * Custom data: 'tenants' (array of tenant names keyed by id the user may edit) and 'tenantid'.
+     * Custom data: 'tenantid' (the active tenant being edited).
      */
     public function definition(): void {
         $mform = $this->_form;
-        $tenants = $this->_customdata['tenants'];
         $tenantid = (int) $this->_customdata['tenantid'];
 
         $mform->addElement('hidden', 'tenantid', $tenantid);
         $mform->setType('tenantid', PARAM_INT);
-
-        $mform->addElement('static', 'tenantname', get_string('tenant', 'local_assign_ai'), s($tenants[$tenantid] ?? ''));
 
         $checkboxes = ['enableassignai', 'defaultenableai', 'defaultautograde', 'defaultusedelay'];
         foreach ($checkboxes as $name) {

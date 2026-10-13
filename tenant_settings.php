@@ -15,9 +15,11 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Tenant level defaults of the plugin (Moodle Workplace).
+ * Global configuration of the active Moodle Workplace tenant.
  *
- * Tenant administrators edit their own tenant; site administrators can pick any tenant.
+ * This is the Workplace equivalent of the plugin settings page of Moodle LMS. The tenant edited is always the
+ * active one: the tenant the site administrator switched to with the Workplace tenant switcher, or the own
+ * tenant of a tenant administrator. The page never offers a way to pick another tenant.
  *
  * @package     local_assign_ai
  * @copyright   2026 Datacurso
@@ -29,7 +31,6 @@ require_once(__DIR__ . '/../../config.php');
 use local_assign_ai\form\tenant_settings_form;
 use local_assign_ai\local\tenant_config;
 use local_assign_ai\local\tenant_context;
-use local_assign_ai\output\tenant_selector;
 
 require_login(null, false);
 
@@ -37,56 +38,46 @@ if (!tenant_context::is_tenancy_available() || !class_exists('\tool_wp\admin_ext
     throw new moodle_exception('tenantsettingsunavailable', 'local_assign_ai');
 }
 
-\tool_wp\admin_externalpage::setup_page('local_assign_ai_tenantsettings');
+\tool_wp\admin_externalpage::setup_page(tenant_context::get_admin_page_name());
 require_capability('local/assign_ai:managetenantsettings', context_system::instance());
 
-$tenants = tenant_context::get_manageable_tenants();
-if (!$tenants) {
-    throw new moodle_exception('nopermissions', 'error', '', get_string('tenantsettings', 'local_assign_ai'));
-}
-
-$tenantid = optional_param('tenantid', 0, PARAM_INT);
-if ($tenantid && !tenant_context::can_manage_tenant_settings($tenantid)) {
-    throw new moodle_exception('nopermissions', 'error', '', get_string('tenantsettings', 'local_assign_ai'));
-}
+$tenantid = tenant_context::get_settings_tenant_id();
 if (!$tenantid) {
-    $own = tenant_context::get_current_tenant_id();
-    $tenantid = isset($tenants[$own]) ? $own : (int) array_key_first($tenants);
+    throw new moodle_exception('nopermissions', 'error', '', get_string('tenantsettings', 'local_assign_ai'));
 }
 
-$url = new moodle_url('/local/assign_ai/tenant_settings.php', ['tenantid' => $tenantid]);
+$url = new moodle_url('/local/assign_ai/tenant_settings.php');
 $PAGE->set_url($url);
-$PAGE->set_title(get_string('tenantsettings', 'local_assign_ai'));
 
-$form = new tenant_settings_form($url, ['tenants' => $tenants, 'tenantid' => $tenantid]);
+$form = new tenant_settings_form($url, ['tenantid' => $tenantid]);
 
 if ($form->is_cancelled()) {
     redirect(new moodle_url('/admin/search.php'));
 }
 
 if ($data = $form->get_data()) {
-    // The tenant is re-validated on the server: a tampered hidden field cannot reach another tenant.
+    // The tenant is re-validated on the server: it must be the active one and manageable by the user, so a
+    // tampered hidden field cannot reach another tenant.
     $target = (int) $data->tenantid;
-    if (!tenant_context::can_manage_tenant_settings($target)) {
+    if (!tenant_context::is_valid_settings_target($target)) {
         throw new moodle_exception('nopermissions', 'error', '', get_string('tenantsettings', 'local_assign_ai'));
     }
 
     tenant_config::save_form_data($target, $data);
 
-    redirect(
-        new moodle_url('/local/assign_ai/tenant_settings.php', ['tenantid' => $target]),
-        get_string('changessaved'),
-        null,
-        \core\output\notification::NOTIFY_SUCCESS
-    );
+    redirect($url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 $form->load_tenant_values();
 
+$tenantname = tenant_context::get_manageable_tenants()[$tenantid];
+
 echo $OUTPUT->header();
 // The admin page already prints the page name as its heading, so no extra heading is rendered here.
-if (count($tenants) > 1) {
-    echo $OUTPUT->render(tenant_selector::create($tenants, $tenantid));
-}
+echo $OUTPUT->notification(
+    get_string('editingtenant', 'local_assign_ai', $tenantname),
+    \core\output\notification::NOTIFY_INFO,
+    false
+);
 $form->display();
 echo $OUTPUT->footer();

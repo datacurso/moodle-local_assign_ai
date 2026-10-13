@@ -412,19 +412,193 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
-     * Under Workplace the site settings page is not registered, only the tenant page remains.
+     * Loads the admin tree as the current user sees it.
+     *
+     * @return \admin_root
      */
-    public function test_site_settings_page_is_not_registered_under_tenancy(): void {
+    private function load_admin_tree(): \admin_root {
         global $CFG;
 
+        require_once($CFG->libdir . '/adminlib.php');
+        return admin_get_root(true, true);
+    }
+
+    /**
+     * Creates a tenant administrator of a tenant.
+     *
+     * @param \stdClass $tenant Tenant record.
+     * @return \stdClass The user.
+     */
+    private function create_tenant_admin(\stdClass $tenant): \stdClass {
+        return $this->getDataGenerator()->get_plugin_generator('tool_tenant')->create_user([
+            'tenantid' => $tenant->id,
+            'tenantadmin' => 1,
+        ]);
+    }
+
+    /**
+     * Under Workplace the site settings page is not registered, whoever looks at the admin tree.
+     */
+    public function test_site_settings_page_is_not_registered_under_tenancy(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->assertEmpty($this->load_admin_tree()->locate('local_assign_ai_settings'));
+    }
+
+    /**
+     * Site administrators find the tenant configuration under Local plugins, named after the plugin, and nowhere else.
+     */
+    public function test_tenant_settings_page_is_listed_under_local_plugins_for_site_admins(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $adminroot = $this->load_admin_tree();
+        $page = $adminroot->locate(tenant_context::ADMIN_PAGE_LOCAL);
+
+        $this->assertNotEmpty($page);
+        $this->assertSame(get_string('pluginname', 'local_assign_ai'), $page->visiblename);
+        $this->assertSame($page, $adminroot->locate('localplugins')->locate(tenant_context::ADMIN_PAGE_LOCAL));
+        $this->assertStringEndsWith('/local/assign_ai/tenant_settings.php', (new \moodle_url($page->url))->get_path(false));
+        $this->assertEmpty((new \moodle_url($page->url))->params());
+        $this->assertEmpty($adminroot->locate(tenant_context::ADMIN_PAGE_AI));
+        $this->assertSame(tenant_context::ADMIN_PAGE_LOCAL, tenant_context::get_admin_page_name());
+    }
+
+    /**
+     * Tenant administrators cannot see Local plugins, so they get a single entry under the AI category.
+     */
+    public function test_tenant_settings_page_is_listed_under_ai_for_tenant_admins(): void {
         $this->require_tenancy();
         $this->resetAfterTest();
 
-        require_once($CFG->libdir . '/adminlib.php');
-        $adminroot = admin_get_root(true, true);
+        $tenantadmin = $this->create_tenant_admin($this->create_tenant('Tenant M'));
+        $this->setUser($tenantadmin);
 
-        $this->assertEmpty($adminroot->locate('local_assign_ai_settings'));
-        $this->assertNotEmpty($adminroot->locate('local_assign_ai_tenantsettings'));
+        $adminroot = $this->load_admin_tree();
+        $page = $adminroot->locate(tenant_context::ADMIN_PAGE_AI);
+
+        $this->assertNotEmpty($page);
+        $this->assertSame(get_string('pluginname', 'local_assign_ai'), $page->visiblename);
+        $this->assertSame($page, $adminroot->locate('ai')->locate(tenant_context::ADMIN_PAGE_AI));
+        $this->assertEmpty($adminroot->locate(tenant_context::ADMIN_PAGE_LOCAL));
+        $this->assertTrue($page->check_access());
+        $this->assertSame(tenant_context::ADMIN_PAGE_AI, tenant_context::get_admin_page_name());
+    }
+
+    /**
+     * A user who cannot manage tenant settings gets no access to the entry.
+     */
+    public function test_tenant_settings_page_is_denied_to_plain_users(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+
+        $tenant = $this->create_tenant('Tenant N');
+        $this->setUser($this->getDataGenerator()->get_plugin_generator('tool_tenant')->create_user(['tenantid' => $tenant->id]));
+
+        $page = $this->load_admin_tree()->locate(tenant_context::ADMIN_PAGE_AI);
+
+        $this->assertTrue(empty($page) || !$page->check_access());
+    }
+
+    /**
+     * A tenant administrator always edits the own tenant, and nothing else is accepted from the request.
+     */
+    public function test_tenant_admin_edits_only_the_own_tenant(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+
+        $tenanta = $this->create_tenant('Tenant O');
+        $tenantb = $this->create_tenant('Tenant P');
+        $tenantadmin = $this->create_tenant_admin($tenanta);
+        $this->setUser($tenantadmin);
+
+        $this->assertSame((int) $tenanta->id, tenant_context::get_settings_tenant_id());
+        $this->assertTrue(tenant_context::is_valid_settings_target((int) $tenanta->id));
+        $this->assertFalse(tenant_context::is_valid_settings_target((int) $tenantb->id));
+        $this->assertFalse(tenant_context::is_valid_settings_target(0));
+    }
+
+    /**
+     * The site administrator edits the tenant selected with the Workplace tenant switcher, and a tampered
+     * tenant id (any tenant but the active one) is rejected.
+     */
+    public function test_site_admin_edits_the_active_workplace_tenant(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $tenanta = $this->create_tenant('Tenant Q');
+        $tenantb = $this->create_tenant('Tenant R');
+
+        \tool_tenant\tenancy::set_switched_tenant_id((int) $tenanta->id);
+        $this->assertSame((int) $tenanta->id, tenant_context::get_settings_tenant_id());
+        $this->assertTrue(tenant_context::is_valid_settings_target((int) $tenanta->id));
+        $this->assertFalse(tenant_context::is_valid_settings_target((int) $tenantb->id));
+
+        \tool_tenant\tenancy::set_switched_tenant_id((int) $tenantb->id);
+        $this->assertSame((int) $tenantb->id, tenant_context::get_settings_tenant_id());
+        $this->assertTrue(tenant_context::is_valid_settings_target((int) $tenantb->id));
+        $this->assertFalse(tenant_context::is_valid_settings_target((int) $tenanta->id));
+    }
+
+    /**
+     * Values saved while one tenant is active never show up while another tenant is active.
+     */
+    public function test_values_follow_the_active_tenant(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $tenanta = $this->create_tenant('Tenant S');
+        $tenantb = $this->create_tenant('Tenant T');
+
+        \tool_tenant\tenancy::set_switched_tenant_id((int) $tenanta->id);
+        tenant_config::set('defaultprompt', tenant_context::get_settings_tenant_id(), 'Prompt of S');
+        \tool_tenant\tenancy::set_switched_tenant_id((int) $tenantb->id);
+        $activeb = tenant_context::get_settings_tenant_id();
+
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), tenant_config::get('defaultprompt', $activeb));
+        $this->assertSame('Prompt of S', tenant_config::get('defaultprompt', (int) $tenanta->id));
+    }
+
+    /**
+     * Under Workplace, tenant 0 (a course outside every tenant category and no user tenant) resolves to the plugin
+     * defaults and never to the site configuration.
+     */
+    public function test_tenant_zero_uses_plugin_defaults_under_tenancy(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->set_divergent_site_config();
+
+        foreach (array_keys(self::plugin_defaults_provider()) as $name) {
+            $this->assertEquals(tenant_config::get_plugin_default($name), tenant_config::get($name, 0));
+            $this->assertEquals(tenant_config::get_plugin_default($name), assignment_config::get_default($name, 0));
+        }
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), tenant_config::get('defaultprompt', 0));
+        $this->assertTrue(assignment_config::is_ai_available(0));
+        $this->assertSame(0, assignment_config::get_defaults(0)->autograde);
+    }
+
+    /**
+     * A course outside every tenant category, for a user without a tenant, uses the plugin defaults.
+     */
+    public function test_course_outside_tenants_uses_plugin_defaults_under_tenancy(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->set_divergent_site_config();
+
+        $course = $this->getDataGenerator()->create_course();
+        $tenantid = tenant_context::resolve((int) $course->id, 0);
+
+        $this->assertSame(0, $tenantid);
+        $effective = assignment_config::get_effective_for_course((int) $course->id);
+        $this->assertSame(1, $effective->enableai);
+        $this->assertSame(0, $effective->autograde);
+        $this->assertSame(60, $effective->delayminutes);
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), $effective->prompt);
     }
 
     /**

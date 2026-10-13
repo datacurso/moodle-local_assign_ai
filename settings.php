@@ -101,17 +101,31 @@ if ($hassiteconfig && !class_exists('\tool_tenant\tenancy')) {
     $ADMIN->add('localplugins', $settings);
 }
 
-// Tenant level defaults page, registered only on Moodle Workplace. Tenant administrators do not hold
-// moodle/site:config, so access is granted through local/assign_ai:managetenantsettings instead.
+// Moodle Workplace: the global configuration of each tenant lives where the LMS global settings live. Site
+// administrators find it under Site administration > Plugins > Local plugins and edit the active tenant (the one
+// selected with the Workplace tenant switcher). Tenant administrators do not hold moodle/site:config and cannot see
+// Local plugins, so they get the entry under the core 'ai' category and always edit their own tenant. Every user sees
+// exactly one entry; access is granted through local/assign_ai:managetenantsettings.
 if (class_exists('\tool_tenant\tenancy') && class_exists('\tool_wp\admin_externalpage')) {
-    // The 'localplugins' category only exists for users with moodle/site:config, so the page lives under
-    // the core 'ai' category, which tenant administrators can also reach.
-    $ADMIN->add($ADMIN->locate('ai') ? 'ai' : 'localplugins', new \tool_wp\admin_externalpage(
-        'local_assign_ai_tenantsettings',
-        get_string('tenantsettings', 'local_assign_ai'),
-        (new moodle_url('/local/assign_ai/tenant_settings.php'))->out(),
-        static function (): bool {
-            return !empty(\local_assign_ai\local\tenant_context::get_manageable_tenants());
-        }
-    ));
+    $tenantpageurl = (new moodle_url('/local/assign_ai/tenant_settings.php'))->out();
+    $tenantpageaccess = static function (): bool {
+        return !empty(\local_assign_ai\local\tenant_context::get_manageable_tenants());
+    };
+
+    if ($hassiteconfig) {
+        $ADMIN->add('localplugins', new \tool_wp\admin_externalpage(
+            \local_assign_ai\local\tenant_context::ADMIN_PAGE_LOCAL,
+            get_string('pluginname', 'local_assign_ai'),
+            $tenantpageurl,
+            $tenantpageaccess
+        ));
+    } else {
+        $tenantpagecategory = $ADMIN->locate('ai') ? 'ai' : 'localplugins';
+        $ADMIN->add($tenantpagecategory, new \tool_wp\admin_externalpage(
+            \local_assign_ai\local\tenant_context::ADMIN_PAGE_AI,
+            get_string('pluginname', 'local_assign_ai'),
+            $tenantpageurl,
+            $tenantpageaccess
+        ));
+    }
 }

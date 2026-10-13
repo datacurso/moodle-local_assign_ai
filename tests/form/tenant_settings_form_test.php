@@ -46,7 +46,7 @@ final class tenant_settings_form_test extends \advanced_testcase {
 
         return new tenant_settings_form(
             new \moodle_url('/local/assign_ai/tenant_settings.php'),
-            ['tenants' => [5 => 'Tenant five'], 'tenantid' => 5]
+            ['tenantid' => 5]
         );
     }
 
