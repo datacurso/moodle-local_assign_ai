@@ -458,6 +458,8 @@ final class tenant_config_test extends \advanced_testcase {
             $this->markTestSkipped('Only meaningful on a site without Workplace.');
         }
         $this->resetAfterTest();
+        // The page is only registered for users holding moodle/site:config.
+        $this->setAdminUser();
 
         require_once($CFG->libdir . '/adminlib.php');
         $adminroot = admin_get_root(true, true);
