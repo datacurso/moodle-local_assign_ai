@@ -1,3 +1,15 @@
+## [1.1.9-wp] - 2026-10-13
+
+**Compatibility note:** Moodle Workplace 4.5 branch (`-wp` release). The plugin still loads on a plain Moodle LMS, where the site settings page and site values keep working as before.
+
+### Changed
+
+- Moodle Workplace: every tenant now has a completely independent configuration. A setting resolves to the value the tenant saved, or otherwise to the plugin built-in default; it never reads the site value and never the value of another tenant
+- Moodle Workplace: the site level "Assign AI" settings page is no longer registered and no site defaults are seeded, so nothing at site level can switch on, switch off or change all tenants at once. Each tenant is managed from "Assign AI tenant settings"
+- Moodle Workplace: the Assign AI switches (`enableassignai`, `defaultenableai`) are per tenant: switching one tenant off pauses only that tenant
+- Moodle Workplace: the tenant settings form is pre-filled with the values saved by the tenant, or with the plugin defaults when it has none, instead of the site values
+- The plugin built-in defaults are defined once in `tenant_config` and reused by the LMS settings page
+
 ## [1.1.8-wp] - 2026-10-06
 
 **Compatibility note:** Moodle Workplace 4.5 branch (`-wp` release). The plugin still loads on a plain Moodle LMS, where tenant features are inactive.
