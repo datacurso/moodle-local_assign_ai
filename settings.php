@@ -25,20 +25,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-if ($hassiteconfig) {
-    $defaults = [
-        'enableassignai' => 1,
-        'defaultenableai' => 1,
-        'defaultautograde' => 0,
-        'defaultusedelay' => 0,
-        'defaultdelayminutes' => 60,
-        'defaultprompt' => get_string('promptdefaulttext', 'local_assign_ai'),
-    ];
-
-    foreach ($defaults as $name => $value) {
+// Moodle Workplace: every tenant is its own platform, so there is no site level settings page (it would be a
+// control that switches or changes all tenants at once) and no site defaults are seeded. Each tenant manages
+// its own values from the tenant settings page below. A plain Moodle LMS keeps the site settings page.
+if ($hassiteconfig && !class_exists('\tool_tenant\tenancy')) {
+    foreach (\local_assign_ai\local\tenant_config::SETTING_NAMES as $name) {
         $current = get_config('local_assign_ai', $name);
         if ($current === false || $current === '') {
-            set_config($name, $value, 'local_assign_ai');
+            set_config($name, \local_assign_ai\local\tenant_config::get_plugin_default($name), 'local_assign_ai');
         }
     }
 
