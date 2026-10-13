@@ -16,7 +16,6 @@
 
 namespace local_assign_ai\api;
 
-use aiprovider_datacurso\httpclient\ai_services_api;
 use local_assign_ai\local\payload_anonymizer;
 
 /**
@@ -38,7 +37,8 @@ class client {
         $payload = $anonymized['payload'];
         $replacements = $anonymized['replacements'];
 
-        $client = new ai_services_api();
+        // The factory is resolved through the DI container so tests can replace the HTTP client.
+        $client = \core\di::get(ai_client_factory::class)->create();
 
         $response = $client->request('POST', '/assign/answer', $payload);
 

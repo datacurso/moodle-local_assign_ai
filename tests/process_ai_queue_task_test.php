@@ -64,6 +64,17 @@ final class process_ai_queue_task_test extends \advanced_testcase {
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
 
+        // aiprovider_datacurso 1.6.0 remembers the licence region in its config (fingerprinted by
+        // the licence key) for a week, so it is preset here and no region lookup happens during
+        // the tests; every curl mock is therefore consumed by the /assign/answer POST only.
+        set_config(\aiprovider_datacurso\local\license_region::REGION, '0', 'aiprovider_datacurso');
+        set_config(
+            \aiprovider_datacurso\local\license_region::FINGERPRINT,
+            sha1('phpunit-license-key'),
+            'aiprovider_datacurso'
+        );
+        set_config(\aiprovider_datacurso\local\license_region::CHECKED, time(), 'aiprovider_datacurso');
+
         // Moodle 5.0 reads the license key from an enabled provider instance instead of the plugin config.
         $manager = new \core_ai\manager($DB);
         if (method_exists($manager, 'create_provider_instance')) {
@@ -79,16 +90,14 @@ final class process_ai_queue_task_test extends \advanced_testcase {
     /**
      * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
      *
-     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
-     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
-     * /assign/answer body is queued first.
+     * The licence region is preset by configure_ai_provider(), so one AI review makes a single
+     * HTTP request: the /assign/answer POST.
      *
      * @param string $answerbody Body returned for the final /assign/answer POST.
      * @return void
      */
     private function mock_ai_pipeline(string $answerbody): void {
         \curl::mock_response($answerbody);
-        \curl::mock_response(json_encode(['is_for_eu' => false]));
     }
 
     /**

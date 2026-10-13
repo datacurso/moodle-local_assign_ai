@@ -28,6 +28,10 @@ defined('MOODLE_INTERNAL') || die();
 
 $callbacks = [
     [
+        'hook' => \core\hook\di_configuration::class,
+        'callback' => 'local_assign_ai\hook\di_callbacks::provide_di_configuration',
+    ],
+    [
         'hook' => \core\hook\output\before_footer_html_generation::class,
         'callback' => 'local_assign_ai\hook\output_hook::before_footer_html_generation',
         'priority' => 900,

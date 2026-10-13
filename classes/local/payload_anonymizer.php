@@ -25,32 +25,68 @@
 namespace local_assign_ai\local;
 
 /**
- * Handles anonymization/de-anonymization for AI payloads.
+ * Outbound boundary of the plugin towards the AI provider.
+ *
+ * Every payload handed to the AI provider goes through {@see anonymize()}. The plugin owns
+ * everything that is specific to its endpoint: the field allowlist ({@see ALLOWED_FIELDS}) and
+ * the student-name placeholder, together with its restore in the AI reply. The only shared
+ * piece is the userid pseudonym, obtained from the {@see userid_pseudonymiser} port resolved
+ * through the DI container: production binds {@see provider_pseudonymiser}, which delegates to
+ * the AI provider's shared helper so the whole Datacurso suite derives the same per-user token
+ * with one formula. See _docs/privacy.md for the justification of each field.
  */
 class payload_anonymizer {
     /**
-     * Fields that are anonymized before sending data to AI.
+     * Every field allowed to leave the site towards the AI provider.
      *
-     * @var array<string, string>
+     * Any key not listed here is dropped before sending, so the outbound contract cannot grow
+     * silently. Keep this list and _docs/privacy.md in sync.
+     *
+     * @var string[]
      */
-    private const ANONYMIZED_FIELDS = [
-        'student_name' => '[STUDENT_NAME]',
+    public const ALLOWED_FIELDS = [
+        'course_id',
+        'course',
+        'assignment_id',
+        'cmi_id',
+        'assignment_title',
+        'assignment_description',
+        'assignment_activity_instructions',
+        'rubric',
+        'assessment_guide',
+        'userid',
+        'student_name',
+        'submission_assign',
+        'submission_files',
+        'maximum_grade',
+        'prompt',
+        'lang',
     ];
 
+    /** @var string Placeholder that replaces the student full name in the outbound payload. */
+    private const STUDENT_NAME_PLACEHOLDER = '[STUDENT_NAME]';
+
     /**
-     * Anonymize configured payload fields.
+     * Anonymize an outbound payload.
+     *
+     * Drops every key outside {@see ALLOWED_FIELDS}, replaces a numeric userid with the
+     * site-scoped pseudonym of the bound {@see userid_pseudonymiser} and swaps the student
+     * name for its placeholder.
      *
      * @param array $payload Original payload.
      * @return array{payload: array, replacements: array<string, string>}
      */
     public static function anonymize(array $payload): array {
-        $replacements = [];
+        $payload = array_intersect_key($payload, array_flip(self::ALLOWED_FIELDS));
 
-        foreach (self::ANONYMIZED_FIELDS as $field => $placeholder) {
-            if (isset($payload[$field]) && is_string($payload[$field]) && $payload[$field] !== '') {
-                $replacements[$placeholder] = $payload[$field];
-                $payload[$field] = $placeholder;
-            }
+        if (isset($payload['userid']) && is_numeric($payload['userid'])) {
+            $payload['userid'] = \core\di::get(userid_pseudonymiser::class)->pseudonymise($payload['userid']);
+        }
+
+        $replacements = [];
+        if (isset($payload['student_name']) && is_string($payload['student_name']) && $payload['student_name'] !== '') {
+            $replacements[self::STUDENT_NAME_PLACEHOLDER] = $payload['student_name'];
+            $payload['student_name'] = self::STUDENT_NAME_PLACEHOLDER;
         }
 
         return [

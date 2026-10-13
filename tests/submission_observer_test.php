@@ -64,6 +64,17 @@ final class submission_observer_test extends \advanced_testcase {
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
 
+        // aiprovider_datacurso 1.6.0 remembers the licence region in its config (fingerprinted by
+        // the licence key) for a week, so it is preset here and no region lookup happens during
+        // the tests; every curl mock is therefore consumed by the /assign/answer POST only.
+        set_config(\aiprovider_datacurso\local\license_region::REGION, '0', 'aiprovider_datacurso');
+        set_config(
+            \aiprovider_datacurso\local\license_region::FINGERPRINT,
+            sha1('phpunit-license-key'),
+            'aiprovider_datacurso'
+        );
+        set_config(\aiprovider_datacurso\local\license_region::CHECKED, time(), 'aiprovider_datacurso');
+
         // Moodle 5.0 reads the license key from an enabled provider instance instead of the plugin config.
         $manager = new \core_ai\manager($DB);
         if (method_exists($manager, 'create_provider_instance')) {
@@ -79,16 +90,14 @@ final class submission_observer_test extends \advanced_testcase {
     /**
      * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
      *
-     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
-     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
-     * /assign/answer body is queued first.
+     * The licence region is preset by configure_ai_provider(), so one AI review makes a single
+     * HTTP request: the /assign/answer POST.
      *
      * @param string $answerbody Body returned for the final /assign/answer POST.
      * @return void
      */
     private function mock_ai_pipeline(string $answerbody): void {
         \curl::mock_response($answerbody);
-        \curl::mock_response(json_encode(['is_for_eu' => false]));
     }
 
     /**
@@ -345,5 +354,184 @@ final class submission_observer_test extends \advanced_testcase {
         $this->assertSame(assign_submission::STATUS_INITIAL, $newrecord->status);
         $this->assertNull($newrecord->grade);
         $this->assertEquals(1, $newrecord->edited);
+    }
+
+    /**
+     * Insert a delayed-processing queue row with the given payload identifiers.
+     *
+     * The identifiers are stored exactly as given (int or string) so the tests can cover both
+     * the numeric and the string JSON encodings the queue has historically contained.
+     *
+     * @param int|string $userid User id as it should appear in the JSON payload.
+     * @param int|string $cmid Course module id as it should appear in the JSON payload.
+     * @param string $type Queue row type.
+     * @param int $processed Whether the row has already been processed.
+     * @return int The inserted row id.
+     */
+    private function create_queue_row($userid, $cmid, string $type = 'submission', int $processed = 0): int {
+        global $DB;
+
+        return $DB->insert_record('local_assign_ai_queue', (object) [
+            'type' => $type,
+            'payload' => json_encode(['userid' => $userid, 'cmid' => $cmid, 'submissiontime' => time()]),
+            'timecreated' => time(),
+            'timetoprocess' => time() + HOURSECS,
+            'processed' => $processed,
+        ]);
+    }
+
+    /**
+     * Seed the queue with two rows for the target user/activity (numeric and string encoded ids)
+     * plus decoy rows that share a digit prefix, belong to another user, another activity or
+     * another queue type.
+     *
+     * @param int $userid Target user id.
+     * @param int $cmid Target course module id.
+     * @param int $otheruserid A different user id.
+     * @return array{targets: int[], decoys: int[]} Inserted row ids.
+     */
+    private function seed_queue_fixture(int $userid, int $cmid, int $otheruserid): array {
+        return [
+            'targets' => [
+                $this->create_queue_row($userid, $cmid),
+                $this->create_queue_row((string) $userid, (string) $cmid),
+            ],
+            'decoys' => [
+                // Same digit prefix: user 12 must not match user 123, cm 5 must not match cm 50.
+                $this->create_queue_row((int) ($userid . '3'), $cmid),
+                $this->create_queue_row($userid, (int) ($cmid . '0')),
+                $this->create_queue_row($otheruserid, $cmid),
+                $this->create_queue_row($userid, $cmid, 'other'),
+            ],
+        ];
+    }
+
+    /**
+     * LAA-SEC-005: Removing a submission clears only the queue rows of that exact user in that
+     * exact activity; rows whose ids merely share a digit prefix, rows of other users, other
+     * activities or other queue types are kept.
+     *
+     * @covers ::submission_removed
+     */
+    public function test_removing_a_submission_only_clears_the_queue_rows_of_that_user_and_activity(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->preventResetByRollback();
+        $this->setAdminUser();
+        $this->redirectMessages();
+        $this->redirectEmails();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $other = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(1050, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+        ]);
+        $cmid = (int) $assign->get_course_module()->id;
+
+        // Keep the master switch off while seeding the submission so nothing is queued by the observers.
+        set_config('enableassignai', 0, 'local_assign_ai');
+        $this->add_submission($student, $assign, 'Essay text');
+
+        $rows = $this->seed_queue_fixture((int) $student->id, $cmid, (int) $other->id);
+
+        $this->assertTrue($assign->remove_submission($student->id));
+
+        foreach ($rows['targets'] as $id) {
+            $this->assertFalse($DB->record_exists('local_assign_ai_queue', ['id' => $id]), "Target row {$id} must be deleted");
+        }
+        foreach ($rows['decoys'] as $id) {
+            $this->assertTrue($DB->record_exists('local_assign_ai_queue', ['id' => $id]), "Decoy row {$id} must be kept");
+        }
+    }
+
+    /**
+     * LAA-SEC-005: A delayed submission replaces the previously queued rows of that exact user
+     * in that exact activity (numeric or string encoded ids) and leaves every other queue row alone.
+     *
+     * @covers ::submission_created
+     */
+    public function test_delayed_submission_replaces_only_the_queue_rows_of_that_user_and_activity(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->preventResetByRollback();
+        $this->setAdminUser();
+        $this->redirectMessages();
+        $this->redirectEmails();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $other = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(1060, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+        ]);
+        $cmid = (int) $assign->get_course_module()->id;
+        $DB->set_field('local_assign_ai_config', 'usedelay', 1, ['assignmentid' => $assign->get_instance()->id]);
+        $DB->set_field('local_assign_ai_config', 'delayminutes', 30, ['assignmentid' => $assign->get_instance()->id]);
+
+        $rows = $this->seed_queue_fixture((int) $student->id, $cmid, (int) $other->id);
+
+        $this->add_submission($student, $assign, 'Essay text');
+
+        foreach ($rows['targets'] as $id) {
+            $this->assertFalse($DB->record_exists('local_assign_ai_queue', ['id' => $id]), "Stale row {$id} must be replaced");
+        }
+        foreach ($rows['decoys'] as $id) {
+            $this->assertTrue($DB->record_exists('local_assign_ai_queue', ['id' => $id]), "Decoy row {$id} must be kept");
+        }
+
+        // Exactly one fresh row remains for this user in this activity.
+        $fresh = 0;
+        foreach ($DB->get_records('local_assign_ai_queue', ['type' => 'submission']) as $row) {
+            $data = json_decode($row->payload);
+            if ((int) $data->userid === (int) $student->id && (int) $data->cmid === $cmid) {
+                $fresh++;
+            }
+        }
+        $this->assertSame(1, $fresh);
+    }
+
+    /**
+     * RES-001: Only unprocessed queue rows can still be cancelled, so removing a submission
+     * deletes the pending row of that user and activity but leaves the already processed
+     * history row untouched.
+     *
+     * @covers ::submission_removed
+     */
+    public function test_removing_a_submission_keeps_already_processed_queue_rows(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->preventResetByRollback();
+        $this->setAdminUser();
+        $this->redirectMessages();
+        $this->redirectEmails();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(1070, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+        ]);
+        $cmid = (int) $assign->get_course_module()->id;
+
+        // Keep the master switch off while seeding the submission so nothing is queued by the observers.
+        set_config('enableassignai', 0, 'local_assign_ai');
+        $this->add_submission($student, $assign, 'Essay text');
+
+        $processed = $this->create_queue_row((int) $student->id, $cmid, 'submission', 1);
+        $pending = $this->create_queue_row((int) $student->id, $cmid, 'submission', 0);
+
+        $this->assertTrue($assign->remove_submission($student->id));
+
+        $this->assertTrue($DB->record_exists('local_assign_ai_queue', ['id' => $processed]), 'Processed row must be kept');
+        $this->assertFalse($DB->record_exists('local_assign_ai_queue', ['id' => $pending]), 'Pending row must be deleted');
     }
 }

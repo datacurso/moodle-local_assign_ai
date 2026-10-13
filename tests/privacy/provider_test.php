@@ -28,6 +28,7 @@ namespace local_assign_ai\privacy;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\metadata\types\database_table;
 use core_privacy\local\metadata\types\external_location;
+use core_privacy\local\request\writer;
 
 /**
  * Tests that the external AI transfer is declared in the Privacy API (MDL-INT-023).
@@ -102,5 +103,96 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
                 );
             }
         }
+    }
+
+    /**
+     * LAA-PRIV-003: Every column stored in local_assign_ai_config is declared, including the
+     * teacher-authored prompt, the language and the behaviour flags.
+     *
+     * @covers ::get_metadata
+     */
+    public function test_get_metadata_declares_every_config_field(): void {
+        $collection = new collection('local_assign_ai');
+        provider::get_metadata($collection);
+
+        $table = null;
+        foreach ($collection->get_collection() as $item) {
+            if ($item instanceof database_table && $item->get_name() === 'local_assign_ai_config') {
+                $table = $item;
+                break;
+            }
+        }
+        $this->assertNotNull($table, 'The local_assign_ai_config table must be declared.');
+
+        $expected = [
+            'assignmentid',
+            'autograde',
+            'delayminutes',
+            'enableai',
+            'graderid',
+            'lang',
+            'prompt',
+            'timecreated',
+            'timemodified',
+            'usedelay',
+            'usermodified',
+        ];
+        $declared = array_keys($table->get_privacy_fields());
+        sort($declared);
+        $this->assertSame($expected, $declared);
+    }
+
+    /**
+     * LAA-PRIV-003: Exporting the grader's data includes the configuration values stored
+     * against that user (prompt, language and flags), not only the identifiers.
+     *
+     * @covers ::export_user_data
+     */
+    public function test_export_includes_grader_configuration_values(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $instance = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        [, $cm] = get_course_and_cm_from_instance($instance->id, 'assign');
+
+        $values = [
+            'enableai' => 1,
+            'autograde' => 1,
+            'graderid' => $teacher->id,
+            'usermodified' => $teacher->id,
+            'usedelay' => 1,
+            'delayminutes' => 15,
+            'prompt' => 'Grade strictly and cite the rubric.',
+            'lang' => 'es',
+        ];
+        $config = $DB->get_record('local_assign_ai_config', ['assignmentid' => $instance->id]);
+        if ($config) {
+            $DB->update_record('local_assign_ai_config', (object) (['id' => $config->id] + $values));
+        } else {
+            $DB->insert_record('local_assign_ai_config', (object) ($values + [
+                'assignmentid' => $instance->id,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]));
+        }
+
+        $context = \context_module::instance($cm->id);
+        $this->export_context_data_for_user($teacher->id, $context, 'local_assign_ai');
+
+        $exported = writer::with_context($context)->get_data([
+            get_string('privacy:metadata:local_assign_ai_config', 'local_assign_ai'),
+        ]);
+        $this->assertNotEmpty($exported->entries ?? null, 'The grader configuration must be exported.');
+        $entry = reset($exported->entries);
+        $this->assertSame('Grade strictly and cite the rubric.', $entry->prompt);
+        $this->assertSame('es', $entry->lang);
+        $this->assertEquals(1, $entry->autograde);
+        $this->assertEquals(1, $entry->usedelay);
+        $this->assertEquals(15, $entry->delayminutes);
+        $this->assertEquals($teacher->id, $entry->graderid);
     }
 }
