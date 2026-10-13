@@ -152,6 +152,36 @@ final class new_assignment_defaults_test extends \advanced_testcase {
     }
 
     /**
+     * A tenant that saved nothing starts new assignments with the plugin defaults, whatever the site holds.
+     */
+    public function test_new_assignment_of_a_tenant_without_rows_uses_plugin_defaults(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $tenant = $this->create_tenant('Tenant without rows');
+        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('defaultenableai', 0, 'local_assign_ai');
+        set_config('defaultautograde', 1, 'local_assign_ai');
+        set_config('defaultdelayminutes', 5, 'local_assign_ai');
+        set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
+        $course = $this->getDataGenerator()->create_course(['category' => $tenant->categoryid]);
+
+        $effective = assignment_config::get_effective_for_course((int) $course->id);
+        $this->assertSame(1, $effective->enableai);
+        $this->assertSame(0, $effective->autograde);
+        $this->assertSame(60, $effective->delayminutes);
+        $this->assertSame(get_string('promptdefaulttext', 'local_assign_ai'), $effective->prompt);
+        $this->assertTrue(assignment_config::is_ai_available((int) $tenant->id));
+
+        $mform = $this->build_new_assignment_form($course);
+        $this->assertEquals(
+            get_string('promptdefaulttext', 'local_assign_ai'),
+            $mform->getElement('local_assign_ai_prompt')->getValue()
+        );
+    }
+
+    /**
      * A tenant that paused the AI by default starts new assignments with the AI off.
      */
     public function test_new_assignment_follows_the_tenant_ai_default(): void {

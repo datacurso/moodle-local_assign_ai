@@ -45,6 +45,21 @@ final class submission_observer_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Sets the Assign AI feature switch that governs a course: its tenant on Workplace, the site otherwise.
+     *
+     * @param int $courseid Course id.
+     * @param int $value 1 to enable, 0 to disable.
+     */
+    private function set_feature_switch(int $courseid, int $value): void {
+        $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user($courseid);
+        if ($tenantid > 0) {
+            \local_assign_ai\local\tenant_config::set('enableassignai', $tenantid, $value);
+        } else {
+            set_config('enableassignai', $value, 'local_assign_ai');
+        }
+    }
+
+    /**
      * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
      *
      * Moodle 4.5 reads the license key from the plugin config and Moodle 5.0 from an enabled
@@ -232,9 +247,9 @@ final class submission_observer_test extends \advanced_testcase {
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.
-        set_config('enableassignai', 0, 'local_assign_ai');
+        $this->set_feature_switch((int) $course->id, 0);
         $this->add_submission($student, $assign, 'Original essay');
-        set_config('enableassignai', 1, 'local_assign_ai');
+        $this->set_feature_switch((int) $course->id, 1);
 
         $cmid = $assign->get_course_module()->id;
         $DB->set_field(
@@ -310,9 +325,9 @@ final class submission_observer_test extends \advanced_testcase {
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.
-        set_config('enableassignai', 0, 'local_assign_ai');
+        $this->set_feature_switch((int) $course->id, 0);
         $this->add_submission($student, $assign, 'Original essay');
-        set_config('enableassignai', 1, 'local_assign_ai');
+        $this->set_feature_switch((int) $course->id, 1);
 
         $cmid = $assign->get_course_module()->id;
 

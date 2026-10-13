@@ -103,7 +103,7 @@ class tenant_settings_form extends \moodleform {
     }
 
     /**
-     * Loads the values stored for the tenant, falling back to the site defaults.
+     * Loads the values stored for the tenant, falling back to the plugin defaults.
      */
     public function load_tenant_values(): void {
         $tenantid = (int) $this->_customdata['tenantid'];

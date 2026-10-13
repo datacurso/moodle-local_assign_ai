@@ -224,6 +224,9 @@ final class assignment_config_test extends \advanced_testcase {
      * @covers ::is_autograde_enabled
      */
     public function test_master_switch_disables_feature_regardless_of_assignment_rows(): void {
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('There is no site level switch on Moodle Workplace.');
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -252,6 +255,10 @@ final class assignment_config_test extends \advanced_testcase {
      */
     private function write_global_enableai_setting(string $value): void {
         global $CFG;
+
+        if (class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('The site settings page is not registered on Moodle Workplace.');
+        }
 
         require_once($CFG->libdir . '/adminlib.php');
 

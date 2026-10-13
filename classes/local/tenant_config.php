@@ -19,8 +19,9 @@ namespace local_assign_ai\local;
 /**
  * Tenant scoped storage for the plugin default settings.
  *
- * Values live in {local_assign_ai_tenant_config}; a tenant without a stored value (and tenant 0,
- * the implicit site tenant) falls back to the site wide plugin configuration.
+ * Values live in {local_assign_ai_tenant_config}. A tenant is its own platform: a tenant without a
+ * stored value resolves to the built-in plugin default, never to the site wide plugin configuration
+ * and never to the value of another tenant. Only tenant 0 (no tenancy) reads the site configuration.
  *
  * @package     local_assign_ai
  * @copyright   2026 Datacurso
@@ -40,13 +41,40 @@ class tenant_config {
         'defaultprompt',
     ];
 
+    /** @var array Built-in plugin defaults; the default prompt is the language string 'promptdefaulttext'. */
+    public const DEFAULTS = [
+        'enableassignai' => 1,
+        'defaultenableai' => 1,
+        'defaultautograde' => 0,
+        'defaultusedelay' => 0,
+        'defaultdelayminutes' => 60,
+    ];
+
     /**
-     * Returns a setting for a tenant, falling back to the site wide value.
+     * Returns the built-in plugin default of a setting.
+     *
+     * @param string $name Setting name, one of self::SETTING_NAMES.
+     * @param mixed $default Returned when the name has no built-in default.
+     * @return mixed
+     */
+    public static function get_plugin_default(string $name, $default = false) {
+        if ($name === 'defaultprompt') {
+            return get_string('promptdefaulttext', 'local_assign_ai');
+        }
+
+        return array_key_exists($name, self::DEFAULTS) ? self::DEFAULTS[$name] : $default;
+    }
+
+    /**
+     * Returns a setting for a tenant.
+     *
+     * Tenant above zero: the value the tenant stored, otherwise the plugin default. Tenant 0: the site
+     * wide plugin configuration, as on a plain Moodle LMS.
      *
      * @param string $name Setting name.
      * @param int $tenantid Tenant id (0 reads the site value).
-     * @param mixed $default Returned when neither the tenant nor the site define the setting.
-     * @return mixed The stored value as string, or the site value, or $default (false by default).
+     * @param mixed $default Returned when the setting is not defined anywhere.
+     * @return mixed The stored value as string, or the plugin default, or $default (false by default).
      */
     public static function get(string $name, int $tenantid, $default = false) {
         global $DB;
@@ -56,6 +84,8 @@ class tenant_config {
             if ($value !== false) {
                 return $value === null ? '' : $value;
             }
+
+            return self::get_plugin_default($name, $default);
         }
 
         $site = get_config('local_assign_ai', $name);
@@ -116,7 +146,7 @@ class tenant_config {
     }
 
     /**
-     * Returns every value stored for a tenant (without site fallback).
+     * Returns every value stored for a tenant (without any default).
      *
      * @param int $tenantid Tenant id.
      * @return string[] Values keyed by setting name.
@@ -128,7 +158,7 @@ class tenant_config {
     }
 
     /**
-     * Deletes every value stored for a tenant, so it falls back to the site values again.
+     * Deletes every value stored for a tenant, so it resolves to the plugin defaults again.
      *
      * @param int $tenantid Tenant id.
      * @return void
