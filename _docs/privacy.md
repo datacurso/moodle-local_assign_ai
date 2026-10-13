@@ -45,15 +45,15 @@ outbound contract cannot grow silently when the internal payload builder changes
 - `userid` is **not** the Moodle user id. It is the reviewer id (the teacher who triggered
   the review, otherwise the configured grader, otherwise the student as last resort)
   replaced by a stable, non-reversible, site-scoped token. The pseudonymisation is delegated
-  to the provider's shared helper `\aiprovider_datacurso\local\outbound_privacy`
-  (`pseudonymise_userid_value()`, aiprovider_datacurso 1.6.0 or later), so the whole
-  Datacurso suite derives the same per-user token with one formula: an HMAC-SHA256 of the
-  user id keyed with the site identifier and the provider's frozen
-  `outbound_privacy::PSEUDONYM_KEY_SUFFIX`, truncated to 32 hex characters. The same user on
-  the same site always yields the same token, so the provider can keep per-user accounting,
-  but the raw id cannot be recovered from it and tokens cannot be correlated across sites.
-  The provider's HTTP client applies the same helper again, so a raw id can never leave even
-  if a caller bypasses the plugin boundary.
+  to the provider's shared helper `\aiprovider_datacurso\local\outbound_privacy::pseudonymise_userid()`
+  (called through `pseudonymise_userid_value()`, aiprovider_datacurso 1.6.0 or later), so the
+  whole Datacurso suite derives the same per-user token with one formula: an HMAC-SHA256 of
+  the reviewer id keyed with a per-site secret owned by aiprovider_datacurso and never sent to
+  the services, truncated to 32 hex characters. The same user on the same site always yields
+  the same token, so the provider can keep per-user accounting, but the raw id cannot be
+  recovered from it and tokens cannot be correlated across sites. The provider's HTTP client
+  applies the same helper again, so a raw id can never leave even if a caller bypasses the
+  plugin boundary.
 - `student_name` is replaced by the placeholder `[STUDENT_NAME]` before sending. The real
   name is kept on the site only, and is substituted back into the AI reply after it returns
   (`payload_anonymizer::deanonymize_text()`). The placeholder and its restore are plugin-owned.
