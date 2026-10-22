@@ -61,6 +61,7 @@ class provider implements
                 'assessment_guide_response' => 'privacy:metadata:local_assign_ai_pending:assessment_guide_response',
                 'errormessage'     => 'privacy:metadata:local_assign_ai_pending:errormessage',
                 'status'           => 'privacy:metadata:local_assign_ai_pending:status',
+                'errornotifiedtime' => 'privacy:metadata:local_assign_ai_pending:errornotifiedtime',
                 'approval_token'   => 'privacy:metadata:local_assign_ai_pending:approval_token',
             ],
             'privacy:metadata:local_assign_ai_pending'

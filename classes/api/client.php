@@ -30,7 +30,7 @@ class client {
      * Sends the payload to the AI provider and returns the response.
      *
      * @param array $payload The request payload.
-     * @return array The AI response.
+     * @return array The AI response (reply, grade, rubric, assessment_guide, needs_review, review_reason).
      */
     public static function send_to_ai($payload) {
         $anonymized = payload_anonymizer::anonymize($payload);
@@ -44,9 +44,12 @@ class client {
 
         return [
             'reply' => payload_anonymizer::deanonymize_text((string)($response['reply'] ?? ''), $replacements),
-            'grade' => $response['grade'],
+            'grade' => $response['grade'] ?? null,
             'rubric' => $response['rubric'] ?? null,
             'assessment_guide' => $response['assessment_guide'] ?? null,
+            // Set by the AI service when it could not assess the work (e.g. an unreadable file).
+            'needs_review' => !empty($response['needs_review']),
+            'review_reason' => isset($response['review_reason']) ? (string) $response['review_reason'] : null,
         ];
     }
 }
