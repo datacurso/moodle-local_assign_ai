@@ -1,3 +1,24 @@
+## [1.2.0] - 2026-10-22
+
+**Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.2**.
+
+### Added
+
+- **Submission size limits applied before anything is sent.** `assign_submission::MAX_FILE_MB` (45 MB per file) and `MAX_TOTAL_MB` (30 MB in total) are fixed in code, mirror the defaults of the AI service and are checked from the stored file sizes before any content is read. An oversized submission fails at once as a terminal failure: no AI call, no automatic retry, a message that names the limit and a single notice to the grader (`error_file_too_large`, `error_payload_too_large`).
+- **Terminal failures for AI answers that carry no grade.** When the service reports an unreadable file or inconsistent evaluations, the submission is stored as `failed` with no grade and no rubric, retries set to the maximum and a message asking to grade it manually (`error_unreadable_file`, `error_inconsistent_evaluation`, `error_needsreview_generic`). The message is shown as the red "Error" badge of the review table and in the history report.
+- **Error summary by email for administrators.** New scheduled task `send_error_digest` (every 10 minutes) and two site settings: `errornotifyenabled` (on by default) and `errornotifyemails` (up to 10 addresses, validated, lowercased and de-duplicated by the new `setting_emaillist`). It collects definitive failures of the last 7 days, groups them by course, activity and error kind, and sends one email per address (plain text and HTML) with counts and a link to the history page. Student names, file names and error details are never included. New `errornotifiedtime` column on `local_assign_ai_pending`, declared in the Privacy API, so each failure is reported once unless it changes again.
+- **Tests.** `payload_limit_and_review_failures_test.php` (limits, terminal failures, notices, history and review table), `send_error_digest_test.php`, `setting_emaillist_test.php` and `upgrade_test.php`, plus 25 new strings in all 9 language packs.
+
+### Changed
+
+- **An HTTP 413 from the AI service is a terminal failure.** It is never retried and shows its own message (`error_service_payload_rejected`); HTTP 502, 503 and 504 keep the automatic retries.
+- **Manual reviews that fail definitively now notify the grader too,** like the other terminal failures.
+- **`client::send_to_ai` also returns `needs_review` and `review_reason`** when the service answers without a grade.
+
+### Fixed
+
+- **A service answer without a grade raised an undefined index.** `client::send_to_ai` now tolerates a missing `grade`, so unreadable or inconsistent evaluations end as a clear failure instead of an error or a misleading low grade.
+
 ## [1.1.9] - 2026-10-08
 
 **Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.2**.
