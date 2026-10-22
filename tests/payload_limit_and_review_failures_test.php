@@ -336,10 +336,23 @@ final class payload_limit_and_review_failures_test extends \advanced_testcase {
         $this->assertSame(assign_submission::STATUS_QUEUED, $record->status);
         $this->assertSame(1, (int) $record->retries);
         // The message shown is the provider's own generic one, not the 413 message.
-        $this->assertSame(
-            get_string('httperror', 'aiprovider_datacurso', 502),
-            $record->errormessage
-        );
+        $this->assertSame($this->expected_provider_http_message(502), $record->errormessage);
+    }
+
+    /**
+     * Message that ui_error_message() shows for a generic provider HTTP error.
+     *
+     * It is the provider's own string when the installed provider ships it, and the plugin's generic
+     * error otherwise (older provider releases do not define `httperror`).
+     *
+     * @param int $status HTTP status carried by the exception.
+     * @return string
+     */
+    private function expected_provider_http_message(int $status): string {
+        if (get_string_manager()->string_exists('httperror', 'aiprovider_datacurso')) {
+            return get_string('httperror', 'aiprovider_datacurso', $status);
+        }
+        return get_string('error_generic', 'local_assign_ai');
     }
 
     /**
@@ -353,8 +366,22 @@ final class payload_limit_and_review_failures_test extends \advanced_testcase {
             assign_submission::ui_error_message(new \moodle_exception('httperror', 'aiprovider_datacurso', '', 413))
         );
         $this->assertSame(
-            get_string('httperror', 'aiprovider_datacurso', 503),
+            $this->expected_provider_http_message(503),
             assign_submission::ui_error_message(new \moodle_exception('httperror', 'aiprovider_datacurso', '', 503))
+        );
+    }
+
+    /**
+     * A provider exception whose string does not exist in the installed provider falls back to the generic error.
+     *
+     * @covers ::ui_error_message
+     */
+    public function test_ui_error_message_falls_back_when_provider_string_is_missing(): void {
+        $this->assertSame(
+            get_string('error_generic', 'local_assign_ai'),
+            assign_submission::ui_error_message(
+                new \moodle_exception('string_that_the_provider_does_not_define', 'aiprovider_datacurso', '', 500)
+            )
         );
     }
 
