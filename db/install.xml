@@ -34,6 +34,8 @@
           SEQUENCE="false" />
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0"
           SEQUENCE="false" />
+        <FIELD NAME="errornotifiedtime" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+          COMMENT="When the administrator error digest last reported this record." />
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" />

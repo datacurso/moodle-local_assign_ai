@@ -33,6 +33,7 @@ if ($hassiteconfig) {
         'defaultusedelay' => 0,
         'defaultdelayminutes' => 60,
         'defaultprompt' => get_string('promptdefaulttext', 'local_assign_ai'),
+        'errornotifyenabled' => 1,
     ];
 
     foreach ($defaults as $name => $value) {
@@ -93,6 +94,22 @@ if ($hassiteconfig) {
             3,
             3
         ));
+
+        $settings->add(new admin_setting_configcheckbox(
+            'local_assign_ai/errornotifyenabled',
+            get_string('errornotifyenabled', 'local_assign_ai'),
+            get_string('errornotifyenabled_desc', 'local_assign_ai'),
+            1
+        ));
+
+        $settings->add(new \local_assign_ai\admin\setting_emaillist(
+            'local_assign_ai/errornotifyemails',
+            get_string('errornotifyemails', 'local_assign_ai'),
+            get_string('errornotifyemails_desc', 'local_assign_ai'),
+            ''
+        ));
+
+        $settings->hide_if('local_assign_ai/errornotifyemails', 'local_assign_ai/errornotifyenabled', 'eq', 0);
 
         $settings->hide_if('local_assign_ai/defaultautograde', 'local_assign_ai/defaultenableai', 'eq', 0);
         $settings->hide_if('local_assign_ai/defaultusedelay', 'local_assign_ai/defaultenableai', 'eq', 0);
