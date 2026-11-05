@@ -25,11 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_assign_ai';
-$plugin->release = '1.2.0';
-$plugin->version = 2026110325;
+$plugin->release = '1.2.1';
+$plugin->version = 2026110500;
 $plugin->requires = 2024100700; // Moodle 4.5.
 $plugin->maturity = MATURITY_STABLE;
-$plugin->supported = [405, 502];
+$plugin->supported = [405, 503];
 $plugin->dependencies = [
     'aiprovider_datacurso' => 2026100900,
 ];
