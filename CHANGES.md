@@ -1,3 +1,15 @@
+## [1.2.2] - Unreleased
+
+**Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.
+
+### Changed
+
+- The "Enable Assign AI" switch moved to the Datacurso AI provider: it is now set in Site administration > AI > Datacurso plugins list > Settings of Assign AI, and the plugin reads it through `\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai')`. Disabling it behaves exactly as before (the assignment settings section is hidden and automatic processing is paused) (`provider_plugin_state_test::test_feature_follows_the_provider_state`, `provider_plugin_state_test::test_former_setting_is_ignored`)
+- The former `local_assign_ai/enableassignai` setting is removed from the plugin settings page and deleted on upgrade; its value is preserved, because the provider copies it into its own setting before the plugin upgrades (`provider_plugin_state_test::test_settings_page_no_longer_defines_the_setting`, `provider_plugin_state_test::test_upgrade_removes_the_former_setting`)
+- The per-assignment default "Enable AI" (`defaultenableai`) is unchanged and stays in the plugin settings
+- Show the Datacurso AI provider message when the plugin is disabled and stop its work: the review and history pages and the eight web services stop with the provider's `plugindisabled` error (with a link to the provider plugins list for site administrators), the AI tasks `process_ai_queue`, `retry_failed_submissions`, `send_error_digest`, `process_submission_ai`, `process_review_submission` and `process_all_submissions` skip their run and log a translatable message (`task_skipped_plugindisabled`), the grader page scripts are not injected and manual grading no longer syncs approved AI records; `reap_stuck_submissions` and the cleanup observers keep running (`plugin_disabled_guard_test`)
+- The minimum required version of `aiprovider_datacurso` is raised to 1.7.0 (2026110400), the first release that has `plugin_settings::require_enabled()`
+
 ## [1.2.1] - 2026-11-05
 
 **Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.

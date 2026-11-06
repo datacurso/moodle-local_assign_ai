@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core\task\adhoc_task;
 use local_assign_ai\api\client;
 
@@ -48,6 +49,11 @@ class process_all_submissions extends adhoc_task {
      */
     public function execute() {
         global $DB, $CFG;
+
+        if (!plugin_settings::is_enabled('local_assign_ai')) {
+            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
+            return;
+        }
 
         $data = $this->get_custom_data();
 

@@ -393,5 +393,14 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026110325, 'local', 'assign_ai');
     }
 
+    if ($oldversion < 2026110600) {
+        // The "Enabled" switch of the plugin is now kept by the Datacurso AI provider, which copied
+        // the value of enableassignai into its own setting before this upgrade, so the old setting is removed.
+        unset_config('enableassignai', 'local_assign_ai');
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110600, 'local', 'assign_ai');
+    }
+
     return true;
 }

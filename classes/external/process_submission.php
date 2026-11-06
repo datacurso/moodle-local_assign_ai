@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -72,6 +73,8 @@ class process_submission extends external_api {
      */
     public static function execute($cmid, $userid = 0, $all = false, $pendingid = 0) {
         global $DB, $USER;
+
+        plugin_settings::require_enabled('local_assign_ai');
 
         // Teacher triggering the review; used as the consumption/rate-limit owner (per-teacher limit).
         $reviewerid = (int) $USER->id;

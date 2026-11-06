@@ -42,6 +42,7 @@ $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
 $context = context_module::instance($cm->id);
 
 require_login($course, true, $cm);
+\aiprovider_datacurso\local\plugin_settings::require_enabled('local_assign_ai');
 
 // Verificar permisos ANTES de configurar la página para evitar conflictos de estado.
 if (!has_capability('local/assign_ai:review', $context)) {

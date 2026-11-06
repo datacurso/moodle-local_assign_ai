@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
@@ -62,6 +63,8 @@ class approve_all_pending extends external_api {
             'courseid' => $courseid,
             'cmid' => $cmid,
         ]);
+
+        plugin_settings::require_enabled('local_assign_ai');
 
         $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
 

@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core\task\adhoc_task;
 use local_assign_ai\assign_submission;
 
@@ -48,6 +49,11 @@ class process_review_submission extends adhoc_task {
      */
     public function execute(): void {
         global $DB;
+
+        if (!plugin_settings::is_enabled('local_assign_ai')) {
+            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
+            return;
+        }
 
         $data = $this->get_custom_data();
         if (empty($data->cmid) || empty($data->userid) || empty($data->pendingid)) {

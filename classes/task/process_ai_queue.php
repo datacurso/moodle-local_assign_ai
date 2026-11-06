@@ -21,6 +21,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 
+use aiprovider_datacurso\local\plugin_settings;
 use local_assign_ai\config\assignment_config;
 
 /**
@@ -45,6 +46,11 @@ class process_ai_queue extends \core\task\scheduled_task {
      */
     public function execute() {
         global $DB;
+
+        if (!plugin_settings::is_enabled('local_assign_ai')) {
+            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
+            return;
+        }
 
         $now = time();
 

@@ -27,7 +27,6 @@ defined('MOODLE_INTERNAL') || die();
 
 if ($hassiteconfig) {
     $defaults = [
-        'enableassignai' => 1,
         'defaultenableai' => 1,
         'defaultautograde' => 0,
         'defaultusedelay' => 0,
@@ -46,13 +45,6 @@ if ($hassiteconfig) {
     $settings = new admin_settingpage('local_assign_ai_settings', new lang_string('pluginname', 'local_assign_ai'));
 
     if ($ADMIN->fulltree) {
-        $settings->add(new admin_setting_configcheckbox(
-            'local_assign_ai/enableassignai',
-            get_string('enableassignai', 'local_assign_ai'),
-            get_string('enableassignai_desc', 'local_assign_ai'),
-            1
-        ));
-
         // Disabling this setting pauses all AI functionality at runtime through
         // assignment_config::get_effective(); stored per-assignment configuration is
         // preserved so re-enabling restores every assignment's original behaviour.
