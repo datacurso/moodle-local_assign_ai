@@ -16,6 +16,7 @@
 
 namespace local_assign_ai\hook;
 
+use aiprovider_datacurso\local\plugin_settings;
 use core\hook\output\before_footer_html_generation;
 
 
@@ -38,6 +39,10 @@ class output_hook {
      */
     public static function before_footer_html_generation(before_footer_html_generation $hook): void {
         global $PAGE;
+
+        if (!plugin_settings::is_enabled('local_assign_ai')) {
+            return;
+        }
 
         $cmid    = optional_param('id', 0, PARAM_INT);
         $action  = optional_param('action', '', PARAM_ALPHA);

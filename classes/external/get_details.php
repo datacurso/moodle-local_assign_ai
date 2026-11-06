@@ -18,6 +18,7 @@ namespace local_assign_ai\external;
 
 defined('MOODLE_INTERNAL') || die();
 
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -65,6 +66,8 @@ class get_details extends external_api {
             'cmid' => $cmid,
             'userid' => $userid,
         ]);
+
+        plugin_settings::require_enabled('local_assign_ai');
 
         $sql = "
             SELECT *

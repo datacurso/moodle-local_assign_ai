@@ -66,6 +66,8 @@ final class error_message_test extends \advanced_testcase {
      */
     public function test_register_failure_persists_sanitised_message(): void {
         global $DB;
+        $this->require_provider();
+
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -102,5 +104,17 @@ final class error_message_test extends \advanced_testcase {
         $stored = $DB->get_field('local_assign_ai_pending', 'errormessage', ['id' => $pendingid]);
         $this->assertSame(get_string('error_generic', 'local_assign_ai'), $stored);
         $this->assertStringNotContainsString('internal', $stored);
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }

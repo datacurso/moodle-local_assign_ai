@@ -18,6 +18,7 @@ namespace local_assign_ai\observer;
 
 defined('MOODLE_INTERNAL') || die();
 
+use aiprovider_datacurso\local\plugin_settings;
 use mod_assign\event\submission_created;
 use mod_assign\event\submission_updated;
 use mod_assign\event\submission_removed;
@@ -158,7 +159,7 @@ class submission {
      */
     public static function submission_created(submission_created $event) {
         try {
-            if (!assignment_config::is_feature_enabled()) {
+            if (!plugin_settings::is_enabled('local_assign_ai')) {
                 return;
             }
 
@@ -209,7 +210,7 @@ class submission {
      */
     public static function submission_updated(submission_updated $event) {
         try {
-            if (!assignment_config::is_feature_enabled()) {
+            if (!plugin_settings::is_enabled('local_assign_ai')) {
                 return;
             }
 
@@ -260,6 +261,10 @@ class submission {
         global $DB, $USER;
 
         try {
+            if (!plugin_settings::is_enabled('local_assign_ai')) {
+                return;
+            }
+
             $assign = $event->get_assign();
             if (!$assign) {
                 return;
@@ -342,7 +347,7 @@ class submission {
      */
     public static function assessable_submitted(assessable_submitted $event) {
         try {
-            if (!assignment_config::is_feature_enabled()) {
+            if (!plugin_settings::is_enabled('local_assign_ai')) {
                 return;
             }
 

@@ -45,6 +45,17 @@ final class submission_observer_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
      *
      * Moodle 4.5 reads the license key from the plugin config and Moodle 5.0 from an enabled
@@ -241,9 +252,9 @@ final class submission_observer_test extends \advanced_testcase {
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.
-        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '0', 'aiprovider_datacurso');
         $this->add_submission($student, $assign, 'Original essay');
-        set_config('enableassignai', 1, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '1', 'aiprovider_datacurso');
 
         $cmid = $assign->get_course_module()->id;
         $DB->set_field(
@@ -319,9 +330,9 @@ final class submission_observer_test extends \advanced_testcase {
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.
-        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '0', 'aiprovider_datacurso');
         $this->add_submission($student, $assign, 'Original essay');
-        set_config('enableassignai', 1, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '1', 'aiprovider_datacurso');
 
         $cmid = $assign->get_course_module()->id;
 
@@ -433,7 +444,7 @@ final class submission_observer_test extends \advanced_testcase {
         $cmid = (int) $assign->get_course_module()->id;
 
         // Keep the master switch off while seeding the submission so nothing is queued by the observers.
-        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '0', 'aiprovider_datacurso');
         $this->add_submission($student, $assign, 'Essay text');
 
         $rows = $this->seed_queue_fixture((int) $student->id, $cmid, (int) $other->id);
@@ -523,7 +534,7 @@ final class submission_observer_test extends \advanced_testcase {
         $cmid = (int) $assign->get_course_module()->id;
 
         // Keep the master switch off while seeding the submission so nothing is queued by the observers.
-        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '0', 'aiprovider_datacurso');
         $this->add_submission($student, $assign, 'Essay text');
 
         $processed = $this->create_queue_row((int) $student->id, $cmid, 'submission', 1);

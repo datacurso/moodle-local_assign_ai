@@ -35,6 +35,17 @@ use local_assign_ai\task\retry_failed_submissions;
  */
 final class failure_notification_test extends \advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Creates course, assign, student, teacher, plugin config and a pending record.
      *
      * @param int $retries Value for the record retries counter.

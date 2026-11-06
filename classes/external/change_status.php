@@ -20,6 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
@@ -67,6 +68,8 @@ class change_status extends external_api {
             'userid' => $userid,
             'action' => $action,
         ]);
+
+        plugin_settings::require_enabled('local_assign_ai');
 
         // Target the active record under review (status = pending). A user may also have
         // older approved rows kept as history log entries, so we must filter by status.

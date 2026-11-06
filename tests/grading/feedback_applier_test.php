@@ -45,6 +45,8 @@ final class feedback_applier_test extends \advanced_testcase {
      * @return array [assign, student]
      */
     private function create_assign_with_student(bool $commentsenabled, array $options = []): array {
+        $this->require_provider();
+
         $course = $this->getDataGenerator()->create_course();
         $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
 
@@ -879,5 +881,17 @@ final class feedback_applier_test extends \advanced_testcase {
 
         $grade = $assign->get_user_grade($student->id, false);
         $this->assertEquals(75.0, (float) $grade->grade);
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }

@@ -16,6 +16,7 @@
 
 namespace local_assign_ai\task;
 
+use aiprovider_datacurso\local\plugin_settings;
 use local_assign_ai\admin\setting_emaillist;
 use local_assign_ai\assign_submission;
 
@@ -98,6 +99,11 @@ class send_error_digest extends \core\task\scheduled_task {
      */
     public function execute() {
         global $DB;
+
+        if (!plugin_settings::is_enabled('local_assign_ai')) {
+            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
+            return;
+        }
 
         // A never-saved setting (false) counts as the default (enabled); an explicit 0 or '' disables it.
         $enabled = get_config('local_assign_ai', 'errornotifyenabled');

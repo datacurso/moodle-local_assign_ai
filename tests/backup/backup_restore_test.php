@@ -41,6 +41,17 @@ require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
  */
 final class backup_restore_test extends \advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Pending records keep rubric AND assessment guide data across backup/restore.
      *
      * @covers ::define_course_plugin_structure

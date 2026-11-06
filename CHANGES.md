@@ -1,3 +1,16 @@
+## [1.2.2] - 2026-11-06
+
+**Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.
+
+### Changed
+
+- The "Enable Assign AI" switch moved to the Datacurso AI provider: it is now the Enabled switch of Assign AI in Site administration > AI > Datacurso plugins list, and the plugin reads it through `\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai')`. Disabling it still hides the assignment settings section and pauses automatic processing, and now also stops the plugin's pages, web services and tasks (below) (`provider_plugin_state_test::test_feature_follows_the_provider_state`, `provider_plugin_state_test::test_former_setting_is_ignored`)
+- The former `local_assign_ai/enableassignai` setting is removed from the plugin settings page and deleted on upgrade (2026110600), with its strings `enableassignai` and `enableassignai_desc`; its value is preserved, because the provider copies it into its own setting before the plugin upgrades (`provider_plugin_state_test::test_settings_page_no_longer_defines_the_setting`, `provider_plugin_state_test::test_upgrade_removes_the_former_setting`)
+- The per-assignment default "Enable AI" (`defaultenableai`) is unchanged and stays in the plugin settings
+- Show the Datacurso AI provider message when the plugin is disabled and stop its work: the review and history pages and the eight web services stop with the provider's `plugindisabled` error (`plugindisabled_admin`, with a link to the provider plugins list for site administrators), the AI tasks `process_ai_queue`, `retry_failed_submissions`, `send_error_digest`, `process_submission_ai`, `process_review_submission` and `process_all_submissions` skip their run and log a translatable message (`task_skipped_plugindisabled`), the grader page scripts are not injected and manual grading no longer syncs approved AI records; `reap_stuck_submissions` and the cleanup observers keep running (`plugin_disabled_guard_test`)
+- The minimum required version of `aiprovider_datacurso` is raised to 1.7.0 (2026110400), the first release that has `plugin_settings::require_enabled()`
+- `\local_assign_ai\config\assignment_config::is_feature_enabled()` is removed; code that called it uses `plugin_settings::is_enabled('local_assign_ai')`
+
 ## [1.2.1] - 2026-11-05
 
 **Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.

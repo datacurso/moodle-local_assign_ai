@@ -16,6 +16,7 @@
 
 namespace local_assign_ai\config;
 
+use aiprovider_datacurso\local\plugin_settings;
 use assign;
 
 /**
@@ -26,20 +27,6 @@ use assign;
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class assignment_config {
-    /**
-     * Checks whether assign AI features are globally enabled.
-     *
-     * @return bool
-     */
-    public static function is_feature_enabled(): bool {
-        $enabled = get_config('local_assign_ai', 'enableassignai');
-        if ($enabled === false || $enabled === '') {
-            return true;
-        }
-
-        return !empty($enabled);
-    }
-
     /**
      * Checks whether assignment AI can be enabled globally.
      *
@@ -84,7 +71,7 @@ class assignment_config {
      * @return bool
      */
     public static function is_autograde_enabled(assign $assign): bool {
-        if (!self::is_feature_enabled()) {
+        if (!plugin_settings::is_enabled('local_assign_ai')) {
             return false;
         }
 

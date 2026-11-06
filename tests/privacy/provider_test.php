@@ -151,6 +151,8 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     public function test_export_includes_grader_configuration_values(): void {
         global $DB;
 
+        $this->require_provider();
+
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -194,5 +196,17 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
         $this->assertEquals(1, $entry->usedelay);
         $this->assertEquals(15, $entry->delayminutes);
         $this->assertEquals($teacher->id, $entry->graderid);
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }
