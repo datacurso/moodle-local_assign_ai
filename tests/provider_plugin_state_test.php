@@ -53,6 +53,8 @@ final class provider_plugin_state_test extends \advanced_testcase {
      * @return \assign
      */
     private function create_autograded_assign(): \assign {
+        $this->require_provider();
+
         set_config('defaultenableai', 1, 'local_assign_ai');
         set_config('defaultautograde', 1, 'local_assign_ai');
 
@@ -138,5 +140,17 @@ final class provider_plugin_state_test extends \advanced_testcase {
         xmldb_local_assign_ai_upgrade(2026110500);
 
         $this->assertFalse(get_config('local_assign_ai', 'enableassignai'));
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }

@@ -43,6 +43,17 @@ final class backup_restore_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Load the backup and restore engine libraries.
      */
     public static function setUpBeforeClass(): void {

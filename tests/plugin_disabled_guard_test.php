@@ -43,6 +43,8 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
      * @return array [course, cm, teacher, student]
      */
     private function create_environment(): array {
+        $this->require_provider();
+
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
         $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
@@ -99,8 +101,13 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
      * @param \stdClass $pending AI record.
      * @return mixed
      */
-    private function call_web_service(string $name, \stdClass $course, \stdClass $cm, \stdClass $student,
-            \stdClass $pending) {
+    private function call_web_service(
+        string $name,
+        \stdClass $course,
+        \stdClass $cm,
+        \stdClass $student,
+        \stdClass $pending
+    ) {
         $class = '\\local_assign_ai\\external\\' . $name;
         switch ($name) {
             case 'get_details':
@@ -375,6 +382,8 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
     public function test_footer_hook_follows_the_plugin_state(bool $enabled): void {
         global $PAGE;
 
+        $this->require_provider();
+
         $this->resetAfterTest();
         plugin_settings::set_enabled('local_assign_ai', $enabled);
         $_GET['id'] = 5;
@@ -406,6 +415,8 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
     public function test_head_hook_follows_the_plugin_state(bool $enabled): void {
         global $PAGE;
 
+        $this->require_provider();
+
         $this->resetAfterTest();
         plugin_settings::set_enabled('local_assign_ai', $enabled);
         $PAGE->set_url(new \moodle_url('/mod/assign/view.php', ['id' => 5, 'action' => 'grader']));
@@ -428,6 +439,8 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
      */
     public function test_submission_graded_does_nothing_when_disabled(): void {
         global $DB;
+
+        $this->require_provider();
 
         $this->resetAfterTest();
         $this->preventResetByRollback();
@@ -460,5 +473,17 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
         $after = $DB->get_record('local_assign_ai_pending', ['id' => $record->id], '*', MUST_EXIST);
         $this->assertEquals(55, $after->grade);
         $this->assertSame('Original AI feedback', $after->message);
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }

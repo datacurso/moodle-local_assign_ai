@@ -35,6 +35,17 @@ use local_assign_ai\assign_submission;
  */
 final class get_progress_test extends \advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Creates a course with an assignment and one pending record; returns its id.
      *
      * @param object $student Student to attach the record to.

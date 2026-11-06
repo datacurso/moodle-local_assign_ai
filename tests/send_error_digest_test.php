@@ -52,6 +52,8 @@ final class send_error_digest_test extends \advanced_testcase {
      * @return array [course, instance, cm]
      */
     private function create_assign(?\stdClass $course = null): array {
+        $this->require_provider();
+
         $course = $course ?? $this->getDataGenerator()->create_course(['shortname' => 'DIGESTCOURSE']);
         $instance = $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'name' => 'Essay One']);
         [, $cm] = get_course_and_cm_from_instance($instance->id, 'assign');
@@ -456,5 +458,17 @@ final class send_error_digest_test extends \advanced_testcase {
         $this->assertNotFalse($task);
         $this->assertSame('*/10', $task->get_minute());
         $this->assertNotEmpty($task->get_name());
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }

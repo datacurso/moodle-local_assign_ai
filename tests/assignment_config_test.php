@@ -54,6 +54,8 @@ final class assignment_config_test extends \advanced_testcase {
     private function create_assign(): array {
         global $DB;
 
+        $this->require_provider();
+
         $course = $this->getDataGenerator()->create_course();
         $fillerid = self::$nextassignid;
         // The filler consumes $fillerid and the real module takes $fillerid + 1,
@@ -393,5 +395,17 @@ final class assignment_config_test extends \advanced_testcase {
 
         unset_config('defaultenableai', 'local_assign_ai');
         $this->assertTrue(assignment_config::is_global_ai_enabled());
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }
