@@ -50,6 +50,9 @@ class review_table extends \table_sql {
     /** @var bool Whether the comments feedback plugin is active for this assignment. */
     private bool $commentsactive;
 
+    /** @var string[] User identity fields shown, per the site identity settings and the viewer capability. */
+    private array $identityfields;
+
     /**
      * Constructor.
      *
@@ -67,10 +70,19 @@ class review_table extends \table_sql {
 
         $this->define_baseurl(new moodle_url('/local/assign_ai/review.php', ['id' => $assign->get_course_module()->id]));
         $this->set_attribute('class', 'generaltable generalbox table table-bordered table-striped w-100 text-center mb-0');
-        $this->define_columns(['fullname', 'email', 'status', 'lastmodified', 'files', 'grade', 'aistatus', 'actions']);
-        $this->define_headers([
-            get_string('fullname', 'local_assign_ai'),
-            get_string('email', 'local_assign_ai'),
+        // Identity fields follow $CFG->showuseridentity and moodle/site:viewuseridentity.
+        $identity = \core_user\fields::for_identity($this->context, false);
+        $this->identityfields = $identity->get_required_fields();
+        $identitysql = $identity->get_sql('u', true);
+
+        $columns = ['fullname'];
+        $headers = [get_string('fullname', 'local_assign_ai')];
+        foreach ($this->identityfields as $field) {
+            $columns[] = $field;
+            $headers[] = \core_user\fields::get_display_name($field);
+        }
+        $columns = array_merge($columns, ['status', 'lastmodified', 'files', 'grade', 'aistatus', 'actions']);
+        $headers = array_merge($headers, [
             get_string('status', 'local_assign_ai'),
             get_string('lastmodified', 'local_assign_ai'),
             get_string('submittedfiles', 'local_assign_ai'),
@@ -78,12 +90,15 @@ class review_table extends \table_sql {
             get_string('aistatus', 'local_assign_ai'),
             get_string('actions', 'local_assign_ai'),
         ]);
+        $this->define_columns($columns);
+        $this->define_headers($headers);
 
         [$insql, $inparams] = $this->build_status_sql();
         $this->set_sql(
             'p.id, p.courseid, p.assignmentid, p.userid, p.message, p.grade, p.status AS aistatus, p.errormessage, p.timemodified, '
-            . 'u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename, u.email',
-            '{local_assign_ai_pending} p JOIN {user} u ON u.id = p.userid',
+            . 'u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename'
+            . $identitysql->selects,
+            '{local_assign_ai_pending} p JOIN {user} u ON u.id = p.userid' . $identitysql->joins,
             'p.courseid = :courseid AND p.assignmentid = :assignmentid AND p.status ' . $insql
             . ' AND NOT EXISTS (SELECT 1 FROM {local_assign_ai_pending} p2'
             . ' WHERE p2.assignmentid = p.assignmentid AND p2.userid = p.userid'
@@ -91,7 +106,7 @@ class review_table extends \table_sql {
             [
                 'courseid' => $assign->get_course()->id,
                 'assignmentid' => $assign->get_course_module()->id,
-            ] + $inparams
+            ] + $inparams + $identitysql->params
         );
     }
 
@@ -141,13 +156,17 @@ class review_table extends \table_sql {
     }
 
     /**
-     * Render email.
+     * Render the user identity columns, escaped.
      *
+     * @param string $column Column name.
      * @param \stdClass $row Row data.
-     * @return string
+     * @return string|null Escaped value for identity columns, null for any other column.
      */
-    public function col_email($row): string {
-        return s((string) $row->email);
+    public function other_cols($column, $row) {
+        if (!in_array($column, $this->identityfields, true)) {
+            return null;
+        }
+        return s((string) ($row->{$column} ?? ''));
     }
 
     /**
@@ -368,8 +387,8 @@ class review_table extends \table_sql {
      * @return string
      */
     private function render_state(string $badgeclass, string $badge, string $hint, bool $spinner = false): string {
-        $html = html_writer::span($badge, $badgeclass . ' js-state-badge');
-        $html .= html_writer::div($hint, 'text-muted small js-state-hint');
+        $html = html_writer::span(s($badge), $badgeclass . ' js-state-badge');
+        $html .= html_writer::div(s($hint), 'text-muted small js-state-hint');
 
         if ($spinner) {
             $html .= html_writer::div(

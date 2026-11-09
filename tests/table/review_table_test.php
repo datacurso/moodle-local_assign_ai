@@ -123,4 +123,129 @@ final class review_table_test extends \advanced_testcase {
 
         $this->assertStringContainsString('js-btn-details', $html);
     }
+
+    /**
+     * Without identity fields configured the table shows no email column.
+     *
+     * @covers ::__construct
+     */
+    public function test_no_email_column_when_identity_fields_are_empty(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        set_config('showuseridentity', '');
+
+        [$assign] = $this->create_assign_with_student(true);
+        $table = new review_table('test', $assign);
+
+        $this->assertArrayNotHasKey('email', $table->columns);
+    }
+
+    /**
+     * With email as identity field a teacher allowed to view identities sees the email column.
+     *
+     * @covers ::__construct
+     * @covers ::other_cols
+     */
+    public function test_email_column_shown_to_teacher_with_identity_capability(): void {
+        $this->resetAfterTest();
+        set_config('showuseridentity', 'email');
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $teacher = $this->getDataGenerator()->create_and_enrol($assign->get_course(), 'editingteacher');
+        $this->setUser($teacher);
+        $this->assertTrue(has_capability('moodle/site:viewuseridentity', $assign->get_context()));
+
+        $table = new review_table('test', $assign);
+
+        $this->assertArrayHasKey('email', $table->columns);
+        $this->assertSame($student->email, $table->other_cols('email', (object) ['email' => $student->email]));
+    }
+
+    /**
+     * A teacher without the identity capability never sees the email column.
+     *
+     * @covers ::__construct
+     */
+    public function test_email_column_hidden_without_identity_capability(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        set_config('showuseridentity', 'email');
+
+        [$assign] = $this->create_assign_with_student(true);
+        $teacher = $this->getDataGenerator()->create_and_enrol($assign->get_course(), 'editingteacher');
+        $roleid = $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        assign_capability('moodle/site:viewuseridentity', CAP_PROHIBIT, $roleid, $assign->get_context()->id, true);
+        $this->setUser($teacher);
+
+        $table = new review_table('test', $assign);
+
+        $this->assertArrayNotHasKey('email', $table->columns);
+    }
+
+    /**
+     * Identity values are escaped when rendered.
+     *
+     * @covers ::other_cols
+     */
+    public function test_identity_value_is_escaped(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        set_config('showuseridentity', 'email,department');
+
+        [$assign] = $this->create_assign_with_student(true);
+        $table = new review_table('test', $assign);
+
+        $html = $table->other_cols('department', (object) ['department' => '<script>alert(1)</script>']);
+
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+    }
+
+    /**
+     * The table query returns the identity fields of each student.
+     *
+     * @covers ::__construct
+     */
+    public function test_query_selects_identity_fields(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        set_config('showuseridentity', 'email,department');
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $this->getDataGenerator()->get_plugin_generator('local_assign_ai')->create_pending([
+            'assignmentid' => $assign->get_course_module()->id,
+            'userid' => $student->id,
+            'status' => assign_submission::STATUS_INITIAL,
+        ]);
+        $table = new review_table('test', $assign);
+        $table->setup();
+        $table->query_db(10, false);
+
+        $rows = array_values($table->rawdata);
+        $this->assertCount(1, $rows);
+        $this->assertSame($student->email, $rows[0]->email);
+        $this->assertTrue(property_exists($rows[0], 'department'));
+    }
+
+    /**
+     * A hint that contains markup is escaped in the AI status column.
+     *
+     * @covers ::col_aistatus
+     */
+    public function test_failed_hint_with_markup_is_escaped(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $table = new review_table('test', $assign);
+        $row = $this->build_pending_row($assign, $student->id);
+        $row->aistatus = assign_submission::STATUS_FAILED;
+        $row->errormessage = '<script>alert("x")</script>';
+
+        $html = $table->col_aistatus($row);
+
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+    }
 }
