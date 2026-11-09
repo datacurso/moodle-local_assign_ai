@@ -36,6 +36,8 @@ require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
  * @group     local_assign_ai
  */
 final class submission_sent_to_ai_test extends \advanced_testcase {
+    use \mod_assign_test_generator;
+
     /**
      * Skips every test when the Datacurso AI provider is not installed.
      */
@@ -46,8 +48,6 @@ final class submission_sent_to_ai_test extends \advanced_testcase {
             $this->markTestSkipped('aiprovider_datacurso is not installed.');
         }
     }
-
-    use \mod_assign_test_generator;
 
     /** @var string Text of the student submission, which must never reach the log. */
     private const SUBMISSION_TEXT = 'Confidential essay about photosynthesis';
