@@ -26,7 +26,6 @@ outbound contract cannot grow silently when the internal payload builder changes
 | `course_id` | Numeric course id; lets the service group reviews per course. Not personal data. |
 | `course` | Course full name; gives the model subject context for the feedback. |
 | `assignment_id` | Numeric assign instance id; identifies the activity being graded. Not personal data. |
-| `cmi_id` | Numeric course module id; identifies the activity being graded. Not personal data. |
 | `assignment_title` | Assignment name; context for the feedback. |
 | `assignment_description` | Assignment description written by the teacher; defines what is being assessed. |
 | `assignment_activity_instructions` | Activity instructions written by the teacher; defines what is being assessed. |

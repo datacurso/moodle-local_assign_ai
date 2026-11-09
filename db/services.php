@@ -32,6 +32,7 @@ $functions = [
         'description' => 'Obtener detalles de retroalimentación IA',
         'type' => 'read',
         'ajax' => true,
+        'capabilities' => 'local/assign_ai:viewdetails',
     ],
     'local_assign_ai_update_response' => [
         'classname' => 'local_assign_ai\external\update_response',
@@ -40,6 +41,7 @@ $functions = [
         'description' => 'Actualizar mensaje IA',
         'type' => 'write',
         'ajax' => true,
+        'capabilities' => 'local/assign_ai:changestatus',
     ],
     'local_assign_ai_change_status' => [
         'classname' => 'local_assign_ai\external\change_status',
@@ -48,6 +50,7 @@ $functions = [
         'description' => 'Cambiar estado de retroalimentación IA',
         'type' => 'write',
         'ajax' => true,
+        'capabilities' => 'local/assign_ai:changestatus',
     ],
     'local_assign_ai_process_submission' => [
         'classname' => 'local_assign_ai\external\process_submission',

@@ -62,7 +62,6 @@ final class payload_anonymizer_test extends \advanced_testcase {
             'course_id' => 12,
             'course' => 'Environmental Science',
             'assignment_id' => 34,
-            'cmi_id' => 56,
             'assignment_title' => 'Argumentative essay',
             'assignment_description' => 'Write about renewable energy.',
             'assignment_activity_instructions' => 'Cite your sources.',
@@ -145,6 +144,21 @@ final class payload_anonymizer_test extends \advanced_testcase {
     public function test_deanonymize_text_leaves_empty_text_and_empty_replacements_untouched(): void {
         $this->assertSame('', payload_anonymizer::deanonymize_text('', ['[STUDENT_NAME]' => 'María Pérez']));
         $this->assertSame('Plain reply', payload_anonymizer::deanonymize_text('Plain reply', []));
+    }
+
+    /**
+     * LAA-PRIV-004: The course module id is not part of the outbound contract; the activity is
+     * identified by assignment_id and the course by course_id.
+     *
+     * @covers ::anonymize
+     */
+    public function test_course_module_id_is_not_sent(): void {
+        $result = payload_anonymizer::anonymize($this->full_payload(['cmi_id' => 56]));
+
+        $this->assertNotContains('cmi_id', payload_anonymizer::ALLOWED_FIELDS);
+        $this->assertArrayNotHasKey('cmi_id', $result['payload']);
+        $this->assertSame(12, $result['payload']['course_id']);
+        $this->assertSame(34, $result['payload']['assignment_id']);
     }
 
     /**
