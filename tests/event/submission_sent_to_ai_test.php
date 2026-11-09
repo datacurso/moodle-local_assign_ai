@@ -36,6 +36,17 @@ require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
  * @group     local_assign_ai
  */
 final class submission_sent_to_ai_test extends \advanced_testcase {
+    /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
     use \mod_assign_test_generator;
 
     /** @var string Text of the student submission, which must never reach the log. */

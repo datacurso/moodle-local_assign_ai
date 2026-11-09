@@ -30,6 +30,17 @@ use local_assign_ai\assign_submission;
  */
 final class history_service_test extends \advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Creates two assignments, each with a pending record, and a teacher of the first course.
      *
      * @param string $status Status of the record of the first assignment.
