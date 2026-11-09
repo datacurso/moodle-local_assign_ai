@@ -33,6 +33,7 @@ use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
+use local_assign_ai\local\activity_access;
 
 /**
  * External API to retrieve progress of pending AI reviews.
@@ -91,10 +92,7 @@ class get_progress extends external_api {
             if (!array_key_exists($cmid, $allowedcmid)) {
                 $allowedcmid[$cmid] = false;
                 try {
-                    $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
-                    $context = \context_module::instance($cm->id);
-                    self::validate_context($context);
-                    require_capability('local/assign_ai:review', $context);
+                    activity_access::require_access($cmid, 'local/assign_ai:review');
                     $allowedcmid[$cmid] = true;
                 } catch (\Exception $e) {
                     $allowedcmid[$cmid] = false;

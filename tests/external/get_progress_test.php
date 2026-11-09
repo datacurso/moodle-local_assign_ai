@@ -127,4 +127,23 @@ final class get_progress_test extends \advanced_testcase {
         $this->assertSame($pendingid, $result[0]['id']);
         $this->assertSame(55, $result[0]['grade']);
     }
+
+    /**
+     * LAA-SEC-006: an unenrolled user gets the same empty answer for an existing and an absent record.
+     *
+     * @covers ::execute
+     * @runInSeparateProcess
+     */
+    public function test_unenrolled_user_gets_the_same_answer_whether_or_not_the_record_exists(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $student = $this->getDataGenerator()->create_user();
+        [, $pendingid] = $this->create_record($student);
+        $absentid = (int) $DB->get_field_sql('SELECT MAX(id) FROM {local_assign_ai_pending}') + 1000;
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $this->assertSame([], get_progress::execute([$pendingid]));
+        $this->assertSame([], get_progress::execute([$absentid]));
+    }
 }

@@ -27,6 +27,7 @@ use core_external\external_value;
 use core_external\external_single_structure;
 use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
+use local_assign_ai\local\activity_access;
 
 /**
  * External function to approve all pending AI feedback for an assignment.
@@ -66,24 +67,14 @@ class approve_all_pending extends external_api {
 
         plugin_settings::require_enabled('local_assign_ai');
 
-        $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
-
-        $context = \context_module::instance($cm->id);
-        $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-
-        self::validate_context($context);
-        require_capability('local/assign_ai:changestatus', $context);
-
         // The submitted courseid must match the real course of the module; a mismatch would silently approve nothing.
-        if ((int) $params['courseid'] !== (int) $cm->course) {
-            throw new \moodle_exception('invalidcourseid');
-        }
+        $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);
 
-        $assign = new \assign($context, $cm, $course);
+        $assign = new \assign($access->context, $access->cm, $access->course);
 
         $pendings = $DB->get_records('local_assign_ai_pending', [
-            'courseid' => $params['courseid'],
-            'assignmentid' => $params['cmid'],
+            'courseid' => (int) $access->cm->course,
+            'assignmentid' => (int) $access->cm->id,
             'status' => \local_assign_ai\assign_submission::STATUS_PENDING,
         ], 'id ASC');
 

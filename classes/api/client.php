@@ -26,6 +26,9 @@ use local_assign_ai\local\payload_anonymizer;
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class client {
+    /** AI service endpoint that grades a submission. */
+    public const ENDPOINT = '/assign/answer';
+
     /**
      * Sends the payload to the AI provider and returns the response.
      *
@@ -40,7 +43,7 @@ class client {
         // The factory is resolved through the DI container so tests can replace the HTTP client.
         $client = \core\di::get(ai_client_factory::class)->create();
 
-        $response = $client->request('POST', '/assign/answer', $payload);
+        $response = $client->request('POST', self::ENDPOINT, $payload);
 
         return [
             'reply' => payload_anonymizer::deanonymize_text((string)($response['reply'] ?? ''), $replacements),
