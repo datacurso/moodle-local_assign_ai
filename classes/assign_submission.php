@@ -962,7 +962,6 @@ class assign_submission {
     private function build_payload(): array {
         $course = $this->assign->get_course();
         $assignment = $this->assigninstance;
-        $cmid = $this->assign->get_course_module()->id;
         $config = assignment_config::get_effective((int)$assignment->id);
 
         $advancedgrading = advanced_grading::get_definition_json($this->assign);
@@ -988,7 +987,6 @@ class assign_submission {
             'course_id' => $course->id,
             'course' => $course->fullname,
             'assignment_id' => $assignment->id,
-            'cmi_id' => $cmid,
             'assignment_title' => $assignment->name,
             'assignment_description' => $assignment->intro,
             'assignment_activity_instructions' => $assignment->activity ?? '',
