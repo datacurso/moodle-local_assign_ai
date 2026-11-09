@@ -24,6 +24,7 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use core_external\external_multiple_structure;
+use local_assign_ai\local\activity_access;
 
 /**
  * External function to retrieve details of a pending AI assignment approval.
@@ -69,6 +70,9 @@ class get_details extends external_api {
 
         plugin_settings::require_enabled('local_assign_ai');
 
+        // Authorise first: the lookup below must not reveal to an unauthorised caller whether a review exists.
+        $access = activity_access::require_access($params['cmid'], 'local/assign_ai:viewdetails', $params['courseid']);
+
         $sql = "
             SELECT *
             FROM {local_assign_ai_pending}
@@ -90,8 +94,8 @@ class get_details extends external_api {
         ";
 
         $record = $DB->get_record_sql($sql, [
-            'courseid' => $params['courseid'],
-            'cmid' => $params['cmid'],
+            'courseid' => (int) $access->cm->course,
+            'cmid' => (int) $access->cm->id,
             'userid' => $params['userid'],
         ]);
 
@@ -104,12 +108,6 @@ class get_details extends external_api {
                 'rubric_response' => null,
             ];
         }
-
-        $cm = get_coursemodule_from_id('assign', $record->assignmentid, $record->courseid, false, MUST_EXIST);
-        $context = \context_module::instance($cm->id);
-
-        self::validate_context($context);
-        require_capability('local/assign_ai:viewdetails', $context);
 
         return [
             'message' => $record->message,

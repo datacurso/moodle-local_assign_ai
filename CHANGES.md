@@ -1,3 +1,24 @@
+## [Unreleased]
+
+**Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.
+
+### Changed
+
+- `change_status` only accepts the `approve` and `rejected` actions sent by the review page; any other value fails with `invalid_parameter_exception` and leaves the record untouched (`change_status_test::test_rejects_an_unknown_action`)
+- `process_submission` validates its parameters with `validate_parameters()` before using them (`process_submission_test::test_rejects_invalid_parameters`)
+
+### Removed
+
+- The plugin `.github` folder (issue templates and GitHub Actions workflows); CI and releases run on Jenkins
+
+### Security
+
+- LAA-SEC-006: The eight web services authorize at one common point, the new `\local_assign_ai\local\activity_access`, before any query that depends on the requested user or record. `require_access()` resolves the assign activity from the course module, validates its context, requires the capability and rejects a course id that does not own the activity (`invalidcourseid`); `require_pending_record()` loads pending records scoped inside the query to the authorized activity and course and fails with the same `invalidpendingrecord` error whether the record is absent or belongs elsewhere (`activity_access_test::test_require_access_returns_the_activity_for_an_authorised_user`, `activity_access_test::test_require_access_rejects_a_course_that_does_not_own_the_activity`, `activity_access_test::test_require_access_rejects_an_unenrolled_user`, `activity_access_test::test_require_pending_record_fails_the_same_way_for_absent_and_foreign_records`, `activity_access_test::test_require_pending_record_returns_the_record_of_the_activity`)
+- LAA-SEC-006: `get_details` no longer looks up the review before authorizing, so an unenrolled user or a student gets the same error whether or not a classmate has an AI review; an authorized teacher still gets the status `none` when there is no review, and a course id that does not own the activity is rejected (`get_details_test::test_unenrolled_user_gets_the_same_error_whether_or_not_a_review_exists`, `get_details_test::test_student_gets_the_same_error_whether_or_not_a_review_exists`, `get_details_test::test_teacher_gets_the_review_details`, `get_details_test::test_teacher_gets_status_none_when_there_is_no_review`, `get_details_test::test_rejects_a_course_that_does_not_own_the_activity`)
+- LAA-SEC-006: `update_response` and `change_status` authorize before looking up the pending review, so a missing record no longer answers with a different error than a missing capability; an authorized teacher without a pending review gets `invalidpendingrecord` (`update_response_test::test_unenrolled_user_gets_the_same_error_whether_or_not_a_review_exists`, `update_response_test::test_rejects_a_course_that_does_not_own_the_activity`, `update_response_test::test_teacher_gets_the_uniform_error_when_there_is_no_pending_review`, `change_status_test::test_unenrolled_user_gets_the_same_error_whether_or_not_a_review_exists`, `change_status_test::test_rejects_a_course_that_does_not_own_the_activity`, `change_status_test::test_teacher_gets_the_uniform_error_when_there_is_no_pending_review`, `change_status_test::test_teacher_rejects_a_pending_review`)
+- LAA-SEC-006: `cancel_review` and `process_submission` no longer reveal pending record ids of other activities: a record of another activity, course or user fails exactly like an id that does not exist (`cancel_review_test::test_unenrolled_user_gets_the_same_error_whether_or_not_the_record_exists`, `cancel_review_test::test_foreign_and_absent_records_fail_the_same_way`, `cancel_review_test::test_teacher_cancels_a_queued_review`, `process_submission_test::test_unenrolled_user_gets_the_same_error_whether_or_not_the_record_exists`, `process_submission_test::test_foreign_and_absent_records_fail_the_same_way`)
+- LAA-SEC-006: `approve_all_pending`, `get_token` and `get_progress` already authorized first and now use the common helper without behaviour change; `get_progress` still drops the records the caller cannot review (`approve_all_pending_test::test_unenrolled_user_gets_the_same_error_whether_or_not_reviews_exist`, `get_token_test::test_unenrolled_user_gets_the_same_error_whether_or_not_a_token_exists`, `get_progress_test::test_unenrolled_user_gets_the_same_answer_whether_or_not_the_record_exists`)
+
 ## [1.2.2] - 2026-11-06
 
 **Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.

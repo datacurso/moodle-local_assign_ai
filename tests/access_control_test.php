@@ -82,8 +82,8 @@ final class access_control_test extends \externallib_advanced_testcase {
     /**
      * Insert a pending AI record for the given student.
      *
-     * The change_status/update_response/get_details services resolve the record before running
-     * their capability checks, so one must exist to exercise those checks.
+     * The services authorize before looking up the record (LAA-SEC-006); the record makes the
+     * scenario realistic, the capability check fails the same way without it.
      *
      * @param \assign $assign The assignment instance.
      * @param int $userid The student user id the AI feedback belongs to.
