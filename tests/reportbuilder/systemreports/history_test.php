@@ -53,4 +53,76 @@ final class history_test extends advanced_testcase {
         $this->assertContains(42, $params);
         $this->assertContains(84, $params);
     }
+
+    /**
+     * Creates the history report of a new assignment, in its module context, as the given user.
+     *
+     * @param string $role Role of the viewer in the course.
+     * @param bool $canviewidentity Whether the viewer role keeps moodle/site:viewuseridentity.
+     * @return history_report
+     */
+    private function create_report_as(string $role, bool $canviewidentity = true): history_report {
+        global $DB;
+        $course = $this->getDataGenerator()->create_course();
+        $viewer = $this->getDataGenerator()->create_and_enrol($course, $role);
+        $instance = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        [, $cm] = get_course_and_cm_from_instance($instance->id, 'assign');
+        $context = \context_module::instance($cm->id);
+        if (!$canviewidentity) {
+            $roleid = (int) $DB->get_field('role', 'id', ['shortname' => $role], MUST_EXIST);
+            assign_capability('moodle/site:viewuseridentity', CAP_PROHIBIT, $roleid, $context->id, true);
+        }
+        $this->setUser($viewer);
+
+        return system_report_factory::create(history_report::class, $context, '', '', 0, [
+            'courseid' => (int) $course->id,
+            'assignmentid' => (int) $cm->id,
+        ]);
+    }
+
+    /**
+     * LAA-AUD-010: with no identity fields configured the report has no email column or filter.
+     *
+     * @covers \local_assign_ai\reportbuilder\systemreports\history
+     */
+    public function test_no_email_column_or_filter_when_identity_fields_are_empty(): void {
+        $this->resetAfterTest();
+        set_config('showuseridentity', '');
+
+        $report = $this->create_report_as('editingteacher');
+
+        $this->assertNull($report->get_column('history:email'));
+        $this->assertNull($report->get_filter('history:email'));
+        $this->assertNotNull($report->get_column('history:fullname'));
+    }
+
+    /**
+     * LAA-AUD-010: with email as identity field, a teacher allowed to view identity sees and filters it.
+     *
+     * @covers \local_assign_ai\reportbuilder\systemreports\history
+     */
+    public function test_email_column_and_filter_shown_with_identity_capability(): void {
+        $this->resetAfterTest();
+        set_config('showuseridentity', 'email');
+
+        $report = $this->create_report_as('editingteacher');
+
+        $this->assertNotNull($report->get_column('history:email'));
+        $this->assertNotNull($report->get_filter('history:email'));
+    }
+
+    /**
+     * LAA-AUD-010: without moodle/site:viewuseridentity the email is hidden even when configured.
+     *
+     * @covers \local_assign_ai\reportbuilder\systemreports\history
+     */
+    public function test_email_column_and_filter_hidden_without_identity_capability(): void {
+        $this->resetAfterTest();
+        set_config('showuseridentity', 'email');
+
+        $report = $this->create_report_as('teacher', false);
+
+        $this->assertNull($report->get_column('history:email'));
+        $this->assertNull($report->get_filter('history:email'));
+    }
 }

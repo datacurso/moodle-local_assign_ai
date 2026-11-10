@@ -59,8 +59,12 @@ class history extends system_report {
         );
         $this->add_base_condition_sql("{$pending}.status {$insql}", $inparams);
         $this->set_default_per_page(20);
-        $this->add_columns_from_entity($entity->get_entity_name());
-        $this->add_filters_from_entity($entity->get_entity_name());
+        // The student email is an identity field: show and filter it only when the site identity
+        // settings ($CFG->showuseridentity) include it and the viewer has moodle/site:viewuseridentity.
+        $identityfields = \core_user\fields::get_identity_fields($this->get_context(), true);
+        $exclude = in_array('email', $identityfields, true) ? [] : ['email'];
+        $this->add_columns_from_entity($entity->get_entity_name(), [], $exclude);
+        $this->add_filters_from_entity($entity->get_entity_name(), [], $exclude);
         $this->set_initial_sort_column('history:lastmodified', SORT_DESC);
 
         $this->add_actions();
