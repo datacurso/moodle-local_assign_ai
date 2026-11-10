@@ -1,9 +1,14 @@
 ## [Unreleased]
 
-**Compatibility note:** This version is compatible from **Moodle 4.5** to **Moodle 5.3**.
+**Compatibility note:** This version is compatible with **Moodle 4.5** only (`$plugin->supported = [405, 405]`); Moodle 5.0 to 5.3 are served by the `MOODLE_503_STABLE` branch.
+
+### Fixed
+
+- A site with the Datacurso AI provider older than 1.7.0 no longer breaks with `Class "aiprovider_datacurso\local\plugin_settings" not found` on every page. Every use of the provider's plugin state now goes through the new `\local_assign_ai\local\provider_dependency`: with an older provider the plugin pauses itself and the rest of the site keeps working. Hooks, observers, course module callbacks and navigation do nothing, the AI tasks skip their run and log `task_skipped_providerupdaterequired`, the review and history pages and the eight web services stop with `providerupdaterequired_admin` (site administrators: update the Datacurso AI provider to 1.7.0 or later, with a link to the plugins overview) or `providerupdaterequired` (anyone else), and the plugin settings page shows the administrator the same warning. With the provider 1.7.0 or later the behaviour is unchanged (`provider_dependency_test`, `provider_missing_guard_test`, `plugin_disabled_guard_test::test_pages_require_the_plugin_enabled`)
 
 ### Changed
 
+- Declared compatibility with Moodle 4.5 only (`$plugin->supported` is now `[405, 405]`); the minimum `aiprovider_datacurso` version stays 1.7.0 (2026110400)
 - `change_status` only accepts the `approve` and `rejected` actions sent by the review page; any other value fails with `invalid_parameter_exception` and leaves the record untouched (`change_status_test::test_rejects_an_unknown_action`)
 - `process_submission` validates its parameters with `validate_parameters()` before using them (`process_submission_test::test_rejects_invalid_parameters`)
 

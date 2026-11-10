@@ -18,7 +18,7 @@ namespace local_assign_ai\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -68,7 +68,7 @@ class get_details extends external_api {
             'userid' => $userid,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
         // Authorise first: the lookup below must not reveal to an unauthorised caller whether a review exists.
         $access = activity_access::require_access($params['cmid'], 'local/assign_ai:viewdetails', $params['courseid']);

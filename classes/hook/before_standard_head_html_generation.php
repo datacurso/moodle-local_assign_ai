@@ -16,7 +16,7 @@
 
 namespace local_assign_ai\hook;
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 
 /**
  * Class before_standard_head_html_generation
@@ -34,7 +34,7 @@ class before_standard_head_html_generation {
     public static function before_standard_html_head(\core\hook\output\before_standard_head_html_generation $hook): void {
         global $PAGE;
 
-        if (!plugin_settings::is_enabled('local_assign_ai')) {
+        if (!provider_dependency::is_enabled()) {
             return;
         }
 

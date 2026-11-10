@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
@@ -61,7 +61,7 @@ class get_token extends external_api {
             'assignmentid' => $assignmentid,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
         $userid = $params['userid'];
         $assignmentid = $params['assignmentid'];

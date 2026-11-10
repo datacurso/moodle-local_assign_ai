@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -65,7 +65,7 @@ class cancel_review extends external_api {
             'pendingid' => $pendingid,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
         $access = activity_access::require_access($params['cmid'], 'local/assign_ai:review');
 
