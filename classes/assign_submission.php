@@ -376,7 +376,7 @@ class assign_submission {
      */
     private function send_to_ai(array $payload): array {
         try {
-            $response = client::send_to_ai($payload);
+            $response = client::send_to_ai($payload, $this->assign->get_context(), (int) $this->user->id);
         } catch (\Throwable $e) {
             $this->log_transfer(event\submission_sent_to_ai::RESULT_FAILURE, self::transfer_errorcode($e));
             throw $e;

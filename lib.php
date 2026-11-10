@@ -22,7 +22,7 @@
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 
 /**
  * Extends assignment navigation to display the "AI Review" button.
@@ -45,7 +45,7 @@ function local_assign_ai_extend_settings_navigation(settings_navigation $nav, co
     }
 
     // Hide assign AI entries entirely when the site master switch is disabled.
-    if (!plugin_settings::is_enabled('local_assign_ai')) {
+    if (!provider_dependency::is_enabled()) {
         return;
     }
 
@@ -116,7 +116,7 @@ function local_assign_ai_coursemodule_standard_elements($formwrapper, $mform) {
         return;
     }
 
-    if (!plugin_settings::is_enabled('local_assign_ai')) {
+    if (!provider_dependency::is_enabled()) {
         return;
     }
 
@@ -296,7 +296,7 @@ function local_assign_ai_coursemodule_edit_post_actions($data, $course) {
         return $data;
     }
 
-    if (!plugin_settings::is_enabled('local_assign_ai')) {
+    if (!provider_dependency::is_enabled()) {
         return $data;
     }
 

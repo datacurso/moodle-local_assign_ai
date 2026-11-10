@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core\task\adhoc_task;
 use local_assign_ai\local\service\submission_ai_processor;
 
@@ -43,8 +43,8 @@ class process_submission_ai extends adhoc_task {
      * @return void
      */
     public function execute(): void {
-        if (!plugin_settings::is_enabled('local_assign_ai')) {
-            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
+        if (!provider_dependency::is_enabled()) {
+            mtrace(provider_dependency::task_skipped_message());
             return;
         }
 

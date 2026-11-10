@@ -32,16 +32,24 @@ class client {
     /**
      * Sends the payload to the AI provider and returns the response.
      *
+     * When a context is given, the Datacurso AI provider logs the request in it, with the student
+     * as related user, instead of the system context. Providers without that audit API are used as is.
+     *
      * @param array $payload The request payload.
+     * @param \context|null $context Context the request is made in, for example the assignment module.
+     * @param int|null $relateduserid Moodle id of the student the request is made for.
      * @return array The AI response (reply, grade, rubric, assessment_guide, needs_review, review_reason).
      */
-    public static function send_to_ai($payload) {
+    public static function send_to_ai($payload, ?\context $context = null, ?int $relateduserid = null) {
         $anonymized = payload_anonymizer::anonymize($payload);
         $payload = $anonymized['payload'];
         $replacements = $anonymized['replacements'];
 
         // The factory is resolved through the DI container so tests can replace the HTTP client.
         $client = \core\di::get(ai_client_factory::class)->create();
+        if ($context !== null && method_exists($client, 'set_audit_context')) {
+            $client->set_audit_context($context, $relateduserid);
+        }
 
         $response = $client->request('POST', self::ENDPOINT, $payload);
 

@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
@@ -80,7 +80,7 @@ class change_status extends external_api {
             throw new \invalid_parameter_exception('Invalid action: ' . $params['action']);
         }
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
         // Authorise before looking up the record, so its existence is not revealed to unauthorised callers.
         $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);

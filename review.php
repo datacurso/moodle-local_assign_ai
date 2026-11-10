@@ -38,7 +38,7 @@ try {
 
     // Save login state and check permissions.
     require_login($course, true, $cm);
-    \aiprovider_datacurso\local\plugin_settings::require_enabled('local_assign_ai');
+    \local_assign_ai\local\provider_dependency::require_enabled();
 
     // Verify that the user has the capability to review AI suggestions for this assignment.
     if (!has_capability('local/assign_ai:review', $context)) {
