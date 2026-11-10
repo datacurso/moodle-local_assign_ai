@@ -45,6 +45,17 @@ final class grading_sync_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Bump the assign instance id sequence past the given id.
      *
      * assignment_config keeps a per-process static cache keyed by assignment id while the PHPUnit

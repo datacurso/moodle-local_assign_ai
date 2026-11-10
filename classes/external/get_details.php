@@ -16,13 +16,13 @@
 
 namespace local_assign_ai\external;
 
-defined('MOODLE_INTERNAL') || die();
-
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use core_external\external_multiple_structure;
+use local_assign_ai\local\tenant_context;
 
 /**
  * External function to retrieve details of a pending AI assignment approval.
@@ -65,6 +65,8 @@ class get_details extends external_api {
             'cmid' => $cmid,
             'userid' => $userid,
         ]);
+
+        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
 
         $sql = "
             SELECT *

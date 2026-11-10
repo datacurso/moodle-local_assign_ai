@@ -42,9 +42,10 @@ function local_assign_ai_extend_settings_navigation(settings_navigation $nav, co
         return;
     }
 
-    // Hide assign AI entries entirely when the site (or tenant) master switch is disabled.
-    $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int)$PAGE->cm->course);
-    if (!\local_assign_ai\config\assignment_config::is_feature_enabled($tenantid)) {
+    // Hide assign AI entries entirely when the provider disabled the plugin for the tenant of the current user.
+    // The provider switch always follows the user's tenant, never the tenant owning the course.
+    $usertenantid = \local_assign_ai\local\tenant_context::get_current_tenant_id();
+    if (!\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', $usertenantid)) {
         return;
     }
 
@@ -117,7 +118,9 @@ function local_assign_ai_coursemodule_standard_elements($formwrapper, $mform) {
 
     $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int)$courseid);
 
-    if (!\local_assign_ai\config\assignment_config::is_feature_enabled($tenantid)) {
+    // The provider switch follows the tenant of the current user, never the tenant owning the course.
+    $usertenantid = \local_assign_ai\local\tenant_context::get_current_tenant_id();
+    if (!\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', $usertenantid)) {
         return;
     }
 
@@ -302,7 +305,9 @@ function local_assign_ai_coursemodule_edit_post_actions($data, $course) {
 
     $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user((int)$course->id);
 
-    if (!\local_assign_ai\config\assignment_config::is_feature_enabled($tenantid)) {
+    // The provider switch follows the tenant of the current user, never the tenant owning the course.
+    $usertenantid = \local_assign_ai\local\tenant_context::get_current_tenant_id();
+    if (!\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', $usertenantid)) {
         return $data;
     }
 

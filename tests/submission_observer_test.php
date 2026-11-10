@@ -45,18 +45,28 @@ final class submission_observer_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
-     * Sets the Assign AI feature switch that governs a course: its tenant on Workplace, the site otherwise.
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
+     * Sets the state of Assign AI kept by the Datacurso AI provider for the tenant of a student
+     * (the site default when there is no tenancy).
      *
-     * @param int $courseid Course id.
+     * The provider switch follows the tenant of the student the submission belongs to, never the course's tenant.
+     *
+     * @param int $userid Student id.
      * @param int $value 1 to enable, 0 to disable.
      */
-    private function set_feature_switch(int $courseid, int $value): void {
-        $tenantid = \local_assign_ai\local\tenant_context::resolve_for_current_user($courseid);
-        if ($tenantid > 0) {
-            \local_assign_ai\local\tenant_config::set('enableassignai', $tenantid, $value);
-        } else {
-            set_config('enableassignai', $value, 'local_assign_ai');
-        }
+    private function set_feature_switch(int $userid, int $value): void {
+        $tenantid = \local_assign_ai\local\tenant_context::get_tenant_id_for_user($userid);
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', (bool) $value, $tenantid ?: null);
     }
 
     /**
@@ -247,9 +257,9 @@ final class submission_observer_test extends \advanced_testcase {
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.
-        $this->set_feature_switch((int) $course->id, 0);
+        $this->set_feature_switch((int) $student->id, 0);
         $this->add_submission($student, $assign, 'Original essay');
-        $this->set_feature_switch((int) $course->id, 1);
+        $this->set_feature_switch((int) $student->id, 1);
 
         $cmid = $assign->get_course_module()->id;
         $DB->set_field(
@@ -325,9 +335,9 @@ final class submission_observer_test extends \advanced_testcase {
         ]);
 
         // Keep the master switch off while seeding the initial submission so the observers stay quiet.
-        $this->set_feature_switch((int) $course->id, 0);
+        $this->set_feature_switch((int) $student->id, 0);
         $this->add_submission($student, $assign, 'Original essay');
-        $this->set_feature_switch((int) $course->id, 1);
+        $this->set_feature_switch((int) $student->id, 1);
 
         $cmid = $assign->get_course_module()->id;
 

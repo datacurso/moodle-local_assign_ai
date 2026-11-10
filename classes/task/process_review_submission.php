@@ -20,8 +20,10 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core\task\adhoc_task;
 use local_assign_ai\assign_submission;
+use local_assign_ai\local\tenant_context;
 
 /**
  * Ad-hoc task to review a single submission with AI ("Review" button per row).
@@ -58,6 +60,13 @@ class process_review_submission extends adhoc_task {
         if (!$cm) {
             return;
         }
+
+        // The provider switch follows the tenant of the student, never the course's tenant nor the cron user.
+        if (!plugin_settings::is_enabled('local_assign_ai', tenant_context::get_tenant_id_for_user((int) $data->userid))) {
+            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
+            return;
+        }
+
         $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
         $context = \context_module::instance($cm->id);
         $assign = new \assign($context, $cm, $course);

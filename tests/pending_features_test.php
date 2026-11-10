@@ -45,6 +45,17 @@ final class pending_features_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Bump the assign instance id sequence past the given id so the per-process static cache in
      * assignment_config never conflicts with ids reused by the database reset.
      *
@@ -158,6 +169,8 @@ final class pending_features_test extends \advanced_testcase {
 
     /**
      * MDL-INT-026: The AI review should be able to produce feedback files attached to the grade.
+     *
+     * @coversNothing
      */
     public function test_feedback_files_are_generated(): void {
         $this->markTestSkipped('Pending feature: feedback files are not generated (MDL-INT-026).');
@@ -227,6 +240,8 @@ final class pending_features_test extends \advanced_testcase {
 
     /**
      * MDL-INT-028: Group submissions should be processed once per group instead of once per member.
+     *
+     * @coversNothing
      */
     public function test_group_submissions_are_processed_once_per_group(): void {
         $this->markTestSkipped(
@@ -237,6 +252,8 @@ final class pending_features_test extends \advanced_testcase {
     /**
      * MDL-INT-029: When marking allocation is enabled, only the allocated marker should be used
      * to attribute the AI grading.
+     *
+     * @coversNothing
      */
     public function test_marking_allocation_is_respected(): void {
         $this->markTestSkipped('Pending feature: marking allocation is not respected (MDL-INT-029).');
@@ -305,6 +322,8 @@ final class pending_features_test extends \advanced_testcase {
     /**
      * MDL-INT-031: The additional files configured on the assignment should be sent to the AI
      * service together with the submission content.
+     *
+     * @coversNothing
      */
     public function test_assignment_additional_files_are_sent_to_ai_service(): void {
         $this->markTestSkipped(

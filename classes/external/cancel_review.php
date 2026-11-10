@@ -20,11 +20,13 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use local_assign_ai\assign_submission;
+use local_assign_ai\local\tenant_context;
 
 /**
  * External function to cancel a stuck AI review (queued/processing) from the review page.
@@ -66,6 +68,7 @@ class cancel_review extends external_api {
         ]);
 
         $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
+        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
         $context = \context_module::instance($cm->id);
 
         self::validate_context($context);

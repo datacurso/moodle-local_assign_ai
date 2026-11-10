@@ -79,6 +79,18 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and the feature switch reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Creates a tenant through the Workplace generator.
      *
      * @param string $name Tenant name.
@@ -93,13 +105,22 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
+     * Creates a user allocated to a tenant through the Workplace generator.
+     *
+     * @param int $tenantid Tenant id.
+     * @return \stdClass The user record.
+     */
+    private function create_tenant_user(int $tenantid): \stdClass {
+        return $this->getDataGenerator()->get_plugin_generator('tool_tenant')->create_user(['tenantid' => $tenantid]);
+    }
+
+    /**
      * Setting names mapped to the plugin built-in default they must resolve to.
      *
      * @return array
      */
     public static function plugin_defaults_provider(): array {
         return [
-            'enableassignai' => ['enableassignai', 1],
             'defaultenableai' => ['defaultenableai', 1],
             'defaultautograde' => ['defaultautograde', 0],
             'defaultusedelay' => ['defaultusedelay', 0],
@@ -111,7 +132,6 @@ final class tenant_config_test extends \advanced_testcase {
      * Site values that differ from every plugin default.
      */
     private function set_divergent_site_config(): void {
-        set_config('enableassignai', 0, 'local_assign_ai');
         set_config('defaultenableai', 0, 'local_assign_ai');
         set_config('defaultautograde', 1, 'local_assign_ai');
         set_config('defaultusedelay', 1, 'local_assign_ai');
@@ -160,6 +180,7 @@ final class tenant_config_test extends \advanced_testcase {
      * Changing the site configuration never alters the values a tenant resolves.
      */
     public function test_site_config_changes_do_not_alter_a_tenant(): void {
+        $this->require_provider();
         $this->resetAfterTest();
 
         tenant_config::set('defaultprompt', 5, 'Tenant five');
@@ -344,6 +365,7 @@ final class tenant_config_test extends \advanced_testcase {
      */
     public function test_effective_config_uses_the_course_tenant_defaults(): void {
         $this->require_tenancy();
+        $this->require_provider();
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -371,23 +393,32 @@ final class tenant_config_test extends \advanced_testcase {
     }
 
     /**
-     * The tenant master switch only pauses the AI for that tenant, and the site switch never does.
+     * The provider state of a tenant only pauses the AI for the users of that tenant, and the site default never
+     * overrides it.
      */
     public function test_feature_switch_is_per_tenant(): void {
         $this->require_tenancy();
+        $this->require_provider();
         $this->resetAfterTest();
 
         $tenanta = $this->create_tenant('Tenant G');
         $tenantb = $this->create_tenant('Tenant H');
         $this->set_divergent_site_config();
-        tenant_config::set('enableassignai', (int) $tenanta->id, 0);
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', false, null);
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', false, (int) $tenanta->id);
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', true, (int) $tenantb->id);
         tenant_config::set('defaultenableai', (int) $tenanta->id, 0);
+        $usera = (int) $this->create_tenant_user((int) $tenanta->id)->id;
+        $userb = (int) $this->create_tenant_user((int) $tenantb->id)->id;
 
-        $this->assertFalse(assignment_config::is_feature_enabled((int) $tenanta->id));
-        $this->assertTrue(assignment_config::is_feature_enabled((int) $tenantb->id));
+        $this->assertFalse(\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', (int) $tenanta->id));
+        $this->assertTrue(\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', (int) $tenantb->id));
+        $this->assertFalse(assignment_config::is_ai_available((int) $tenanta->id, $usera));
         $this->assertFalse(assignment_config::is_global_ai_enabled((int) $tenanta->id));
         $this->assertTrue(assignment_config::is_global_ai_enabled((int) $tenantb->id));
-        $this->assertTrue(assignment_config::is_ai_available((int) $tenantb->id));
+        $this->assertTrue(assignment_config::is_ai_available((int) $tenantb->id, $userb));
+        // The provider switch follows the tenant of the user: a user of tenant A is blocked in tenant B too.
+        $this->assertFalse(assignment_config::is_ai_available((int) $tenantb->id, $usera));
     }
 
     /**
@@ -395,6 +426,7 @@ final class tenant_config_test extends \advanced_testcase {
      */
     public function test_switching_a_tenant_off_does_not_affect_another(): void {
         $this->require_tenancy();
+        $this->require_provider();
         $this->resetAfterTest();
 
         $tenanta = $this->create_tenant('Tenant K');
@@ -402,12 +434,14 @@ final class tenant_config_test extends \advanced_testcase {
         tenant_config::set('defaultprompt', (int) $tenantb->id, 'Prompt B');
         $before = assignment_config::get_defaults((int) $tenantb->id);
 
-        tenant_config::set('enableassignai', (int) $tenanta->id, 0);
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', false, (int) $tenanta->id);
         tenant_config::set('defaultenableai', (int) $tenanta->id, 0);
         tenant_config::set('defaultprompt', (int) $tenanta->id, 'Prompt A');
+        $usera = (int) $this->create_tenant_user((int) $tenanta->id)->id;
+        $userb = (int) $this->create_tenant_user((int) $tenantb->id)->id;
 
-        $this->assertFalse(assignment_config::is_ai_available((int) $tenanta->id));
-        $this->assertTrue(assignment_config::is_ai_available((int) $tenantb->id));
+        $this->assertFalse(assignment_config::is_ai_available((int) $tenanta->id, $usera));
+        $this->assertTrue(assignment_config::is_ai_available((int) $tenantb->id, $userb));
         $this->assertEquals($before, assignment_config::get_defaults((int) $tenantb->id));
     }
 
@@ -417,6 +451,7 @@ final class tenant_config_test extends \advanced_testcase {
      */
     public function test_tenant_zero_uses_plugin_defaults_under_tenancy(): void {
         $this->require_tenancy();
+        $this->require_provider();
         $this->resetAfterTest();
         $this->set_divergent_site_config();
 

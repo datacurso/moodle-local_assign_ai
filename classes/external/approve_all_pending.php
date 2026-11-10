@@ -20,12 +20,14 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
 use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
+use local_assign_ai\local\tenant_context;
 
 /**
  * External function to approve all pending AI feedback for an assignment.
@@ -64,6 +66,7 @@ class approve_all_pending extends external_api {
         ]);
 
         $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
+        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
 
         $context = \context_module::instance($cm->id);
         $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);

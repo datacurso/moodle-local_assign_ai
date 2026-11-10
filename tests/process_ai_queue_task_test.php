@@ -45,6 +45,17 @@ final class process_ai_queue_task_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
      *
      * Moodle 4.5 reads the license key from the plugin config and Moodle 5.0 from an enabled
@@ -285,5 +296,100 @@ final class process_ai_queue_task_test extends \advanced_testcase {
         $this->assertSame(assign_submission::STATUS_APPROVED, $record->status);
         $this->assertEquals(8, $record->grade);
         $this->assertSame('Delayed feedback', $record->message);
+    }
+
+    /**
+     * Moodle Workplace: the queue follows the tenant of the student, never the tenant owning the course.
+     *
+     * The rows of a student of tenant A, which disabled Assign AI, are deleted without being sent to the AI even in
+     * a course of tenant B, which enabled it; they come first and outnumber the batch, yet the row of a student of
+     * tenant B is still processed in the same run, even in a course of tenant A.
+     *
+     * @covers ::execute
+     */
+    public function test_rows_of_a_disabled_tenant_are_deleted_and_others_processed(): void {
+        global $DB;
+
+        if (!class_exists('\\tool_tenant\\tenancy')) {
+            $this->markTestSkipped('Moodle Workplace (tool_tenant) is not installed.');
+        }
+        $this->resetAfterTest();
+
+        $tenantgenerator = $this->getDataGenerator()->get_plugin_generator('tool_tenant');
+        $tenants = [];
+        foreach (['Queue tenant A', 'Queue tenant B'] as $name) {
+            $category = $this->getDataGenerator()->create_category(['name' => $name . ' category']);
+            $tenants[] = $tenantgenerator->create_tenant(['name' => $name, 'categoryid' => $category->id]);
+        }
+        [$tenanta, $tenantb] = $tenants;
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', false, (int) $tenanta->id);
+        \aiprovider_datacurso\local\plugin_settings::set_enabled('local_assign_ai', true, (int) $tenantb->id);
+
+        $coursea = $this->getDataGenerator()->create_course(['category' => $tenanta->categoryid]);
+        $courseb = $this->getDataGenerator()->create_course(['category' => $tenantb->categoryid]);
+        $studenta = $tenantgenerator->create_user(['tenantid' => (int) $tenanta->id]);
+        $studentb = $tenantgenerator->create_user(['tenantid' => (int) $tenantb->id]);
+        $this->getDataGenerator()->enrol_user($studenta->id, $courseb->id, 'student');
+        $this->getDataGenerator()->enrol_user($studentb->id, $coursea->id, 'student');
+
+        // The student of tenant B submits in the course of tenant A; AI is on without autograde, so the row only
+        // creates a record for teacher review and never calls the AI service.
+        $this->bump_assign_sequence(7010, $coursea->id);
+        $assigna = $this->create_instance($coursea, ['assignsubmission_onlinetext_enabled' => 1]);
+        $this->bump_assign_sequence(7020, $courseb->id);
+        $assignb = $this->create_instance($courseb, ['assignsubmission_onlinetext_enabled' => 1]);
+        foreach ([$assigna, $assignb] as $assign) {
+            $assignid = (int) $assign->get_instance()->id;
+            $DB->delete_records('local_assign_ai_config', ['assignmentid' => $assignid]);
+            $DB->insert_record('local_assign_ai_config', (object) [
+                'assignmentid' => $assignid,
+                'enableai' => 1,
+                'autograde' => 0,
+                'usedelay' => 0,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+        }
+        $DB->insert_record('assign_submission', (object) [
+            'assignment' => $assigna->get_instance()->id,
+            'userid' => $studentb->id,
+            'timecreated' => time() - HOURSECS,
+            'timemodified' => time() - HOURSECS,
+            'status' => ASSIGN_SUBMISSION_STATUS_SUBMITTED,
+            'groupid' => 0,
+            'attemptnumber' => 0,
+            'latest' => 1,
+        ]);
+
+        // More due rows of the disabled tenant than one batch, all older than the row of the enabled tenant.
+        $disabledids = [];
+        for ($i = 0; $i < 25; $i++) {
+            $disabledids[] = $DB->insert_record('local_assign_ai_queue', (object) [
+                'type' => 'submission',
+                'payload' => json_encode(['userid' => $studenta->id, 'cmid' => $assignb->get_course_module()->id]),
+                'timecreated' => time() - DAYSECS,
+                'timetoprocess' => time() - HOURSECS - $i,
+                'processed' => 0,
+            ]);
+        }
+        $enabledid = $DB->insert_record('local_assign_ai_queue', (object) [
+            'type' => 'submission',
+            'payload' => json_encode(['userid' => $studentb->id, 'cmid' => $assigna->get_course_module()->id]),
+            'timecreated' => time() - DAYSECS,
+            'timetoprocess' => time() - MINSECS,
+            'processed' => 0,
+        ]);
+
+        (new \local_assign_ai\task\process_ai_queue())->execute();
+
+        // Every row of the student of the disabled tenant is gone and nothing was created for that student.
+        [$insql, $params] = $DB->get_in_or_equal($disabledids);
+        $this->assertSame(0, $DB->count_records_select('local_assign_ai_queue', "id {$insql}", $params));
+        $this->assertSame(0, $DB->count_records('local_assign_ai_pending', ['userid' => $studenta->id]));
+
+        // The row of the student of the enabled tenant was processed in the same run.
+        $this->assertEquals(1, $DB->get_field('local_assign_ai_queue', 'processed', ['id' => $enabledid]));
+        $record = $DB->get_record('local_assign_ai_pending', ['userid' => $studentb->id], '*', MUST_EXIST);
+        $this->assertSame(assign_submission::STATUS_INITIAL, $record->status);
     }
 }

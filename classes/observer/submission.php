@@ -18,6 +18,7 @@ namespace local_assign_ai\observer;
 
 defined('MOODLE_INTERNAL') || die();
 
+use aiprovider_datacurso\local\plugin_settings;
 use mod_assign\event\submission_created;
 use mod_assign\event\submission_updated;
 use mod_assign\event\submission_removed;
@@ -66,6 +67,19 @@ class submission {
         }
 
         return (int) $userid;
+    }
+
+    /**
+     * Whether the Datacurso AI provider enables Assign AI for the tenant of a student.
+     *
+     * The provider switch is per Moodle Workplace tenant and always follows the tenant of the student the
+     * submission belongs to, never the tenant owning the course nor the user that triggered the event.
+     *
+     * @param int $userid Student id.
+     * @return bool
+     */
+    private static function is_enabled_for_user(int $userid): bool {
+        return plugin_settings::is_enabled('local_assign_ai', tenant_context::get_tenant_id_for_user($userid));
     }
 
     /**
@@ -151,7 +165,9 @@ class submission {
      */
     public static function submission_created(submission_created $event) {
         try {
-            if (!assignment_config::is_feature_enabled(tenant_context::resolve_for_current_user((int) $event->courseid))) {
+            // The provider switch follows the tenant of the student, never the course's tenant.
+            $userid = self::resolve_userid($event);
+            if (!$userid || !self::is_enabled_for_user($userid)) {
                 return;
             }
 
@@ -169,11 +185,6 @@ class submission {
 
             $config = assignment_config::get_effective((int)$assign->get_instance()->id);
             if (empty($config->enableai)) {
-                return;
-            }
-
-            $userid = self::resolve_userid($event);
-            if (!$userid) {
                 return;
             }
 
@@ -202,7 +213,9 @@ class submission {
      */
     public static function submission_updated(submission_updated $event) {
         try {
-            if (!assignment_config::is_feature_enabled(tenant_context::resolve_for_current_user((int) $event->courseid))) {
+            // The provider switch follows the tenant of the student, never the course's tenant.
+            $userid = self::resolve_userid($event);
+            if (!$userid || !self::is_enabled_for_user($userid)) {
                 return;
             }
 
@@ -218,11 +231,6 @@ class submission {
             $data = $event->get_data();
             $other = $data['other'] ?? [];
             if (($other['submissionstatus'] ?? null) !== ASSIGN_SUBMISSION_STATUS_SUBMITTED) {
-                return;
-            }
-
-            $userid = self::resolve_userid($event);
-            if (!$userid) {
                 return;
             }
 
@@ -261,6 +269,11 @@ class submission {
             $data = $event->get_data();
             $userid = $data['relateduserid'] ?? null;
             if (!$userid) {
+                return;
+            }
+
+            // The grader may belong to another tenant: the provider switch follows the tenant of the student.
+            if (!self::is_enabled_for_user((int) $userid)) {
                 return;
             }
 
@@ -335,7 +348,9 @@ class submission {
      */
     public static function assessable_submitted(assessable_submitted $event) {
         try {
-            if (!assignment_config::is_feature_enabled(tenant_context::resolve_for_current_user((int) $event->courseid))) {
+            // The provider switch follows the tenant of the student, never the course's tenant.
+            $userid = self::resolve_userid($event);
+            if (!$userid || !self::is_enabled_for_user($userid)) {
                 return;
             }
 
@@ -350,11 +365,6 @@ class submission {
 
             $config = assignment_config::get_effective((int) $assign->get_instance()->id);
             if (empty($config->enableai)) {
-                return;
-            }
-
-            $userid = self::resolve_userid($event);
-            if (!$userid) {
                 return;
             }
 

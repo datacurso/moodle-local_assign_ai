@@ -120,6 +120,9 @@ class tenant_context {
     /**
      * Resolves the tenant for processing: the course tenant first, then the student's tenant.
      *
+     * Used for the plugin's own per-tenant configuration. Never for the Assign AI switch of the Datacurso AI
+     * provider, which always follows the tenant of the user (see get_tenant_id_for_user()).
+     *
      * @param int $courseid Course id (0 when unknown).
      * @param int $userid User id, normally the student (0 when unknown).
      * @return int Tenant id, 0 when none could be resolved.
@@ -135,6 +138,9 @@ class tenant_context {
 
     /**
      * Resolves the tenant for an interactive request: the course tenant, else the tenant of the current user.
+     *
+     * Used for the plugin's own per-tenant configuration. Never for the Assign AI switch of the Datacurso AI
+     * provider, which always follows the tenant of the current user (see get_current_tenant_id()).
      *
      * @param int $courseid Course id.
      * @return int
