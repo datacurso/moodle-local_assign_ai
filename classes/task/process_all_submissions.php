@@ -20,8 +20,10 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core\task\adhoc_task;
 use local_assign_ai\api\client;
+use local_assign_ai\local\tenant_context;
 
 /**
  * Ad-hoc task for processing all assignment submissions with AI.
@@ -62,6 +64,7 @@ class process_all_submissions extends adhoc_task {
 
         $cm = get_coursemodule_from_id('assign', $data->cmid, 0, false, MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $data->courseid], '*', MUST_EXIST);
+
         $context = \context_module::instance($cm->id);
 
         $assign = new \assign($context, $cm, $course);
@@ -83,6 +86,18 @@ class process_all_submissions extends adhoc_task {
                 $current = $DB->get_record('local_assign_ai_pending', ['id' => $pending->id], 'id, status');
                 if (!$current || (string) $current->status !== \local_assign_ai\assign_submission::STATUS_QUEUED) {
                     mtrace('Assign AI: skipping pending ' . $pending->id . ' (no longer queued).');
+                    continue;
+                }
+
+                // The provider switch follows the tenant of each student, never the course's tenant nor the
+                // cron user: the review of a student whose tenant disabled Assign AI is not sent.
+                $studenttenantid = tenant_context::get_tenant_id_for_user((int) $pending->userid);
+                if (!plugin_settings::is_enabled('local_assign_ai', $studenttenantid)) {
+                    \local_assign_ai\assign_submission::update_pending_submission($pending->id, [
+                        'status' => \local_assign_ai\assign_submission::STATUS_FAILED,
+                        'errormessage' => get_string('reviewaidisabled', 'local_assign_ai'),
+                    ]);
+                    mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
                     continue;
                 }
 

@@ -25,8 +25,7 @@
 
 namespace local_assign_ai\external;
 
-defined('MOODLE_INTERNAL') || die();
-
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
@@ -66,6 +65,9 @@ class get_progress extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), [
             'pendingids' => $pendingids,
         ]);
+
+        plugin_settings::require_enabled('local_assign_ai');
+
         $pendingids = $params['pendingids'];
 
         if (empty($pendingids)) {

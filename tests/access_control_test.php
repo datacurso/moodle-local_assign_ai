@@ -53,6 +53,17 @@ require_once($CFG->dirroot . '/mod/assign/locallib.php');
  */
 final class access_control_test extends \externallib_advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Create a course with an assignment, an enrolled student and its module context.
      *
      * @return array The course, assign object, course module id and student user.

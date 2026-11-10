@@ -16,6 +16,7 @@
 
 namespace local_assign_ai\config;
 
+use aiprovider_datacurso\local\plugin_settings;
 use assign;
 use local_assign_ai\local\tenant_config;
 use local_assign_ai\local\tenant_context;
@@ -77,21 +78,6 @@ class assignment_config {
     }
 
     /**
-     * Checks whether assign AI features are globally enabled.
-     *
-     * @param int|null $tenantid Tenant id, null for the tenant of the current user.
-     * @return bool
-     */
-    public static function is_feature_enabled(?int $tenantid = null): bool {
-        $enabled = self::get_default('enableassignai', $tenantid);
-        if ($enabled === false || $enabled === '') {
-            return true;
-        }
-
-        return !empty($enabled);
-    }
-
-    /**
      * Checks whether assignment AI can be enabled globally.
      *
      * @param int|null $tenantid Tenant id, null for the tenant of the current user.
@@ -132,12 +118,16 @@ class assignment_config {
     /**
      * Checks whether auto-grading is enabled for a given assignment.
      *
+     * The state of Assign AI kept by the Datacurso AI provider is checked for the tenant of the user, never
+     * for the tenant owning the course.
+     *
      * @param assign $assign The assignment instance.
+     * @param int|null $userid User the work is done for (normally the student), null for the current user.
      * @return bool
      */
-    public static function is_autograde_enabled(assign $assign): bool {
+    public static function is_autograde_enabled(assign $assign, ?int $userid = null): bool {
         $assignmentid = (int)$assign->get_instance()->id;
-        if (!self::is_feature_enabled(tenant_context::get_tenant_id_for_assignment($assignmentid))) {
+        if (!self::is_provider_enabled_for_user($userid)) {
             return false;
         }
 
@@ -171,27 +161,52 @@ class assignment_config {
     }
 
     /**
-     * Whether the AI may run at all for a tenant: both master switches (feature and default AI) are on.
+     * Whether the AI may run at all.
      *
-     * @param int|null $tenantid Tenant id, null for the tenant of the current user.
+     * Both switches must be on: the state of Assign AI kept per tenant by the Datacurso AI provider, checked for
+     * the tenant of the user, and the defaultenableai default of the given tenant.
+     *
+     * @param int|null $tenantid Tenant whose defaultenableai applies, null for the tenant of the current user.
+     * @param int|null $userid User whose tenant decides the provider switch, null for the current user.
      * @return bool
      */
-    public static function is_ai_available(?int $tenantid = null): bool {
-        return self::is_feature_enabled($tenantid) && self::is_global_ai_enabled($tenantid);
+    public static function is_ai_available(?int $tenantid = null, ?int $userid = null): bool {
+        $tenantid = $tenantid ?? tenant_context::get_current_tenant_id();
+        return self::is_provider_enabled_for_user($userid) && self::is_global_ai_enabled($tenantid);
     }
 
     /**
-     * Whether AI processing may run for an assignment: the tenant switches and its own switch are on.
+     * Whether AI processing may run for an assignment.
+     *
+     * The state of Assign AI kept by the Datacurso AI provider for the tenant of the user (never the tenant
+     * owning the course), and the switch of the assignment itself, must both be on.
      *
      * @param int $assignmentid The assignment instance ID (from {assign}).
+     * @param int|null $userid User the work is done for (normally the student), null for the current user.
      * @return bool
      */
-    public static function is_ai_enabled_for_assignment(int $assignmentid): bool {
-        if (!self::is_feature_enabled(tenant_context::get_tenant_id_for_assignment($assignmentid))) {
+    public static function is_ai_enabled_for_assignment(int $assignmentid, ?int $userid = null): bool {
+        if (!self::is_provider_enabled_for_user($userid)) {
             return false;
         }
 
         return !empty(self::get_effective($assignmentid)->enableai);
+    }
+
+    /**
+     * Whether the Datacurso AI provider enables Assign AI for the tenant of a user.
+     *
+     * The provider switch is per Moodle Workplace tenant and always follows the tenant of the user: a tenant that
+     * disabled Assign AI disables it for its users in every course, whichever tenant owns the course.
+     *
+     * @param int|null $userid User id, null for the current user.
+     * @return bool
+     */
+    public static function is_provider_enabled_for_user(?int $userid = null): bool {
+        $tenantid = $userid === null
+            ? tenant_context::get_current_tenant_id()
+            : tenant_context::get_tenant_id_for_user($userid);
+        return plugin_settings::is_enabled('local_assign_ai', $tenantid);
     }
 
     /**

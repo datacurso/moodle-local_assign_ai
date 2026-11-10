@@ -41,6 +41,17 @@ final class assign_submission_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Configure the Datacurso AI provider so real pipeline calls can run against curl mocks.
      *
      * Moodle 4.5 reads the license key from the plugin config and Moodle 5.0 from an enabled

@@ -20,8 +20,10 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
+use aiprovider_datacurso\local\plugin_settings;
 use core\task\adhoc_task;
 use local_assign_ai\local\service\submission_ai_processor;
+use local_assign_ai\local\tenant_context;
 
 /**
  * Ad-hoc task to process AI submission for an assignment.
@@ -44,6 +46,12 @@ class process_submission_ai extends adhoc_task {
     public function execute(): void {
         $data = $this->get_custom_data();
         if (empty($data->userid) || empty($data->cmid)) {
+            return;
+        }
+
+        // The provider switch follows the tenant of the student, never the course's tenant nor the cron user.
+        if (!plugin_settings::is_enabled('local_assign_ai', tenant_context::get_tenant_id_for_user((int) $data->userid))) {
+            mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
             return;
         }
 

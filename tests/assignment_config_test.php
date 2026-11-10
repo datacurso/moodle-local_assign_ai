@@ -54,6 +54,8 @@ final class assignment_config_test extends \advanced_testcase {
     private function create_assign(): array {
         global $DB;
 
+        $this->require_provider();
+
         $course = $this->getDataGenerator()->create_course();
         $fillerid = self::$nextassignid;
         // The filler consumes $fillerid and the real module takes $fillerid + 1,
@@ -221,9 +223,9 @@ final class assignment_config_test extends \advanced_testcase {
     }
 
     /**
-     * MDL-INT-001: The master switch disables the feature regardless of per-assignment rows.
+     * MDL-INT-001: The master switch (the plugin state kept by the Datacurso AI provider) disables
+     * the feature regardless of per-assignment rows.
      *
-     * @covers ::is_feature_enabled
      * @covers ::is_autograde_enabled
      */
     public function test_master_switch_disables_feature_regardless_of_assignment_rows(): void {
@@ -240,9 +242,8 @@ final class assignment_config_test extends \advanced_testcase {
             'autograde' => 1,
         ]);
 
-        set_config('enableassignai', 0, 'local_assign_ai');
+        set_config('plugin_enabled_local_assign_ai', '0', 'aiprovider_datacurso');
 
-        $this->assertFalse(assignment_config::is_feature_enabled());
         $this->assertFalse(assignment_config::is_autograde_enabled($assign));
     }
 
@@ -407,5 +408,17 @@ final class assignment_config_test extends \advanced_testcase {
 
         unset_config('defaultenableai', 'local_assign_ai');
         $this->assertTrue(assignment_config::is_global_ai_enabled());
+    }
+
+    /**
+     * Skips the current test when the Datacurso AI provider is not installed.
+     *
+     * The CI pipeline does not install declared dependencies; without the Datacurso AI provider
+     * the assignment creation callbacks and AI entry points reached by these tests cannot run.
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
     }
 }

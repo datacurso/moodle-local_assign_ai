@@ -194,7 +194,9 @@ final class tenant_aware_setting_test extends \advanced_testcase {
     }
 
     /**
-     * The page has the six settings with the tenant aware types, in the LMS order, plus the tenant notice.
+     * The page has the five settings with the tenant aware types, in the LMS order, plus the tenant notice.
+     *
+     * The Assign AI switch itself is kept per tenant by the Datacurso AI provider, so the page has no enableassignai.
      */
     public function test_page_contains_the_tenant_aware_settings(): void {
         $this->require_tenancy();
@@ -204,9 +206,10 @@ final class tenant_aware_setting_test extends \advanced_testcase {
         $settings = $this->load_page()->settings;
 
         $this->assertInstanceOf(tenant_notice::class, $settings->local_assign_aitenantnotice);
-        foreach (['enableassignai', 'defaultenableai', 'defaultautograde', 'defaultusedelay'] as $name) {
+        foreach (['defaultenableai', 'defaultautograde', 'defaultusedelay'] as $name) {
             $this->assertInstanceOf(tenant_configcheckbox::class, $settings->{'local_assign_ai' . $name});
         }
+        $this->assertObjectNotHasProperty('local_assign_aienableassignai', $settings);
         $this->assertInstanceOf(tenant_configtext::class, $settings->local_assign_aidefaultdelayminutes);
         $this->assertInstanceOf(tenant_configtextarea::class, $settings->local_assign_aidefaultprompt);
         foreach (tenant_config::SETTING_NAMES as $name) {
@@ -239,7 +242,6 @@ final class tenant_aware_setting_test extends \advanced_testcase {
         $tenant = $this->create_tenant('Tenant defaults');
         set_config('defaultdelayminutes', 5, 'local_assign_ai');
         set_config('defaultprompt', 'Site prompt', 'local_assign_ai');
-        set_config('enableassignai', 0, 'local_assign_ai');
         $this->switch_to((int) $tenant->id);
 
         foreach (tenant_config::SETTING_NAMES as $name) {
@@ -262,23 +264,23 @@ final class tenant_aware_setting_test extends \advanced_testcase {
         $this->switch_to((int) $tenanta->id);
         $this->assertSame('', $this->get_setting('defaultprompt')->write_setting('Prompt of A'));
         $this->assertSame('', $this->get_setting('defaultdelayminutes')->write_setting('15'));
-        $this->assertSame('', $this->get_setting('enableassignai')->write_setting('0'));
+        $this->assertSame('', $this->get_setting('defaultautograde')->write_setting('1'));
 
         $this->switch_to((int) $tenantb->id);
         $this->assertSame(tenant_config::get_plugin_default('defaultprompt'), $this->get_setting('defaultprompt')->get_setting());
         $this->assertEquals(60, $this->get_setting('defaultdelayminutes')->get_setting());
-        $this->assertEquals(1, $this->get_setting('enableassignai')->get_setting());
+        $this->assertEquals(0, $this->get_setting('defaultautograde')->get_setting());
         $this->assertSame('', $this->get_setting('defaultprompt')->write_setting('Prompt of B'));
 
         $this->switch_to((int) $tenanta->id);
         $this->assertSame('Prompt of A', $this->get_setting('defaultprompt')->get_setting());
         $this->assertSame('15', $this->get_setting('defaultdelayminutes')->get_setting());
-        $this->assertSame('0', $this->get_setting('enableassignai')->get_setting());
+        $this->assertSame('1', $this->get_setting('defaultautograde')->get_setting());
 
         $this->assertSame('Prompt of B', tenant_config::get('defaultprompt', (int) $tenantb->id));
         $this->assertFalse($DB->record_exists('local_assign_ai_tenant_config', ['tenantid' => 0]));
         $this->assertFalse(get_config('local_assign_ai', 'defaultprompt'));
-        $this->assertFalse(get_config('local_assign_ai', 'enableassignai'));
+        $this->assertFalse(get_config('local_assign_ai', 'defaultautograde'));
     }
 
     /**
@@ -295,7 +297,6 @@ final class tenant_aware_setting_test extends \advanced_testcase {
         $this->switch_to((int) $tenanta->id);
 
         $changed = admin_write_settings([
-            's_local_assign_ai_enableassignai' => '1',
             's_local_assign_ai_defaultenableai' => '1',
             's_local_assign_ai_defaultautograde' => '1',
             's_local_assign_ai_defaultusedelay' => '1',
@@ -408,7 +409,7 @@ final class tenant_aware_setting_test extends \advanced_testcase {
         $tenant = $this->create_tenant('Tenant I');
         $this->switch_to((int) $tenant->id);
         tenant_config::set('defaultprompt', (int) $tenant->id, 'Prompt kept');
-        tenant_config::set('enableassignai', (int) $tenant->id, 0);
+        tenant_config::set('defaultautograde', (int) $tenant->id, 1);
         $before = tenant_config::get_all((int) $tenant->id);
         $rowsbefore = $DB->count_records('local_assign_ai_tenant_config');
 

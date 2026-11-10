@@ -67,15 +67,9 @@ if ($parentcategory !== null) {
 
     if ($ADMIN->fulltree) {
         if ($tenantaware) {
+            // The Assign AI switch itself is kept by the Datacurso AI provider, per tenant.
             $settings->add(new \local_assign_ai\admin\tenant_notice('local_assign_ai/tenantnotice'));
         }
-
-        $settings->add(new $checkbox(
-            'local_assign_ai/enableassignai',
-            get_string('enableassignai', 'local_assign_ai'),
-            get_string('enableassignai_desc', 'local_assign_ai'),
-            1
-        ));
 
         // Disabling this setting pauses all AI functionality at runtime through
         // assignment_config::get_effective(); stored per-assignment configuration is

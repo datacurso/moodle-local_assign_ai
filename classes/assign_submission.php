@@ -153,11 +153,11 @@ class assign_submission {
 
         $assignment = $this->assigninstance;
         $cmid = $this->assign->get_course_module()->id;
-        if (!assignment_config::is_ai_enabled_for_assignment((int)$assignment->id)) {
+        if (!assignment_config::is_ai_enabled_for_assignment((int)$assignment->id, (int)$this->user->id)) {
             return;
         }
 
-        if (!assignment_config::is_autograde_enabled($this->assign)) {
+        if (!assignment_config::is_autograde_enabled($this->assign, (int)$this->user->id)) {
             // Autograde disabled: create a basic pending record for teacher review later.
             $record = (object) [
                 'courseid' => $this->course->id,
@@ -274,7 +274,7 @@ class assign_submission {
             return;
         }
 
-        if (!assignment_config::is_ai_enabled_for_assignment((int)$this->assigninstance->id)) {
+        if (!assignment_config::is_ai_enabled_for_assignment((int)$this->assigninstance->id, (int)$this->user->id)) {
             self::update_pending_submission($pendingid, [
                 'status' => self::STATUS_FAILED,
                 'errormessage' => get_string('reviewaidisabled', 'local_assign_ai'),

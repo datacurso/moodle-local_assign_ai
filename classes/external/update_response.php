@@ -16,13 +16,13 @@
 
 namespace local_assign_ai\external;
 
-defined('MOODLE_INTERNAL') || die();
-
+use aiprovider_datacurso\local\plugin_settings;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
 use local_assign_ai\assign_submission;
+use local_assign_ai\local\tenant_context;
 
 /**
  * External function to update the response message of a pending approval.
@@ -65,6 +65,8 @@ class update_response extends external_api {
             'userid' => $userid,
             'message' => $message,
         ]);
+
+        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
 
         // Target the active record under review (status = pending); older approved rows may
         // also exist for this user as history log entries.

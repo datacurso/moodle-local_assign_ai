@@ -32,6 +32,17 @@ namespace local_assign_ai;
  */
 final class recovery_tasks_test extends \advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Create a course with an assignment and a student, returning ids used by pending records.
      *
      * @return array Array with courseid, cmid and the student user record.

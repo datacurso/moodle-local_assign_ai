@@ -64,9 +64,10 @@ class retry_failed_submissions extends \core\task\scheduled_task {
                 continue;
             }
 
-            // A tenant (or the site) that switched the AI off gets no automatic retries.
+            // No automatic retries when Assign AI is off in the provider for the tenant of the student (never the
+            // course's tenant), or when the AI default of the tenant is off.
             $tenantid = \local_assign_ai\local\tenant_context::resolve((int) $record->courseid, (int) $record->userid);
-            if (!\local_assign_ai\config\assignment_config::is_ai_available($tenantid)) {
+            if (!\local_assign_ai\config\assignment_config::is_ai_available($tenantid, (int) $record->userid)) {
                 continue;
             }
 

@@ -33,7 +33,6 @@ class tenant_config {
 
     /** @var string[] Settings that can be overridden per tenant. */
     public const SETTING_NAMES = [
-        'enableassignai',
         'defaultenableai',
         'defaultautograde',
         'defaultusedelay',
@@ -43,7 +42,6 @@ class tenant_config {
 
     /** @var array Built-in plugin defaults; the default prompt is the language string 'promptdefaulttext'. */
     public const DEFAULTS = [
-        'enableassignai' => 1,
         'defaultenableai' => 1,
         'defaultautograde' => 0,
         'defaultusedelay' => 0,

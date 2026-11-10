@@ -16,12 +16,13 @@
 
 namespace local_assign_ai;
 
+use aiprovider_datacurso\local\plugin_settings;
 use local_assign_ai\config\assignment_config;
 use local_assign_ai\external\process_submission;
 use local_assign_ai\local\tenant_config;
 
 /**
- * Tests that the master switches (site or tenant) stop every AI processing path.
+ * Tests that the master switches (the provider state of the tenant and the AI default) stop every AI processing path.
  *
  * @package   local_assign_ai
  * @category  test
@@ -35,6 +36,18 @@ use local_assign_ai\local\tenant_config;
  * @group     local_assign_ai
  */
 final class master_switch_test extends \advanced_testcase {
+    /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider the assignment
+        // creation callbacks and the feature switch reached by these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
     /**
      * Skips the test when Moodle Workplace tenancy is not installed.
      */
@@ -54,10 +67,13 @@ final class master_switch_test extends \advanced_testcase {
     }
 
     /**
-     * Creates a course (inside a new tenant when requested) with an assignment and a student.
+     * Creates a course (inside a new tenant when requested) with an assignment, a student and a teacher.
+     *
+     * In a tenant, the student and the teacher are users of that tenant: the provider switch follows the tenant of
+     * the user, never the tenant owning the course.
      *
      * @param bool $intenant Whether the course belongs to a new tenant.
-     * @return array [courseid, cmid, assignid, studentid, tenantid]
+     * @return array [courseid, cmid, assignid, studentid, tenantid, teacherid]
      */
     private function create_environment(bool $intenant): array {
         $tenantid = 0;
@@ -73,20 +89,30 @@ final class master_switch_test extends \advanced_testcase {
         }
         $course = $this->getDataGenerator()->create_course($options);
         $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        if ($intenant) {
+            $tenantgenerator = $this->getDataGenerator()->get_plugin_generator('tool_tenant');
+            $tenantgenerator->allocate_user((int) $student->id, $tenantid);
+            $tenantgenerator->allocate_user((int) $teacher->id, $tenantid);
+        }
         $instance = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
         $cm = get_coursemodule_from_instance('assign', $instance->id);
 
-        return [(int) $course->id, (int) $cm->id, (int) $instance->id, (int) $student->id, $tenantid];
+        return [(int) $course->id, (int) $cm->id, (int) $instance->id, (int) $student->id, $tenantid, (int) $teacher->id];
     }
 
     /**
      * Turns a master switch off for a tenant (or for the site when there is no tenant).
      *
+     * The 'provider' switch is the state of Assign AI kept per tenant by the Datacurso AI provider.
+     *
      * @param int $tenantid Tenant id, 0 for the site.
-     * @param string $setting Setting name (enableassignai or defaultenableai).
+     * @param string $setting Switch name (provider or defaultenableai).
      */
     private function switch_off(int $tenantid, string $setting): void {
-        if ($tenantid) {
+        if ($setting === 'provider') {
+            plugin_settings::set_enabled('local_assign_ai', false, $tenantid ?: null);
+        } else if ($tenantid) {
             tenant_config::set($setting, $tenantid, 0);
         } else {
             set_config($setting, 0, 'local_assign_ai');
@@ -100,15 +126,16 @@ final class master_switch_test extends \advanced_testcase {
      */
     public static function switch_provider(): array {
         return [
-            'site, feature switch' => [false, 'enableassignai'],
+            'site, provider switch' => [false, 'provider'],
             'site, default ai switch' => [false, 'defaultenableai'],
-            'tenant, feature switch' => [true, 'enableassignai'],
+            'tenant, provider switch' => [true, 'provider'],
             'tenant, default ai switch' => [true, 'defaultenableai'],
         ];
     }
 
     /**
-     * The availability helpers follow the switches of the tenant of the assignment.
+     * The availability helpers follow the provider switch of the tenant of the student and the AI default of the
+     * tenant of the assignment.
      *
      * @dataProvider switch_provider
      * @param bool $intenant Whether the course belongs to a tenant.
@@ -121,19 +148,22 @@ final class master_switch_test extends \advanced_testcase {
         } else {
             $this->require_no_tenancy();
         }
-        [, , $assignid, , $tenantid] = $this->create_environment($intenant);
+        [, , $assignid, $studentid, $tenantid] = $this->create_environment($intenant);
 
-        $this->assertTrue(assignment_config::is_ai_available($tenantid));
-        $this->assertTrue(assignment_config::is_ai_enabled_for_assignment($assignid));
+        $this->assertTrue(assignment_config::is_ai_available($tenantid, $studentid));
+        $this->assertTrue(assignment_config::is_ai_enabled_for_assignment($assignid, $studentid));
 
         $this->switch_off($tenantid, $setting);
 
-        $this->assertFalse(assignment_config::is_ai_available($tenantid));
-        $this->assertFalse(assignment_config::is_ai_enabled_for_assignment($assignid));
+        $this->assertFalse(assignment_config::is_ai_available($tenantid, $studentid));
+        $this->assertFalse(assignment_config::is_ai_enabled_for_assignment($assignid, $studentid));
     }
 
     /**
-     * A delay queue row queued before the switch went off is dropped, not turned into a record.
+     * A delay queue row queued before the switch went off is never turned into a record.
+     *
+     * The row is deleted both when the tenant of the student disabled Assign AI in the provider and when the AI
+     * default of the tenant is off.
      *
      * @dataProvider switch_provider
      * @param bool $intenant Whether the course belongs to a tenant.
@@ -218,7 +248,7 @@ final class master_switch_test extends \advanced_testcase {
         } else {
             $this->require_no_tenancy();
         }
-        [$courseid, $cmid, , $studentid, $tenantid] = $this->create_environment($intenant);
+        [$courseid, $cmid, , $studentid, $tenantid, $teacherid] = $this->create_environment($intenant);
         $pendingid = assign_submission::create_pending_submission((object) [
             'courseid' => $courseid,
             'assignmentid' => $cmid,
@@ -228,7 +258,8 @@ final class master_switch_test extends \advanced_testcase {
             'grade' => null,
             'status' => assign_submission::STATUS_INITIAL,
         ]);
-        $this->setAdminUser();
+        // The web service checks the provider switch of the tenant of the current user.
+        $this->setUser($teacherid);
 
         $this->switch_off($tenantid, $setting);
 
@@ -237,7 +268,7 @@ final class master_switch_test extends \advanced_testcase {
                 process_submission::execute($cmid, $userid, $all, $pending);
                 $this->fail('Starting AI processing must be refused while the AI is disabled.');
             } catch (\moodle_exception $e) {
-                $this->assertSame('aiunavailable', $e->errorcode);
+                $this->assertSame($setting === 'provider' ? 'plugindisabled' : 'aiunavailable', $e->errorcode);
             }
         }
 

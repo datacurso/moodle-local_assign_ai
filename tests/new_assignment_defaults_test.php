@@ -39,6 +39,18 @@ require_once($CFG->libdir . '/formslib.php');
  */
 final class new_assignment_defaults_test extends \advanced_testcase {
     /**
+     * Skips every test when the Datacurso AI provider is not installed.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        // The CI pipeline does not install declared dependencies; without the Datacurso AI provider the assignment
+        // creation callbacks and the feature switch reached by these tests cannot run.
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Skips the test when Moodle Workplace tenancy is not installed.
      */
     private function require_tenancy(): void {
@@ -163,7 +175,6 @@ final class new_assignment_defaults_test extends \advanced_testcase {
         $this->setAdminUser();
 
         $tenant = $this->create_tenant('Tenant without rows');
-        set_config('enableassignai', 0, 'local_assign_ai');
         set_config('defaultenableai', 0, 'local_assign_ai');
         set_config('defaultautograde', 1, 'local_assign_ai');
         set_config('defaultdelayminutes', 5, 'local_assign_ai');

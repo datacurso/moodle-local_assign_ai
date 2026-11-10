@@ -23,6 +23,9 @@
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/upgradelib.php');
 
 /**
  * Execute local_assign_ai upgrade from the given old version.
@@ -411,6 +414,15 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
 
         // Assign_ai savepoint reached.
         upgrade_plugin_savepoint(true, 2026110325, 'local', 'assign_ai');
+    }
+
+    if ($oldversion < 2026110902) {
+        // The "Enable Assign AI" switch is now kept by the Datacurso AI provider, per tenant. The site value and the
+        // value of every Workplace tenant are copied into the provider before the old values are deleted.
+        local_assign_ai_upgrade_move_switch_to_provider();
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026110902, 'local', 'assign_ai');
     }
 
     return true;
