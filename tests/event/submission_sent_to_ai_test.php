@@ -350,4 +350,36 @@ final class submission_sent_to_ai_test extends \advanced_testcase {
             'other' => ['endpoint' => '/assign/answer'],
         ]);
     }
+
+    /**
+     * The provider logs the request in the assignment context with the student as related user.
+     */
+    public function test_provider_request_is_audited_in_the_assignment_context(): void {
+        if (!method_exists(\aiprovider_datacurso\httpclient\ai_services_api::class, 'set_audit_context')) {
+            $this->markTestSkipped('The installed aiprovider_datacurso cannot set an audit context.');
+        }
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $audits = [];
+        $spy = $this->getMockBuilder(\aiprovider_datacurso\httpclient\ai_services_api::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['request', 'set_audit_context'])
+            ->getMock();
+        $spy->method('set_audit_context')->willReturnCallback(
+            function (\context $context, ?int $relateduserid = null) use (&$audits, &$spy) {
+                $audits[] = [$context->id, $relateduserid];
+                return $spy;
+            }
+        );
+        $spy->method('request')->willReturn(['reply' => self::AI_REPLY, 'grade' => 7]);
+        $factory = $this->createStub(\local_assign_ai\api\ai_client_factory::class);
+        $factory->method('create')->willReturn($spy);
+        \core\di::set(\local_assign_ai\api\ai_client_factory::class, $factory);
+
+        [$assign, $student, , $reviewer, $record] = $this->create_scenario(false);
+        $this->review_and_capture($assign, $student, $reviewer, $record);
+
+        $this->assertSame([[(int) $assign->get_context()->id, (int) $student->id]], $audits);
+    }
 }
