@@ -87,4 +87,46 @@ class history_service {
         // Failed (or any other) record: re-queue the same row (manual retry resets the counter).
         assign_submission::queue_ai_review($cmid, $courseid, (int) $record->userid, (int) $record->id, true, $reviewerid);
     }
+
+    /**
+     * Re-queues every failed AI review of the activity in one ad-hoc task.
+     *
+     * The task carries the current user as reviewer, so each transfer to the AI service is
+     * logged with the teacher who requested the retry as actor (LAA-AUD-011).
+     *
+     * @param int $cmid Course module id of the assign activity.
+     * @return int Number of re-queued records.
+     */
+    public static function retry_all_failed(int $cmid): int {
+        global $DB, $USER;
+
+        $access = activity_access::require_access($cmid, self::CAPABILITY);
+        $failed = $DB->get_records('local_assign_ai_pending', [
+            'courseid' => (int) $access->cm->course,
+            'assignmentid' => (int) $access->cm->id,
+            'status' => assign_submission::STATUS_FAILED,
+        ]);
+        if (empty($failed)) {
+            return 0;
+        }
+
+        foreach ($failed as $record) {
+            // Refresh timemodified (so the reaper won't re-fail them) and reset the auto-retry counter.
+            assign_submission::update_pending_submission((int) $record->id, [
+                'status' => assign_submission::STATUS_QUEUED,
+                'retries' => 0,
+            ]);
+        }
+
+        $task = new \local_assign_ai\task\process_all_submissions();
+        $task->set_custom_data([
+            'cmid' => (int) $access->cm->id,
+            'courseid' => (int) $access->cm->course,
+            'pendingcount' => count($failed),
+            'reviewerid' => (int) $USER->id,
+        ]);
+        \core\task\manager::queue_adhoc_task($task);
+
+        return count($failed);
+    }
 }
