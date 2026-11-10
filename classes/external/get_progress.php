@@ -78,7 +78,7 @@ class get_progress extends external_api {
         }
 
         [$insql, $inparams] = $DB->get_in_or_equal($pendingids, SQL_PARAMS_NAMED);
-        $fields = 'id, assignmentid, status, grade, errormessage';
+        $fields = 'id, assignmentid, userid, status, grade, errormessage';
         $records = $DB->get_records_select('local_assign_ai_pending', "id $insql", $inparams, '', $fields);
 
         $out = [];
@@ -90,16 +90,16 @@ class get_progress extends external_api {
             // caching the result per cmid. Records the caller cannot review are silently
             // dropped so ids cannot be enumerated across activities.
             if (!array_key_exists($cmid, $allowedcmid)) {
-                $allowedcmid[$cmid] = false;
+                $allowedcmid[$cmid] = null;
                 try {
-                    activity_access::require_access($cmid, 'local/assign_ai:review');
-                    $allowedcmid[$cmid] = true;
+                    $allowedcmid[$cmid] = activity_access::require_access($cmid, 'local/assign_ai:review');
                 } catch (\Exception $e) {
-                    $allowedcmid[$cmid] = false;
+                    $allowedcmid[$cmid] = null;
                 }
             }
 
-            if (!$allowedcmid[$cmid]) {
+            // In separate groups, records of students outside the user's groups are dropped too.
+            if ($allowedcmid[$cmid] === null || !activity_access::can_access_student($allowedcmid[$cmid], (int) $r->userid)) {
                 continue;
             }
 

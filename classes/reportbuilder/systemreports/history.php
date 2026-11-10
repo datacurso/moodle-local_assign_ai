@@ -21,6 +21,7 @@ use core_reportbuilder\local\report\action;
 use core_reportbuilder\system_report;
 use lang_string;
 use local_assign_ai\assign_submission;
+use local_assign_ai\local\activity_access;
 use local_assign_ai\reportbuilder\entities\history as history_entity;
 use moodle_url;
 use pix_icon;
@@ -58,6 +59,23 @@ class history extends system_report {
             $prefix
         );
         $this->add_base_condition_sql("{$pending}.status {$insql}", $inparams);
+
+        // In separate groups only the students the user may access are shown, as in mod_assign.
+        $cmid = $this->get_parameter('assignmentid', 0, PARAM_INT);
+        $cm = get_coursemodule_from_id('assign', $cmid, 0, false, IGNORE_MISSING);
+        if ($cm) {
+            $access = (object) [
+                'cm' => $cm,
+                'context' => \context_module::instance($cm->id),
+                'course' => get_course($cm->course),
+            ];
+            [$groupsql, $groupparams] = activity_access::get_student_filter_sql(
+                $access,
+                "{$pending}.userid",
+                database::generate_param_name() . '_'
+            );
+            $this->add_base_condition_sql($groupsql, $groupparams);
+        }
         $this->set_default_per_page(20);
         $this->add_columns_from_entity($entity->get_entity_name());
         $this->add_filters_from_entity($entity->get_entity_name());

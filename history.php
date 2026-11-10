@@ -70,10 +70,14 @@ if ($retry) {
 // Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task).
 if ($retryall) {
     require_sesskey();
-    $failed = $DB->get_records('local_assign_ai_pending', [
-        'assignmentid' => $cm->id,
-        'status' => assign_submission::STATUS_FAILED,
-    ]);
+    // In separate groups only the reviews of students the user may access are retried.
+    $access = \local_assign_ai\local\activity_access::require_access((int) $cm->id, 'local/assign_ai:review');
+    [$groupsql, $groupparams] = \local_assign_ai\local\activity_access::get_student_filter_sql($access, 'userid');
+    $failed = $DB->get_records_select(
+        'local_assign_ai_pending',
+        "assignmentid = :cmid AND status = :status AND {$groupsql}",
+        ['cmid' => $cm->id, 'status' => assign_submission::STATUS_FAILED] + $groupparams
+    );
     $count = count($failed);
 
     if ($count > 0) {

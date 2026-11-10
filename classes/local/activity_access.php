@@ -108,10 +108,100 @@ final class activity_access {
         }
 
         $record = $DB->get_record('local_assign_ai_pending', $conditions);
-        if (!$record) {
+        if (!$record || !self::can_access_student($access, (int) $record->userid)) {
+            // A record of a student outside the groups the user may access fails like an absent one.
             throw new \moodle_exception('invalidpendingrecord', 'local_assign_ai');
         }
 
         return $record;
+    }
+
+    /**
+     * Builds the access object of an assignment already resolved by the caller.
+     *
+     * @param \assign $assign The assignment.
+     * @return \stdClass Object with the properties cm, context and course, as require_access() returns.
+     */
+    public static function from_assign(\assign $assign): \stdClass {
+        return (object) [
+            'cm' => $assign->get_course_module(),
+            'context' => $assign->get_context(),
+            'course' => $assign->get_course(),
+        ];
+    }
+
+    /**
+     * Returns the groups whose students the current user may access, as mod_assign does.
+     *
+     * Only separate groups restrict: a user with moodle/site:accessallgroups, or any user in
+     * visible groups or no groups mode, may access every student.
+     *
+     * @param \stdClass $access Result of require_access() or from_assign().
+     * @return int[]|null Allowed group ids, or null when there is no restriction.
+     */
+    public static function get_allowed_group_ids(\stdClass $access): ?array {
+        $groupmode = groups_get_activity_groupmode($access->cm, $access->course);
+        if ((int) $groupmode !== SEPARATEGROUPS || has_capability('moodle/site:accessallgroups', $access->context)) {
+            return null;
+        }
+        return array_map('intval', array_keys(groups_get_activity_allowed_groups($access->cm)));
+    }
+
+    /**
+     * Whether the current user may access the AI review of a student, by group membership.
+     *
+     * @param \stdClass $access Result of require_access() or from_assign().
+     * @param int $userid Student user id.
+     * @return bool
+     */
+    public static function can_access_student(\stdClass $access, int $userid): bool {
+        global $DB;
+
+        $groupids = self::get_allowed_group_ids($access);
+        if ($groupids === null) {
+            return true;
+        }
+        if (empty($groupids)) {
+            return false;
+        }
+        [$insql, $params] = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED);
+        $params['userid'] = $userid;
+        return $DB->record_exists_select('groups_members', "userid = :userid AND groupid $insql", $params);
+    }
+
+    /**
+     * Requires the current user to be allowed to access the AI review of a student.
+     *
+     * @param \stdClass $access Result of require_access().
+     * @param int $userid Student user id.
+     * @return void
+     * @throws \moodle_exception When the student is outside the allowed groups (invalidpendingrecord).
+     */
+    public static function require_student_access(\stdClass $access, int $userid): void {
+        if (!self::can_access_student($access, $userid)) {
+            throw new \moodle_exception('invalidpendingrecord', 'local_assign_ai');
+        }
+    }
+
+    /**
+     * Returns an SQL condition that keeps only the students the current user may access.
+     *
+     * @param \stdClass $access Result of require_access() or from_assign().
+     * @param string $useridfield Qualified student user id column, e.g. "p.userid".
+     * @param string $prefix Prefix of the generated named parameters.
+     * @return array [SQL condition, named parameters]
+     */
+    public static function get_student_filter_sql(\stdClass $access, string $useridfield, string $prefix = 'laagrp'): array {
+        global $DB;
+
+        $groupids = self::get_allowed_group_ids($access);
+        if ($groupids === null) {
+            return ['1 = 1', []];
+        }
+        if (empty($groupids)) {
+            return ['1 = 0', []];
+        }
+        [$insql, $params] = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED, $prefix);
+        return ["{$useridfield} IN (SELECT gm.userid FROM {groups_members} gm WHERE gm.groupid {$insql})", $params];
     }
 }

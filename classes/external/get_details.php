@@ -72,6 +72,8 @@ class get_details extends external_api {
 
         // Authorise first: the lookup below must not reveal to an unauthorised caller whether a review exists.
         $access = activity_access::require_access($params['cmid'], 'local/assign_ai:viewdetails', $params['courseid']);
+        // In separate groups, a student outside the user's groups fails like an absent review.
+        activity_access::require_student_access($access, $params['userid']);
 
         $sql = "
             SELECT *
