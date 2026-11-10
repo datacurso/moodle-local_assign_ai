@@ -31,6 +31,16 @@ require_once($CFG->dirroot . '/grade/grading/lib.php');
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class feedback_applier {
+    /** @var string[] Marking workflow states, from the first step to the last one. */
+    private const WORKFLOW_STATE_ORDER = [
+        ASSIGN_MARKING_WORKFLOW_STATE_NOTMARKED,
+        ASSIGN_MARKING_WORKFLOW_STATE_INMARKING,
+        ASSIGN_MARKING_WORKFLOW_STATE_READYFORREVIEW,
+        ASSIGN_MARKING_WORKFLOW_STATE_INREVIEW,
+        ASSIGN_MARKING_WORKFLOW_STATE_READYFORRELEASE,
+        ASSIGN_MARKING_WORKFLOW_STATE_RELEASED,
+    ];
+
     /**
      * Applies AI feedback (grade + comments) to a submission.
      *
@@ -379,7 +389,7 @@ class feedback_applier {
         try {
             $grade->grade = $instance->submit_and_get_grade($fillingdata, $grade->id);
             $grade->grader = $graderid;
-            self::advance_marking_workflow($assign, $record->userid);
+            self::advance_marking_workflow($assign, (int) $record->userid, $graderid);
             return $assign->update_grade($grade);
         } catch (\moodle_exception $e) {
             throw $e;
@@ -506,7 +516,7 @@ class feedback_applier {
         try {
             $grade->grade = $instance->submit_and_get_grade($fillingdata, $grade->id);
             $grade->grader = $graderid;
-            self::advance_marking_workflow($assign, $record->userid);
+            self::advance_marking_workflow($assign, (int) $record->userid, $graderid);
             $debugmsg .= "Guide submit OK.\n";
             debugging($debugmsg, DEBUG_DEVELOPER);
             return $assign->update_grade($grade);
@@ -551,23 +561,64 @@ class feedback_applier {
 
         $grade->grader = $graderid;
 
-        self::advance_marking_workflow($assign, $record->userid);
+        self::advance_marking_workflow($assign, (int) $record->userid, $graderid);
         return $assign->update_grade($grade);
     }
 
     /**
-     * Helper to advance the marking workflow state for a user to 'Released'.
+     * Advances the marking workflow state of a student as far as the grader may take it.
+     *
+     * Follows mod_assign (assign::get_marking_workflow_states_for_current_user()): only a
+     * grader with mod/assign:releasegrades (or managegrades) releases the grade; a grader with
+     * mod/assign:reviewgrades stops at "ready for release" and a grader with mod/assign:grade
+     * at "ready for review". The state never moves backwards.
      *
      * @param assign $assign The assignment instance.
      * @param int $userid The student user ID.
+     * @param int|null $graderid The user applying the grade, or null for the current user.
      * @return void
      */
-    public static function advance_marking_workflow(assign $assign, int $userid): void {
-        if ($assign->get_instance()->markingworkflow) {
-            $flags = $assign->get_user_flags($userid, true);
-            $flags->workflowstate = ASSIGN_MARKING_WORKFLOW_STATE_RELEASED;
-            $assign->update_user_flags($flags);
+    public static function advance_marking_workflow(assign $assign, int $userid, ?int $graderid = null): void {
+        if (!$assign->get_instance()->markingworkflow) {
+            return;
         }
+
+        $target = self::get_highest_workflow_state($assign, $graderid);
+        if ($target === null) {
+            return;
+        }
+
+        $flags = $assign->get_user_flags($userid, true);
+        $current = array_search((string) ($flags->workflowstate ?? ''), self::WORKFLOW_STATE_ORDER, true);
+        if ($current !== false && $current >= array_search($target, self::WORKFLOW_STATE_ORDER, true)) {
+            return;
+        }
+
+        $flags->workflowstate = $target;
+        $assign->update_user_flags($flags);
+    }
+
+    /**
+     * Returns the most advanced marking workflow state a grader may set.
+     *
+     * @param assign $assign The assignment instance.
+     * @param int|null $graderid The grader user id, or null for the current user.
+     * @return string|null The state, or null when the grader may set none.
+     */
+    private static function get_highest_workflow_state(assign $assign, ?int $graderid): ?string {
+        $context = $assign->get_context();
+        $user = $graderid ?: null;
+
+        if (has_any_capability(['mod/assign:releasegrades', 'mod/assign:managegrades'], $context, $user)) {
+            return ASSIGN_MARKING_WORKFLOW_STATE_RELEASED;
+        }
+        if (has_any_capability(['mod/assign:reviewgrades', 'mod/assign:managegrades'], $context, $user)) {
+            return ASSIGN_MARKING_WORKFLOW_STATE_READYFORRELEASE;
+        }
+        if (has_capability('mod/assign:grade', $context, $user)) {
+            return ASSIGN_MARKING_WORKFLOW_STATE_READYFORREVIEW;
+        }
+        return null;
     }
 
     /**

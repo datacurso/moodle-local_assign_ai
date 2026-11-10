@@ -84,6 +84,10 @@ class change_status extends external_api {
 
         // Authorise before looking up the record, so its existence is not revealed to unauthorised callers.
         $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);
+        if ($params['action'] === assign_submission::STATUS_APPROVED) {
+            // Approving writes the grade: the user must be allowed to grade, as in mod_assign.
+            activity_access::require_grade_capability($access);
+        }
 
         // Target the active record under review (status = pending). A user may also have
         // older approved rows kept as history log entries, so we must filter by status.
