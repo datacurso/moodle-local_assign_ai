@@ -31,5 +31,5 @@ $plugin->requires = 2025041400; // Moodle 5.0.
 $plugin->maturity = MATURITY_STABLE;
 $plugin->supported = [500, 503];
 $plugin->dependencies = [
-    'aiprovider_datacurso' => 2026110900,
+    'aiprovider_datacurso' => 2026111100,
 ];

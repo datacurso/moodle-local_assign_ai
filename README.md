@@ -10,7 +10,7 @@ This system does not replace teacher judgment — it acts as an assistant, suppo
 ## Pre-requisites
 
 1. Moodle 5.0 to 5.3
-2. Install the Moodle AI provider "DataCurso AI Provider" (version 2.2.0 or later). Download it for free from [https://moodle.org/plugins/aiprovider_datacurso/versions](https://moodle.org/plugins/aiprovider_datacurso/versions).
+2. Install the Moodle AI provider "DataCurso AI Provider" (version 2.2.2 or later). Download it for free from [https://moodle.org/plugins/aiprovider_datacurso/versions](https://moodle.org/plugins/aiprovider_datacurso/versions).
 3. In the DataCurso AI Provider settings, configure a valid license key as documented at [https://docs.datacurso.com/index.php?title=Datacurso_AI_Provider#Getting_license_keys](https://docs.datacurso.com/index.php?title=Datacurso_AI_Provider#Getting_license_keys).
 
 **IMPORTANT**: This plugin will not function unless the "DataCurso AI Provider" plugin is installed and licensed.

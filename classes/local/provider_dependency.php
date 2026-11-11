@@ -20,10 +20,12 @@ namespace local_assign_ai\local;
  * Single point that checks the Datacurso AI provider before the plugin uses it.
  *
  * Assign AI keeps its on/off state in the Datacurso AI provider through
- * `\aiprovider_datacurso\local\plugin_settings`, a class added on the provider's Moodle 5.x line in 2.2.0. When an
- * older provider is installed the class does not exist; every caller goes through this guard so
- * the site keeps working: hooks, observers, tasks and callbacks do nothing, while the plugin's
- * pages and web services stop with a message asking to update the provider.
+ * `\aiprovider_datacurso\local\plugin_settings` and pseudonymises the user id it sends through
+ * `\aiprovider_datacurso\local\outbound_privacy`. On the provider's Moodle 5.x line both exist from
+ * 2.2.2 (plugin_settings since 2.2.0, outbound_privacy since 2.2.2). When an older provider is
+ * installed, every caller goes through this guard so the site keeps working: hooks, observers,
+ * tasks and callbacks do nothing, while the plugin's pages and web services stop with a message
+ * asking to update the provider.
  *
  * @package     local_assign_ai
  * @copyright   2026 Datacurso
@@ -33,17 +35,20 @@ final class provider_dependency {
     /** Frankenstyle name of this plugin in the provider. */
     private const COMPONENT = 'local_assign_ai';
 
-    /** Provider class introduced in aiprovider_datacurso 2.2.0 (Moodle 5.x line). */
+    /** Provider class that keeps the plugin state (aiprovider_datacurso 2.2.0 or later on Moodle 5.x). */
     private const SETTINGS_CLASS = '\\aiprovider_datacurso\\local\\plugin_settings';
 
-    /** Methods of the provider class the plugin calls. */
-    private const SETTINGS_METHODS = ['is_enabled', 'require_enabled'];
+    /** Provider classes and methods the plugin calls; all exist from aiprovider_datacurso 2.2.2 on Moodle 5.x. */
+    private const REQUIRED_API = [
+        '\\aiprovider_datacurso\\local\\plugin_settings' => ['is_enabled', 'require_enabled'],
+        '\\aiprovider_datacurso\\local\\outbound_privacy' => ['pseudonymise_userid_value'],
+    ];
 
     /** @var bool|null Availability forced by PHPUnit tests; null uses the installed provider. */
     private static ?bool $availabilityoverride = null;
 
     /**
-     * Whether the installed Datacurso AI provider has the API this plugin needs (2.2.0 or later).
+     * Whether the installed Datacurso AI provider has the API this plugin needs (2.2.2 or later).
      *
      * @return bool
      */
@@ -51,12 +56,14 @@ final class provider_dependency {
         if (self::$availabilityoverride !== null) {
             return self::$availabilityoverride;
         }
-        if (!class_exists(self::SETTINGS_CLASS)) {
-            return false;
-        }
-        foreach (self::SETTINGS_METHODS as $method) {
-            if (!method_exists(self::SETTINGS_CLASS, $method)) {
+        foreach (self::REQUIRED_API as $class => $methods) {
+            if (!class_exists($class)) {
                 return false;
+            }
+            foreach ($methods as $method) {
+                if (!method_exists($class, $method)) {
+                    return false;
+                }
             }
         }
         return true;

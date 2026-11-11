@@ -27,7 +27,7 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/assign_ai/lib.php');
 
 /**
- * Tests that Assign AI keeps the site working when the Datacurso AI provider is older than 2.2.0.
+ * Tests that Assign AI keeps the site working when the Datacurso AI provider is older than 2.2.2.
  *
  * The old provider is simulated through the guard's test seam: the plugin is enabled in the
  * installed provider, so every entry point that still reached the provider directly would
@@ -66,7 +66,7 @@ final class provider_missing_guard_test extends \advanced_testcase {
     }
 
     /**
-     * Enable the plugin in the provider, then simulate a provider older than 2.2.0.
+     * Enable the plugin in the provider, then simulate a provider older than 2.2.2.
      *
      * @return void
      */

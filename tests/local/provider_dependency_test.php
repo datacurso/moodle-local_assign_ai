@@ -106,7 +106,7 @@ final class provider_dependency_test extends \advanced_testcase {
         } catch (\moodle_exception $e) {
             $this->assertSame('providerupdaterequired_admin', $e->errorcode);
             $this->assertSame('local_assign_ai', $e->module);
-            $this->assertStringContainsString('2.2.0', $e->getMessage());
+            $this->assertStringContainsString('2.2.2', $e->getMessage());
             $this->assertStringNotContainsString('1.7.0', $e->getMessage());
         }
     }
@@ -127,7 +127,7 @@ final class provider_dependency_test extends \advanced_testcase {
         } catch (\moodle_exception $e) {
             $this->assertSame('providerupdaterequired', $e->errorcode);
             $this->assertSame('local_assign_ai', $e->module);
-            $this->assertStringNotContainsString('2.2.0', $e->getMessage());
+            $this->assertStringNotContainsString('2.2.2', $e->getMessage());
         }
     }
 
@@ -152,7 +152,28 @@ final class provider_dependency_test extends \advanced_testcase {
     }
 
     /**
-     * Only the guard calls the provider class introduced in 2.2.0 on the provider's 5.x line.
+     * The guard reports the provider available only when it has every API the plugin calls, so a
+     * provider older than 2.2.2 (no outbound_privacy on the Moodle 5.x line) pauses the plugin
+     * instead of failing when a submission is sent to the AI service.
+     *
+     * @return void
+     */
+    public function test_guard_requires_the_outbound_privacy_helper(): void {
+        $required = (new \ReflectionClass(provider_dependency::class))->getConstant('REQUIRED_API');
+
+        $this->assertIsArray($required);
+        $this->assertSame(
+            ['is_enabled', 'require_enabled'],
+            $required['\\aiprovider_datacurso\\local\\plugin_settings'] ?? null
+        );
+        $this->assertSame(
+            ['pseudonymise_userid_value'],
+            $required['\\aiprovider_datacurso\\local\\outbound_privacy'] ?? null
+        );
+    }
+
+    /**
+     * Only the guard calls the provider plugin_settings class.
      *
      * @return void
      */
