@@ -69,7 +69,9 @@ class get_token extends external_api {
         // The plugin stores the cmid in assignmentid. Resolve its module context and
         // require review permission so a user cannot read another user's token by
         // enumerating ids.
-        activity_access::require_access($assignmentid, 'local/assign_ai:review');
+        $access = activity_access::require_access($assignmentid, 'local/assign_ai:review');
+        // In separate groups, a student outside the user's groups fails like an absent review.
+        activity_access::require_student_access($access, $userid);
 
         $sql = "
             SELECT *

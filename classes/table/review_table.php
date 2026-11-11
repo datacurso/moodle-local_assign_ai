@@ -94,6 +94,11 @@ class review_table extends \table_sql {
         $this->define_headers($headers);
 
         [$insql, $inparams] = $this->build_status_sql();
+        // In separate groups only the students the user may access are listed, as in mod_assign.
+        [$groupsql, $groupparams] = \local_assign_ai\local\activity_access::get_student_filter_sql(
+            \local_assign_ai\local\activity_access::from_assign($assign),
+            'p.userid'
+        );
         $this->set_sql(
             'p.id, p.courseid, p.assignmentid, p.userid, p.message, p.grade, p.status AS aistatus, p.errormessage, p.timemodified, '
             . 'u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename'
@@ -102,11 +107,12 @@ class review_table extends \table_sql {
             'p.courseid = :courseid AND p.assignmentid = :assignmentid AND p.status ' . $insql
             . ' AND NOT EXISTS (SELECT 1 FROM {local_assign_ai_pending} p2'
             . ' WHERE p2.assignmentid = p.assignmentid AND p2.userid = p.userid'
-            . ' AND p2.attemptnumber > p.attemptnumber)',
+            . ' AND p2.attemptnumber > p.attemptnumber)'
+            . ' AND ' . $groupsql,
             [
                 'courseid' => $assign->get_course()->id,
                 'assignmentid' => $assign->get_course_module()->id,
-            ] + $inparams + $identitysql->params
+            ] + $inparams + $identitysql->params + $groupparams
         );
     }
 

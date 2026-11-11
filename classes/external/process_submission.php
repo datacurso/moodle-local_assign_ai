@@ -100,11 +100,15 @@ class process_submission extends external_api {
         // If processing all submissions → queue background task.
         if ($all) {
             // Pre-check there is something to process to avoid queuing empty tasks.
-            $pendingcount = $DB->count_records('local_assign_ai_pending', [
+            // In separate groups only the students the user may access are queued.
+            [$groupsql, $groupparams] = activity_access::get_student_filter_sql($access, 'userid');
+            $select = "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}";
+            $selectparams = [
                 'courseid' => $course->id,
-                'assignmentid' => $cm->id,
+                'cmid' => $cm->id,
                 'status' => \local_assign_ai\assign_submission::STATUS_INITIAL,
-            ]);
+            ] + $groupparams;
+            $pendingcount = $DB->count_records_select('local_assign_ai_pending', $select, $selectparams);
             if ($pendingcount === 0) {
                 return [
                     'status' => 'none',
@@ -113,11 +117,13 @@ class process_submission extends external_api {
             }
 
             // Move INITIAL records to QUEUED state so UI shows 'en cola'.
-            $DB->set_field('local_assign_ai_pending', 'status', \local_assign_ai\assign_submission::STATUS_QUEUED, [
-                'courseid' => $course->id,
-                'assignmentid' => $cm->id,
-                'status' => \local_assign_ai\assign_submission::STATUS_INITIAL,
-            ]);
+            $DB->set_field_select(
+                'local_assign_ai_pending',
+                'status',
+                \local_assign_ai\assign_submission::STATUS_QUEUED,
+                $select,
+                $selectparams
+            );
 
             $task = new \local_assign_ai\task\process_all_submissions();
             $task->set_custom_data([
