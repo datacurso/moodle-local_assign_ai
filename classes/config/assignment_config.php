@@ -16,7 +16,7 @@
 
 namespace local_assign_ai\config;
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use assign;
 
 /**
@@ -71,7 +71,7 @@ class assignment_config {
      * @return bool
      */
     public static function is_autograde_enabled(assign $assign): bool {
-        if (!plugin_settings::is_enabled('local_assign_ai')) {
+        if (!provider_dependency::is_enabled()) {
             return false;
         }
 

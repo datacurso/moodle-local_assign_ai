@@ -69,6 +69,8 @@ final class assign_submission_test extends \advanced_testcase {
             $this->markTestSkipped('aiprovider_datacurso is not installed; the AI pipeline cannot run.');
         }
 
+        // The provider refuses every AI request while it is disabled in Site administration > AI > AI providers.
+        \core\plugininfo\aiprovider::enable_plugin('datacurso', 1);
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
 
@@ -819,6 +821,10 @@ final class assign_submission_test extends \advanced_testcase {
             \local_assign_ai\local\payload_anonymizer::ALLOWED_FIELDS,
             array_keys($captured)
         );
+        // LAA-PRIV-004: the course module id is not needed by the service and is no longer sent.
+        $this->assertArrayNotHasKey('cmi_id', $captured);
+        $this->assertSame((int) $course->id, (int) $captured['course_id']);
+        $this->assertSame((int) $assign->get_instance()->id, (int) $captured['assignment_id']);
 
         // feedback_applier emits developer debugging while applying the grader's feedback.
         $this->resetDebugging();

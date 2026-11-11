@@ -20,12 +20,13 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use local_assign_ai\assign_submission;
+use local_assign_ai\local\activity_access;
 
 /**
  * External function to cancel a stuck AI review (queued/processing) from the review page.
@@ -59,25 +60,17 @@ class cancel_review extends external_api {
      * @return array The result of the operation.
      */
     public static function execute($cmid, $pendingid) {
-        global $DB;
-
         $params = self::validate_parameters(self::execute_parameters(), [
             'cmid' => $cmid,
             'pendingid' => $pendingid,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
-        $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
-        $context = \context_module::instance($cm->id);
+        $access = activity_access::require_access($params['cmid'], 'local/assign_ai:review');
 
-        self::validate_context($context);
-        require_capability('local/assign_ai:review', $context);
-
-        $record = $DB->get_record('local_assign_ai_pending', ['id' => $params['pendingid']], '*', MUST_EXIST);
-        if ((int) $record->assignmentid !== (int) $cm->id) {
-            throw new \moodle_exception('invalidrecord', 'error');
-        }
+        // Scoped to the authorised activity: a record of another activity fails exactly like an absent one.
+        $record = activity_access::require_pending_record($access, pendingid: $params['pendingid']);
 
         // Only cancel records that are actually stuck (queued/processing).
         $cancellable = [assign_submission::STATUS_QUEUED, assign_submission::STATUS_PROCESSING];

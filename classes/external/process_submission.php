@@ -20,11 +20,12 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
+use local_assign_ai\local\activity_access;
 
 /**
  * External function for processing assignment submissions with AI.
@@ -74,28 +75,40 @@ class process_submission extends external_api {
     public static function execute($cmid, $userid = 0, $all = false, $pendingid = 0) {
         global $DB, $USER;
 
-        plugin_settings::require_enabled('local_assign_ai');
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'cmid' => $cmid,
+            'userid' => $userid,
+            'all' => $all,
+            'pendingid' => $pendingid,
+        ]);
+        $cmid = $params['cmid'];
+        $userid = $params['userid'];
+        $all = $params['all'];
+        $pendingid = $params['pendingid'];
+
+        provider_dependency::require_enabled();
 
         // Teacher triggering the review; used as the consumption/rate-limit owner (per-teacher limit).
         $reviewerid = (int) $USER->id;
 
-        $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
-        $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-        $context = \context_module::instance($cm->id);
-
-        self::validate_context($context);
-        require_capability('local/assign_ai:review', $context);
+        $access = activity_access::require_access($cmid, 'local/assign_ai:review');
+        $cm = $access->cm;
+        $course = $access->course;
 
         $processed = 0;
 
         // If processing all submissions → queue background task.
         if ($all) {
             // Pre-check there is something to process to avoid queuing empty tasks.
-            $pendingcount = $DB->count_records('local_assign_ai_pending', [
+            // In separate groups only the students the user may access are queued.
+            [$groupsql, $groupparams] = activity_access::get_student_filter_sql($access, 'userid');
+            $select = "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}";
+            $selectparams = [
                 'courseid' => $course->id,
-                'assignmentid' => $cm->id,
+                'cmid' => $cm->id,
                 'status' => \local_assign_ai\assign_submission::STATUS_INITIAL,
-            ]);
+            ] + $groupparams;
+            $pendingcount = $DB->count_records_select('local_assign_ai_pending', $select, $selectparams);
             if ($pendingcount === 0) {
                 return [
                     'status' => 'none',
@@ -104,11 +117,13 @@ class process_submission extends external_api {
             }
 
             // Move INITIAL records to QUEUED state so UI shows 'en cola'.
-            $DB->set_field('local_assign_ai_pending', 'status', \local_assign_ai\assign_submission::STATUS_QUEUED, [
-                'courseid' => $course->id,
-                'assignmentid' => $cm->id,
-                'status' => \local_assign_ai\assign_submission::STATUS_INITIAL,
-            ]);
+            $DB->set_field_select(
+                'local_assign_ai_pending',
+                'status',
+                \local_assign_ai\assign_submission::STATUS_QUEUED,
+                $select,
+                $selectparams
+            );
 
             $task = new \local_assign_ai\task\process_all_submissions();
             $task->set_custom_data([
@@ -127,17 +142,10 @@ class process_submission extends external_api {
 
         // Process a single user submission asynchronously via an ad-hoc task (like "Review all").
         if ($userid && $pendingid) {
-            // The capability was checked on $cm; make sure the client-supplied pending
-            // record actually belongs to this activity, course and user before queueing,
-            // so a valid cmid cannot be used to touch another activity's record.
-            $record = $DB->get_record('local_assign_ai_pending', ['id' => $pendingid], '*', MUST_EXIST);
-            if (
-                (int) $record->assignmentid !== (int) $cm->id
-                || (int) $record->courseid !== (int) $course->id
-                || (int) $record->userid !== (int) $userid
-            ) {
-                throw new \moodle_exception('invalidpendingrecord', 'local_assign_ai');
-            }
+            // The capability was checked on $cm; the client-supplied pending record must belong
+            // to this activity, course and user. A record elsewhere fails exactly like an absent one,
+            // so a valid cmid can neither touch nor reveal another activity's record.
+            activity_access::require_pending_record($access, pendingid: $pendingid, userid: $userid);
 
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
 

@@ -27,12 +27,13 @@ namespace local_assign_ai\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
+use local_assign_ai\local\activity_access;
 
 /**
  * External API to retrieve progress of pending AI reviews.
@@ -68,7 +69,7 @@ class get_progress extends external_api {
             'pendingids' => $pendingids,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
         $pendingids = $params['pendingids'];
 
@@ -77,7 +78,7 @@ class get_progress extends external_api {
         }
 
         [$insql, $inparams] = $DB->get_in_or_equal($pendingids, SQL_PARAMS_NAMED);
-        $fields = 'id, assignmentid, status, grade, errormessage';
+        $fields = 'id, assignmentid, userid, status, grade, errormessage';
         $records = $DB->get_records_select('local_assign_ai_pending', "id $insql", $inparams, '', $fields);
 
         $out = [];
@@ -89,19 +90,16 @@ class get_progress extends external_api {
             // caching the result per cmid. Records the caller cannot review are silently
             // dropped so ids cannot be enumerated across activities.
             if (!array_key_exists($cmid, $allowedcmid)) {
-                $allowedcmid[$cmid] = false;
+                $allowedcmid[$cmid] = null;
                 try {
-                    $cm = get_coursemodule_from_id('assign', $cmid, 0, false, MUST_EXIST);
-                    $context = \context_module::instance($cm->id);
-                    self::validate_context($context);
-                    require_capability('local/assign_ai:review', $context);
-                    $allowedcmid[$cmid] = true;
+                    $allowedcmid[$cmid] = activity_access::require_access($cmid, 'local/assign_ai:review');
                 } catch (\Exception $e) {
-                    $allowedcmid[$cmid] = false;
+                    $allowedcmid[$cmid] = null;
                 }
             }
 
-            if (!$allowedcmid[$cmid]) {
+            // In separate groups, records of students outside the user's groups are dropped too.
+            if ($allowedcmid[$cmid] === null || !activity_access::can_access_student($allowedcmid[$cmid], (int) $r->userid)) {
                 continue;
             }
 

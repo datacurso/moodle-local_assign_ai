@@ -48,7 +48,6 @@ class payload_anonymizer {
         'course_id',
         'course',
         'assignment_id',
-        'cmi_id',
         'assignment_title',
         'assignment_description',
         'assignment_activity_instructions',
