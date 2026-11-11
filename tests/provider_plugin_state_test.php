@@ -50,15 +50,30 @@ final class provider_plugin_state_test extends \advanced_testcase {
     /**
      * Create an assignment whose effective configuration enables AI and auto-grading.
      *
+     * assignment_config caches each assignment configuration for the whole PHP process, so the
+     * assignment gets an id no other test of the suite uses; otherwise a configuration cached by an
+     * earlier test for the same id leaks into this one.
+     *
+     * @param int $assignid Unused assign id to create the assignment with.
      * @return \assign
      */
-    private function create_autograded_assign(): \assign {
+    private function create_autograded_assign(int $assignid): \assign {
+        global $DB;
+
         $this->require_provider();
 
         set_config('defaultenableai', 1, 'local_assign_ai');
         set_config('defaultautograde', 1, 'local_assign_ai');
 
         $course = $this->getDataGenerator()->create_course();
+        $DB->import_record('assign', (object) [
+            'id' => $assignid - 1,
+            'course' => $course->id,
+            'name' => 'filler',
+            'intro' => '',
+            'introformat' => FORMAT_HTML,
+        ]);
+        $DB->get_manager()->reset_sequence('assign');
         $instance = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
         $cm = get_coursemodule_from_instance('assign', $instance->id, $course->id, false, MUST_EXIST);
 
@@ -72,7 +87,7 @@ final class provider_plugin_state_test extends \advanced_testcase {
      */
     public function test_feature_follows_the_provider_state(): void {
         $this->resetAfterTest();
-        $assign = $this->create_autograded_assign();
+        $assign = $this->create_autograded_assign(7010);
 
         unset_config(plugin_settings::CONFIG_PREFIX . 'local_assign_ai', 'aiprovider_datacurso');
         $this->assertTrue(assignment_config::is_autograde_enabled($assign), 'Without a saved state the plugin is enabled.');
@@ -91,7 +106,7 @@ final class provider_plugin_state_test extends \advanced_testcase {
      */
     public function test_former_setting_is_ignored(): void {
         $this->resetAfterTest();
-        $assign = $this->create_autograded_assign();
+        $assign = $this->create_autograded_assign(7020);
 
         plugin_settings::set_enabled('local_assign_ai', true);
         set_config('enableassignai', 0, 'local_assign_ai');
