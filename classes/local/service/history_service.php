@@ -92,7 +92,8 @@ class history_service {
      * Re-queues every failed AI review of the activity in one ad-hoc task.
      *
      * The task carries the current user as reviewer, so each transfer to the AI service is
-     * logged with the teacher who requested the retry as actor (LAA-AUD-011).
+     * logged with the teacher who requested the retry as actor (LAA-AUD-011). In separate groups
+     * only the reviews of students the user may access are re-queued (LAA-AUD-009).
      *
      * @param int $cmid Course module id of the assign activity.
      * @return int Number of re-queued records.
@@ -101,11 +102,17 @@ class history_service {
         global $DB, $USER;
 
         $access = activity_access::require_access($cmid, self::CAPABILITY);
-        $failed = $DB->get_records('local_assign_ai_pending', [
-            'courseid' => (int) $access->cm->course,
-            'assignmentid' => (int) $access->cm->id,
-            'status' => assign_submission::STATUS_FAILED,
-        ]);
+        // In separate groups only the reviews of students the user may access are retried.
+        [$groupsql, $groupparams] = activity_access::get_student_filter_sql($access, 'userid');
+        $failed = $DB->get_records_select(
+            'local_assign_ai_pending',
+            "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}",
+            [
+                'courseid' => (int) $access->cm->course,
+                'cmid' => (int) $access->cm->id,
+                'status' => assign_submission::STATUS_FAILED,
+            ] + $groupparams
+        );
         if (empty($failed)) {
             return 0;
         }

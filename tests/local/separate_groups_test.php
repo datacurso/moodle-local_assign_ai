@@ -259,6 +259,27 @@ final class separate_groups_test extends \advanced_testcase {
     }
 
     /**
+     * "Retry all failed" only re-queues the failed reviews of the teacher's groups, while a teacher
+     * with moodle/site:accessallgroups re-queues every group.
+     *
+     * @covers \local_assign_ai\local\service\history_service::retry_all_failed
+     * @runInSeparateProcess
+     */
+    public function test_retry_all_failed_only_requeues_own_groups(): void {
+        $this->resetAfterTest();
+        $s = $this->create_scenario(SEPARATEGROUPS, assign_submission::STATUS_FAILED);
+        $this->setUser($s->teacher);
+
+        $this->assertSame(1, history_service::retry_all_failed((int) $s->cm->id));
+        $this->assertSame(assign_submission::STATUS_QUEUED, $this->status_of($s->pendinga));
+        $this->assertSame(assign_submission::STATUS_FAILED, $this->status_of($s->pendingb));
+
+        $this->setUser($s->editingteacher);
+        $this->assertSame(1, history_service::retry_all_failed((int) $s->cm->id));
+        $this->assertSame(assign_submission::STATUS_QUEUED, $this->status_of($s->pendingb));
+    }
+
+    /**
      * A teacher with moodle/site:accessallgroups sees and acts on every group.
      *
      * @covers \local_assign_ai\local\activity_access::get_student_filter_sql
