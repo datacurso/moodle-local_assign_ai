@@ -67,33 +67,11 @@ if ($retry) {
     redirect($reviewurl, get_string('retryqueued', 'local_assign_ai'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
-// Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task).
+// Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task
+// that names the current teacher as reviewer).
 if ($retryall) {
     require_sesskey();
-    $failed = $DB->get_records('local_assign_ai_pending', [
-        'assignmentid' => $cm->id,
-        'status' => assign_submission::STATUS_FAILED,
-    ]);
-    $count = count($failed);
-
-    if ($count > 0) {
-        foreach ($failed as $failedrecord) {
-            // Refresh timemodified (so the reaper won't re-fail them) and reset the auto-retry counter.
-            assign_submission::update_pending_submission((int) $failedrecord->id, [
-                'status' => assign_submission::STATUS_QUEUED,
-                'retries' => 0,
-            ]);
-        }
-
-        $task = new \local_assign_ai\task\process_all_submissions();
-        $task->set_custom_data([
-            'cmid' => (int) $cm->id,
-            'courseid' => (int) $course->id,
-            'pendingcount' => $count,
-        ]);
-        \core\task\manager::queue_adhoc_task($task);
-    }
-
+    $count = history_service::retry_all_failed((int) $cm->id);
     redirect($reviewurl, get_string('retryallqueued', 'local_assign_ai', $count), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 

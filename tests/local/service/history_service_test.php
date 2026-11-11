@@ -181,6 +181,62 @@ final class history_service_test extends \advanced_testcase {
     }
 
     /**
+     * LAA-AUD-011: "Retry all failed" re-queues the failed records of the activity only and queues
+     * one task that names the teacher who requested it as reviewer.
+     *
+     * @covers ::retry_all_failed
+     */
+    public function test_retry_all_failed_queues_the_task_with_the_teacher_as_reviewer(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        [$cm, $own, $foreign, $teacher] = $this->create_scenario();
+        $this->setUser($teacher);
+
+        $count = history_service::retry_all_failed((int) $cm->id);
+
+        $this->assertSame(1, $count);
+        $this->assertSame(assign_submission::STATUS_QUEUED, $DB->get_field('local_assign_ai_pending', 'status', ['id' => $own->id]));
+        $this->assertSame(
+            assign_submission::STATUS_FAILED,
+            $DB->get_field('local_assign_ai_pending', 'status', ['id' => $foreign->id])
+        );
+        $tasks = \core\task\manager::get_adhoc_tasks(\local_assign_ai\task\process_all_submissions::class);
+        $this->assertCount(1, $tasks);
+        $data = reset($tasks)->get_custom_data();
+        $this->assertSame((int) $teacher->id, (int) ($data->reviewerid ?? 0));
+        $this->assertSame((int) $cm->id, (int) $data->cmid);
+    }
+
+    /**
+     * "Retry all failed" with no failed record queues nothing.
+     *
+     * @covers ::retry_all_failed
+     */
+    public function test_retry_all_failed_without_failed_records_queues_nothing(): void {
+        $this->resetAfterTest();
+        [$cm, , , $teacher] = $this->create_scenario(assign_submission::STATUS_APPROVED);
+        $this->setUser($teacher);
+
+        $this->assertSame(0, history_service::retry_all_failed((int) $cm->id));
+        $this->assertCount(0, \core\task\manager::get_adhoc_tasks(\local_assign_ai\task\process_all_submissions::class));
+    }
+
+    /**
+     * "Retry all failed" requires the review capability.
+     *
+     * @covers ::retry_all_failed
+     */
+    public function test_retry_all_failed_requires_the_review_capability(): void {
+        $this->resetAfterTest();
+        [$cm] = $this->create_scenario();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $this->expectException(\require_login_exception::class);
+        history_service::retry_all_failed((int) $cm->id);
+    }
+
+    /**
      * An approved record is kept and a new queued attempt is created instead.
      *
      * @covers ::retry_review
