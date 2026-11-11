@@ -219,6 +219,8 @@ final class tenant_aware_setting_test extends \advanced_testcase {
 
     /**
      * The dependent settings are still hidden when the controlling switch is off.
+     *
+     * Seven dependencies come from the tenant defaults and one from the error digest of the site administrator.
      */
     public function test_hide_if_dependencies_are_kept(): void {
         $this->require_tenancy();
@@ -229,7 +231,41 @@ final class tenant_aware_setting_test extends \advanced_testcase {
         $property->setAccessible(true);
         $dependencies = $property->getValue($this->load_page());
 
-        $this->assertCount(7, $dependencies);
+        $this->assertCount(8, $dependencies);
+    }
+
+    /**
+     * The error digest is a site wide setting: the site administrator sees it on the page.
+     */
+    public function test_site_admin_sees_the_error_digest_settings(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $settings = $this->load_page()->settings;
+
+        $this->assertInstanceOf(\admin_setting_configcheckbox::class, $settings->local_assign_aierrornotifyenabled);
+        $this->assertInstanceOf(\local_assign_ai\admin\setting_emaillist::class, $settings->local_assign_aierrornotifyemails);
+    }
+
+    /**
+     * A tenant administrator edits only the settings of the own tenant, never the site wide error digest recipients.
+     */
+    public function test_tenant_admin_does_not_see_the_error_digest_settings(): void {
+        $this->require_tenancy();
+        $this->resetAfterTest();
+
+        $tenant = $this->create_tenant('Tenant digest');
+        $this->setUser($this->getDataGenerator()->get_plugin_generator('tool_tenant')->create_user([
+            'tenantid' => $tenant->id,
+            'tenantadmin' => 1,
+        ]));
+
+        $settings = $this->load_page()->settings;
+
+        $this->assertObjectHasProperty('local_assign_aidefaultprompt', $settings);
+        $this->assertObjectNotHasProperty('local_assign_aierrornotifyenabled', $settings);
+        $this->assertObjectNotHasProperty('local_assign_aierrornotifyemails', $settings);
     }
 
     /**

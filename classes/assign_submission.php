@@ -48,6 +48,32 @@ class assign_submission {
     public const STATUS_SUPERSEDED = 'superseded';
 
     /**
+     * Maximum total size, in MB (MiB), of the submission files sent to the AI service.
+     *
+     * Hard-coded on purpose (not an admin setting). It MUST match the default of ASSIGN_MAX_TOTAL_MB
+     * in the AI service (python_plugins-ai, app/core/assign_limits.py).
+     */
+    public const MAX_TOTAL_MB = 30;
+
+    /**
+     * Maximum size, in MB (MiB), of any single submission file sent to the AI service.
+     *
+     * Hard-coded on purpose (not an admin setting). It MUST match the default of ASSIGN_MAX_FILE_MB in
+     * the AI service (python_plugins-ai, app/core/assign_limits.py), and sits below the 50 MB per-PDF
+     * inline limit of Gemini, which rejects larger inline files with an HTTP 400.
+     */
+    public const MAX_FILE_MB = 45;
+
+    /** Error codes (component local_assign_ai) that retrying the same request can never fix. */
+    private const TERMINAL_ERROR_CODES = [
+        'error_payload_too_large',
+        'error_file_too_large',
+        'error_unreadable_file',
+        'error_inconsistent_evaluation',
+        'error_needsreview_generic',
+    ];
+
+    /**
      * Statuses considered "active" (still part of the review pipeline, not yet frozen as history).
      *
      * When a newer attempt is processed, active records from previous attempts are moved to
@@ -181,10 +207,8 @@ class assign_submission {
         $recordid = null;
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai(
-                $payload,
-                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
-            );
+            $response = $this->send_to_ai($payload);
+            self::assert_gradable($response);
 
             $message = $response['reply'] ?? null;
             if ($message !== null) {
@@ -294,10 +318,8 @@ class assign_submission {
         // parsing and record update) into the log.
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai(
-                $payload,
-                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
-            );
+            $response = $this->send_to_ai($payload);
+            self::assert_gradable($response);
 
             $message = $response['reply'] ?? null;
             if ($message !== null) {
@@ -336,6 +358,135 @@ class assign_submission {
         } catch (\Throwable $e) {
             self::register_failure($e, $existing->id);
         }
+    }
+
+    /**
+     * Sends the payload to the AI service and logs the transfer.
+     *
+     * Every transfer is logged with {@see \local_assign_ai\event\submission_sent_to_ai}, whether
+     * the service answers or not, so each transfer of a submission can be traced. The event carries
+     * metadata only: the payload and the answer are never logged.
+     *
+     * @param array $payload Payload built by build_payload().
+     * @return array Normalised client response.
+     * @throws \Throwable The client error, rethrown after it is logged.
+     */
+    private function send_to_ai(array $payload): array {
+        try {
+            $response = client::send_to_ai(
+                $payload,
+                $this->assign->get_context(),
+                (int) $this->user->id,
+                \local_assign_ai\local\tenant_context::resolve((int) $this->course->id, (int) $this->user->id)
+            );
+        } catch (\Throwable $e) {
+            $this->log_transfer(event\submission_sent_to_ai::RESULT_FAILURE, self::transfer_errorcode($e));
+            throw $e;
+        }
+        // An answer flagged needs_review is still a completed transfer: the service received the work.
+        $this->log_transfer(event\submission_sent_to_ai::RESULT_SUCCESS);
+        return $response;
+    }
+
+    /**
+     * Triggers the transfer event.
+     *
+     * The actor is the teacher who requested the review, else the configured grader (autograde),
+     * else 0 (system) when neither exists. The student is the related user.
+     *
+     * @param string $result Transfer result (success or failure).
+     * @param string|null $errorcode Error code of a failed transfer.
+     * @return void
+     */
+    private function log_transfer(string $result, ?string $errorcode = null): void {
+        $config = assignment_config::get_effective((int) $this->assigninstance->id);
+        $other = [
+            'endpoint' => client::ENDPOINT,
+            'result' => $result,
+        ];
+        if ($errorcode !== null) {
+            $other['errorcode'] = $errorcode;
+        }
+        event\submission_sent_to_ai::create([
+            'context' => $this->assign->get_context(),
+            'objectid' => (int) $this->submission->id,
+            'userid' => (int) ($this->reviewerid ?: ($config->graderid ?? 0)),
+            'relateduserid' => (int) $this->user->id,
+            'other' => $other,
+        ])->trigger();
+    }
+
+    /**
+     * Error code logged for a failed transfer: the exception error code, or its short class name.
+     *
+     * The exception message is never used because it may carry content or internal details.
+     *
+     * @param \Throwable $e The error.
+     * @return string
+     */
+    private static function transfer_errorcode(\Throwable $e): string {
+        if ($e instanceof \moodle_exception && $e->errorcode !== '') {
+            return clean_param($e->errorcode, PARAM_ALPHANUMEXT) ?: 'moodle_exception';
+        }
+        return (new \ReflectionClass($e))->getShortName();
+    }
+
+    /**
+     * Fails when the AI service reports it could not grade the work.
+     *
+     * The service answers with needs_review (and a machine reason) instead of a grade when a file is
+     * unreadable or its evaluations were inconsistent. That is handled like any other terminal failure:
+     * nothing is stored or applied, there is no automatic retry and the grader is notified.
+     *
+     * @param array $response Normalised client response.
+     * @throws \moodle_exception When the service flagged the submission for manual grading.
+     */
+    private static function assert_gradable(array $response): void {
+        if (empty($response['needs_review'])) {
+            return;
+        }
+        $reason = (string) ($response['review_reason'] ?? '');
+        $code = match ($reason) {
+            'unreadable_file' => 'error_unreadable_file',
+            'inconsistent_evaluation' => 'error_inconsistent_evaluation',
+            default => 'error_needsreview_generic',
+        };
+        throw new \moodle_exception($code, 'local_assign_ai');
+    }
+
+    /**
+     * Whether a failure can never succeed by retrying the same request.
+     *
+     * These failures (the files exceed the size limit, or the service answered HTTP 413) are
+     * registered as terminal so the automatic retry task skips them.
+     *
+     * @param \Throwable $e The error.
+     * @return bool
+     */
+    private static function is_non_retryable(\Throwable $e): bool {
+        if (!($e instanceof \moodle_exception)) {
+            return false;
+        }
+        return ($e->module === 'local_assign_ai'
+                && in_array($e->errorcode, self::TERMINAL_ERROR_CODES, true))
+            || self::is_service_payload_rejection($e);
+    }
+
+    /**
+     * Whether the exception is the generic AI provider HTTP error carrying a 413 status.
+     *
+     * The provider reports any unexpected HTTP status as the generic "httperror" exception with
+     * the status code as its argument, so the plugin recognises 413 from that code alone.
+     *
+     * @param \Throwable $e The error.
+     * @return bool
+     */
+    private static function is_service_payload_rejection(\Throwable $e): bool {
+        return $e instanceof \moodle_exception
+            && $e->module === 'aiprovider_datacurso'
+            && $e->errorcode === 'httperror'
+            && is_numeric($e->a)
+            && (int) $e->a === 413;
     }
 
     /**
@@ -546,6 +697,11 @@ class assign_submission {
      * @return string A message safe to store and show in the UI.
      */
     public static function ui_error_message(\Throwable $e): string {
+        // The service rejected the request body as too large: show a plugin-owned, actionable message.
+        if (self::is_service_payload_rejection($e)) {
+            return get_string('error_service_payload_rejected', 'local_assign_ai');
+        }
+
         $trusted = ['local_assign_ai', 'aiprovider_datacurso'];
         if (
             $e instanceof \moodle_exception
@@ -579,20 +735,35 @@ class assign_submission {
         // sanitised version that never leaks provider/network/internal detail.
         $uimessage = self::ui_error_message($e);
 
+        // Retrying cannot fix these: exhaust the automatic retries so the retry task skips the
+        // record and the grader is notified right away.
+        $terminal = self::is_non_retryable($e);
+        $maxretries = \local_assign_ai\task\retry_failed_submissions::MAX_RETRIES;
+
         try {
             if ($pendingid) {
-                self::update_pending_submission($pendingid, [
+                $update = [
                     'status' => self::STATUS_FAILED,
                     'errormessage' => $uimessage,
-                ]);
+                ];
+                if ($terminal) {
+                    $update['retries'] = $maxretries;
+                }
+                self::update_pending_submission($pendingid, $update);
                 self::maybe_notify_grading_failure($pendingid);
             } else if ($recorddata !== null) {
                 $recorddata->status = self::STATUS_FAILED;
                 $recorddata->errormessage = $uimessage;
+                if ($terminal) {
+                    $recorddata->retries = $maxretries;
+                }
                 if (!empty($recorddata->submissionid)) {
-                    self::upsert_attempt_record($recorddata);
+                    $newid = self::upsert_attempt_record($recorddata);
                 } else {
-                    self::create_pending_submission($recorddata);
+                    $newid = self::create_pending_submission($recorddata);
+                }
+                if ($terminal) {
+                    self::maybe_notify_grading_failure($newid);
                 }
             }
         } catch (\Throwable $inner) {
@@ -619,6 +790,18 @@ class assign_submission {
             return;
         }
 
+        self::notify_grader($record, 'gradingfailed_subject', 'gradingfailed_body');
+    }
+
+    /**
+     * Sends a notification about a pending record to the grader configured for its assignment.
+     *
+     * @param stdClass $record Pending record.
+     * @param string $subjectkey Lang string key (local_assign_ai) for the subject; receives the title.
+     * @param string $bodykey Lang string key (local_assign_ai) for the body; receives assignment/student/error.
+     * @return void
+     */
+    private static function notify_grader(stdClass $record, string $subjectkey, string $bodykey): void {
         [$course, $cm] = get_course_and_cm_from_cmid($record->assignmentid, 'assign');
         $config = assignment_config::get((int) $cm->instance);
         if (empty($config) || empty($config->graderid)) {
@@ -642,8 +825,8 @@ class assign_submission {
         $message->name = 'gradingfailed';
         $message->userfrom = \core_user::get_noreply_user();
         $message->userto = $grader;
-        $message->subject = get_string('gradingfailed_subject', 'local_assign_ai', $record->title);
-        $message->fullmessage = get_string('gradingfailed_body', 'local_assign_ai', $a);
+        $message->subject = get_string($subjectkey, 'local_assign_ai', $record->title);
+        $message->fullmessage = get_string($bodykey, 'local_assign_ai', $a);
         $message->fullmessageformat = FORMAT_PLAIN;
         $message->fullmessagehtml = '';
         $message->smallmessage = $message->subject;
@@ -702,6 +885,7 @@ class assign_submission {
      * ready to be included in the AI service payload.
      *
      * @return array Array of ['filename', 'mimetype', 'content_base64'] entries.
+     * @throws \moodle_exception When the total size of the files exceeds the configured limit.
      */
     private function get_submission_files(): array {
         if (!$this->submission) {
@@ -719,11 +903,34 @@ class assign_submission {
             false
         );
 
+        $files = array_filter($files, static fn($file) => $file->get_filename() !== '.');
+
+        // Guard against payloads the AI service or the proxy in front of it would reject (HTTP 413/400):
+        // check the stored sizes before reading any content into memory. The per-file check goes
+        // first so the teacher gets the most specific message.
+        $filelimit = self::MAX_FILE_MB * 1048576;
+        $total = 0;
+        foreach ($files as $file) {
+            $size = (int) $file->get_filesize();
+            if ($size > $filelimit) {
+                throw new \moodle_exception('error_file_too_large', 'local_assign_ai', '', (object) [
+                    'file' => $file->get_filename(),
+                    'size' => format_float($size / 1048576, 1, true, true),
+                    'limit' => format_float($filelimit / 1048576, 1, true, true),
+                ]);
+            }
+            $total += $size;
+        }
+        $limit = self::MAX_TOTAL_MB * 1048576;
+        if ($total > $limit) {
+            throw new \moodle_exception('error_payload_too_large', 'local_assign_ai', '', (object) [
+                'limit' => format_float($limit / 1048576, 1, true, true),
+                'total' => format_float($total / 1048576, 1, true, true),
+            ]);
+        }
+
         $result = [];
         foreach ($files as $file) {
-            if ($file->get_filename() === '.') {
-                continue;
-            }
             $result[] = [
                 'filename'       => $file->get_filename(),
                 'mimetype'       => $file->get_mimetype(),
@@ -757,7 +964,6 @@ class assign_submission {
     private function build_payload(): array {
         $course = $this->assign->get_course();
         $assignment = $this->assigninstance;
-        $cmid = $this->assign->get_course_module()->id;
         $config = assignment_config::get_effective((int)$assignment->id);
 
         $advancedgrading = advanced_grading::get_definition_json($this->assign);
@@ -783,7 +989,6 @@ class assign_submission {
             'course_id' => $course->id,
             'course' => $course->fullname,
             'assignment_id' => $assignment->id,
-            'cmi_id' => $cmid,
             'assignment_title' => $assignment->name,
             'assignment_description' => $assignment->intro,
             'assignment_activity_instructions' => $assignment->activity ?? '',

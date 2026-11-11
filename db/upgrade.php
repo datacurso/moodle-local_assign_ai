@@ -425,5 +425,20 @@ function xmldb_local_assign_ai_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026110902, 'local', 'assign_ai');
     }
 
+    if ($oldversion < 2026111002) {
+        // Track when the administrator error digest last reported each record. Workplace sites already
+        // passed the 2026110325 step of the Moodle 4.5 line with the tenant capability step, so the
+        // field is added here.
+        $table = new xmldb_table('local_assign_ai_pending');
+
+        $field = new xmldb_field('errornotifiedtime', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'timemodified');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Assign_ai savepoint reached.
+        upgrade_plugin_savepoint(true, 2026111002, 'local', 'assign_ai');
+    }
+
     return true;
 }

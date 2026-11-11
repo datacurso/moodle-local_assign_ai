@@ -28,6 +28,10 @@ defined('MOODLE_INTERNAL') || die();
 
 $callbacks = [
     [
+        'hook' => \core\hook\di_configuration::class,
+        'callback' => 'local_assign_ai\hook\di_callbacks::provide_di_configuration',
+    ],
+    [
         'hook' => \core\hook\output\before_footer_html_generation::class,
         'callback' => 'local_assign_ai\hook\output_hook::before_footer_html_generation',
         'priority' => 900,
@@ -35,5 +39,9 @@ $callbacks = [
     [
         'hook' => \core\hook\output\before_standard_head_html_generation::class,
         'callback' => 'local_assign_ai\hook\before_standard_head_html_generation::before_standard_html_head',
+    ],
+    [
+        'hook' => \core_course\hook\before_course_deleted::class,
+        'callback' => 'local_assign_ai\hook\course_deletion::before_course_deleted',
     ],
 ];

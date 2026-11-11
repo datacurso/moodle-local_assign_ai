@@ -21,7 +21,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use local_assign_ai\config\assignment_config;
 use local_assign_ai\local\tenant_context;
 
@@ -59,6 +59,11 @@ class process_ai_queue extends \core\task\scheduled_task {
      */
     public function execute() {
         global $DB;
+
+        if (!provider_dependency::is_available()) {
+            mtrace(provider_dependency::task_skipped_message());
+            return;
+        }
 
         $now = time();
         $handled = 0;
@@ -128,7 +133,7 @@ class process_ai_queue extends \core\task\scheduled_task {
 
                 // The provider switch follows the tenant of the student, never the course's tenant nor the cron
                 // user. When that tenant disabled Assign AI, drop the row: it is never sent to the AI.
-                if (!plugin_settings::is_enabled('local_assign_ai', tenant_context::get_tenant_id_for_user($userid))) {
+                if (!provider_dependency::is_enabled(tenant_context::get_tenant_id_for_user($userid))) {
                     $DB->delete_records('local_assign_ai_queue', ['id' => $item->id]);
                     return false;
                 }

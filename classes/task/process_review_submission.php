@@ -20,7 +20,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core\task\adhoc_task;
 use local_assign_ai\assign_submission;
 use local_assign_ai\local\tenant_context;
@@ -51,6 +51,11 @@ class process_review_submission extends adhoc_task {
     public function execute(): void {
         global $DB;
 
+        if (!provider_dependency::is_available()) {
+            mtrace(provider_dependency::task_skipped_message());
+            return;
+        }
+
         $data = $this->get_custom_data();
         if (empty($data->cmid) || empty($data->userid) || empty($data->pendingid)) {
             return;
@@ -62,7 +67,7 @@ class process_review_submission extends adhoc_task {
         }
 
         // The provider switch follows the tenant of the student, never the course's tenant nor the cron user.
-        if (!plugin_settings::is_enabled('local_assign_ai', tenant_context::get_tenant_id_for_user((int) $data->userid))) {
+        if (!provider_dependency::is_enabled(tenant_context::get_tenant_id_for_user((int) $data->userid))) {
             mtrace(get_string('task_skipped_plugindisabled', 'local_assign_ai'));
             return;
         }

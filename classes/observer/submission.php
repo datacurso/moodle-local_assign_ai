@@ -18,7 +18,7 @@ namespace local_assign_ai\observer;
 
 defined('MOODLE_INTERNAL') || die();
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use mod_assign\event\submission_created;
 use mod_assign\event\submission_updated;
 use mod_assign\event\submission_removed;
@@ -79,7 +79,7 @@ class submission {
      * @return bool
      */
     private static function is_enabled_for_user(int $userid): bool {
-        return plugin_settings::is_enabled('local_assign_ai', tenant_context::get_tenant_id_for_user($userid));
+        return provider_dependency::is_enabled(tenant_context::get_tenant_id_for_user($userid));
     }
 
     /**
@@ -92,17 +92,25 @@ class submission {
     private static function delete_submission_queue(int $userid, int $cmid): void {
         global $DB;
 
-        $useridlike1 = '%"userid":' . $userid . '%';
-        $useridlike2 = '%"userid":"' . $userid . '"%';
-        $cmidlike1 = '%"cmid":' . $cmid . '%';
-        $cmidlike2 = '%"cmid":"' . $cmid . '"%';
-
-        $sql = "DELETE FROM {local_assign_ai_queue}
-                WHERE type = 'submission'
-                  AND (payload LIKE ? OR payload LIKE ?)
-                  AND (payload LIKE ? OR payload LIKE ?)";
-
-        $DB->execute($sql, [$useridlike1, $useridlike2, $cmidlike1, $cmidlike2]);
+        // The ids live inside the JSON payload, so the exact match is done in PHP: it is
+        // database-agnostic and avoids the digit-prefix false positives of a LIKE filter
+        // (user 12 also matches 123, cm 5 also matches 50). Processed rows are kept as
+        // history by process_ai_queue, so the scan is bounded to the unprocessed rows,
+        // which are the only ones that can still be cancelled, and loads only id and payload.
+        $todelete = [];
+        $rows = $DB->get_records('local_assign_ai_queue', ['type' => 'submission', 'processed' => 0], '', 'id, payload');
+        foreach ($rows as $row) {
+            $data = json_decode($row->payload);
+            if (!$data || !isset($data->userid, $data->cmid)) {
+                continue;
+            }
+            if ((int) $data->userid === $userid && (int) $data->cmid === $cmid) {
+                $todelete[] = $row->id;
+            }
+        }
+        if (!empty($todelete)) {
+            $DB->delete_records_list('local_assign_ai_queue', 'id', $todelete);
+        }
     }
 
     /**

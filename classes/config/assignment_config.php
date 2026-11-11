@@ -16,7 +16,7 @@
 
 namespace local_assign_ai\config;
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use assign;
 use local_assign_ai\local\tenant_config;
 use local_assign_ai\local\tenant_context;
@@ -206,7 +206,7 @@ class assignment_config {
         $tenantid = $userid === null
             ? tenant_context::get_current_tenant_id()
             : tenant_context::get_tenant_id_for_user($userid);
-        return plugin_settings::is_enabled('local_assign_ai', $tenantid);
+        return provider_dependency::is_enabled($tenantid);
     }
 
     /**

@@ -16,12 +16,15 @@
 
 namespace local_assign_ai\external;
 
-use aiprovider_datacurso\local\plugin_settings;
+defined('MOODLE_INTERNAL') || die();
+
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
 use local_assign_ai\assign_submission;
+use local_assign_ai\local\activity_access;
 use local_assign_ai\local\tenant_context;
 
 /**
@@ -66,22 +69,18 @@ class update_response extends external_api {
             'message' => $message,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
+        provider_dependency::require_enabled(tenant_context::get_current_tenant_id());
+
+        // Authorise before looking up the record, so its existence is not revealed to unauthorised callers.
+        $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);
 
         // Target the active record under review (status = pending); older approved rows may
         // also exist for this user as history log entries.
-        $record = $DB->get_record('local_assign_ai_pending', [
-            'courseid' => $params['courseid'],
-            'assignmentid' => $params['cmid'],
-            'userid' => $params['userid'],
-            'status' => assign_submission::STATUS_PENDING,
-        ], '*', MUST_EXIST);
-
-        $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
-        $context = \context_module::instance($cm->id);
-
-        self::validate_context($context);
-        require_capability('local/assign_ai:changestatus', $context);
+        $record = activity_access::require_pending_record(
+            $access,
+            userid: $params['userid'],
+            status: assign_submission::STATUS_PENDING
+        );
 
         // The message is edited in the browser and rendered back into the review modal,
         // so strip any scripts/handlers before persisting (defence in depth on top of the

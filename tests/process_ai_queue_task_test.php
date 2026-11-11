@@ -72,8 +72,36 @@ final class process_ai_queue_task_test extends \advanced_testcase {
             $this->markTestSkipped('aiprovider_datacurso is not installed; the AI pipeline cannot run.');
         }
 
+        // The provider refuses every AI request while it is disabled in Site administration > AI > AI providers.
+        \core\plugininfo\aiprovider::enable_plugin('datacurso', 1);
         set_config('licensekey', 'phpunit-license-key', 'aiprovider_datacurso');
         set_config('site_uuid', 'phpunit-site-uuid', 'aiprovider_datacurso');
+
+        // aiprovider_datacurso 1.6.0 remembers the licence region in its config (fingerprinted by
+        // the licence key) for a week, so it is preset here and no region lookup happens during
+        // the tests; every curl mock is therefore consumed by the /assign/answer POST only.
+        set_config(\aiprovider_datacurso\local\license_region::REGION, '0', 'aiprovider_datacurso');
+        set_config(
+            \aiprovider_datacurso\local\license_region::FINGERPRINT,
+            sha1('phpunit-license-key'),
+            'aiprovider_datacurso'
+        );
+        set_config(\aiprovider_datacurso\local\license_region::CHECKED, time(), 'aiprovider_datacurso');
+
+        // Moodle Workplace keeps the region per tenant and every user belongs to a tenant, so the region is
+        // preset for each tenant too; otherwise the region lookup would consume the mock of the AI request.
+        if (class_exists('\\tool_tenant\\tenancy') && class_exists(\aiprovider_datacurso\local\tenant_config::class)) {
+            foreach (\tool_tenant\tenancy::get_tenants() as $tenant) {
+                $regionvalues = [
+                    \aiprovider_datacurso\local\license_region::REGION => '0',
+                    \aiprovider_datacurso\local\license_region::FINGERPRINT => sha1('phpunit-license-key'),
+                    \aiprovider_datacurso\local\license_region::CHECKED => (string) time(),
+                ];
+                foreach ($regionvalues as $name => $value) {
+                    \aiprovider_datacurso\local\tenant_config::set('aiprovider_datacurso', (int) $tenant->id, $name, $value);
+                }
+            }
+        }
 
         // Moodle 5.0 reads the license key from an enabled provider instance instead of the plugin config.
         $manager = new \core_ai\manager($DB);
@@ -90,16 +118,14 @@ final class process_ai_queue_task_test extends \advanced_testcase {
     /**
      * Queue the mocked HTTP responses consumed by one client::send_to_ai() call.
      *
-     * One AI review makes two HTTP requests: the region lookup (GET tokens/saldo) and the
-     * final /assign/answer POST. Mock responses are consumed in LIFO order, so the
-     * /assign/answer body is queued first.
+     * The licence region is preset by configure_ai_provider(), so one AI review makes a single
+     * HTTP request: the /assign/answer POST.
      *
      * @param string $answerbody Body returned for the final /assign/answer POST.
      * @return void
      */
     private function mock_ai_pipeline(string $answerbody): void {
         \curl::mock_response($answerbody);
-        \curl::mock_response(json_encode(['is_for_eu' => false]));
     }
 
     /**
