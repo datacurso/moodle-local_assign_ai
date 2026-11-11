@@ -20,11 +20,12 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
+use local_assign_ai\local\activity_access;
 
 /**
  * Class get_token
@@ -60,7 +61,7 @@ class get_token extends external_api {
             'assignmentid' => $assignmentid,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai');
+        provider_dependency::require_enabled();
 
         $userid = $params['userid'];
         $assignmentid = $params['assignmentid'];
@@ -68,10 +69,9 @@ class get_token extends external_api {
         // The plugin stores the cmid in assignmentid. Resolve its module context and
         // require review permission so a user cannot read another user's token by
         // enumerating ids.
-        $cm = get_coursemodule_from_id('assign', $assignmentid, 0, false, MUST_EXIST);
-        $context = \context_module::instance($cm->id);
-        self::validate_context($context);
-        require_capability('local/assign_ai:review', $context);
+        $access = activity_access::require_access($assignmentid, 'local/assign_ai:review');
+        // In separate groups, a student outside the user's groups fails like an absent review.
+        activity_access::require_student_access($access, $userid);
 
         $sql = "
             SELECT *

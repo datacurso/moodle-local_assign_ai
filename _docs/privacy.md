@@ -26,7 +26,6 @@ outbound contract cannot grow silently when the internal payload builder changes
 | `course_id` | Numeric course id; lets the service group reviews per course. Not personal data. |
 | `course` | Course full name; gives the model subject context for the feedback. |
 | `assignment_id` | Numeric assign instance id; identifies the activity being graded. Not personal data. |
-| `cmi_id` | Numeric course module id; identifies the activity being graded. Not personal data. |
 | `assignment_title` | Assignment name; context for the feedback. |
 | `assignment_description` | Assignment description written by the teacher; defines what is being assessed. |
 | `assignment_activity_instructions` | Activity instructions written by the teacher; defines what is being assessed. |
@@ -46,7 +45,7 @@ outbound contract cannot grow silently when the internal payload builder changes
   the review, otherwise the configured grader, otherwise the student as last resort)
   replaced by a stable, non-reversible, site-scoped token. The pseudonymisation is delegated
   to the provider's shared helper `\aiprovider_datacurso\local\outbound_privacy::pseudonymise_userid()`
-  (called through `pseudonymise_userid_value()`, aiprovider_datacurso 1.6.0 or later), so the
+  (called through `pseudonymise_userid_value()`, aiprovider_datacurso 2.2.2 or later on the Moodle 5.x line), so the
   whole Datacurso suite derives the same per-user token with one formula: an HMAC-SHA256 of
   the reviewer id keyed with a per-site secret owned by aiprovider_datacurso and never sent to
   the services, truncated to 32 hex characters. The same user on the same site always yields

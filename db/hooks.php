@@ -40,4 +40,8 @@ $callbacks = [
         'hook' => \core\hook\output\before_standard_head_html_generation::class,
         'callback' => 'local_assign_ai\hook\before_standard_head_html_generation::before_standard_html_head',
     ],
+    [
+        'hook' => \core_course\hook\before_course_deleted::class,
+        'callback' => 'local_assign_ai\hook\course_deletion::before_course_deleted',
+    ],
 ];

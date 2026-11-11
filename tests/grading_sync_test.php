@@ -146,7 +146,7 @@ final class grading_sync_test extends \advanced_testcase {
         $record = $this->create_ai_record($assign, $student, assign_submission::STATUS_APPROVED);
 
         // The teacher manually grades the submission through the assign grading API.
-        $this->mark_submission($teacher, $assign, $student, 77.0, [
+        $this->grade_as_teacher($teacher, $assign, $student, 77.0, [
             'assignfeedbackcomments_editor' => [
                 'text' => 'Teacher improved feedback',
                 'format' => FORMAT_HTML,
@@ -189,7 +189,7 @@ final class grading_sync_test extends \advanced_testcase {
         $this->add_submission($student, $assign, 'My essay text');
         $record = $this->create_ai_record($assign, $student, assign_submission::STATUS_PENDING);
 
-        $this->mark_submission($teacher, $assign, $student, 88.0, [
+        $this->grade_as_teacher($teacher, $assign, $student, 88.0, [
             'assignfeedbackcomments_editor' => [
                 'text' => 'Teacher feedback that must not be synced',
                 'format' => FORMAT_HTML,
@@ -202,5 +202,26 @@ final class grading_sync_test extends \advanced_testcase {
         $this->assertEquals(55, $record->grade);
         $this->assertSame('Original AI feedback', $record->message);
         $this->assertNull($record->usermodified);
+    }
+
+    /**
+     * Grade a submission as the teacher through the mod_assign test generator.
+     *
+     * Moodle 5.3 renamed the generator helper mark_submission() to grade_submission(); Moodle 5.0
+     * to 5.2 only have mark_submission().
+     *
+     * @param \stdClass $teacher The teacher who grades.
+     * @param \assign $assign The assignment.
+     * @param \stdClass $student The student whose submission is graded.
+     * @param float $grade The grade.
+     * @param array $data Extra grading form data, such as feedback comments.
+     * @return void
+     */
+    private function grade_as_teacher(\stdClass $teacher, \assign $assign, \stdClass $student, float $grade, array $data): void {
+        if (method_exists($this, 'grade_submission')) {
+            $this->grade_submission($teacher, $assign, $student, $grade, $data);
+            return;
+        }
+        $this->mark_submission($teacher, $assign, $student, $grade, $data);
     }
 }

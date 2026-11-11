@@ -209,7 +209,7 @@ class assign_submission {
         $recordid = null;
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai($payload);
+            $response = $this->send_to_ai($payload);
             self::assert_gradable($response);
 
             $message = $response['reply'] ?? null;
@@ -321,7 +321,7 @@ class assign_submission {
         // parsing and record update) into the log.
         try {
             $payload = $this->build_payload();
-            $response = client::send_to_ai($payload);
+            $response = $this->send_to_ai($payload);
             self::assert_gradable($response);
 
             $message = $response['reply'] ?? null;
@@ -361,6 +361,72 @@ class assign_submission {
         } catch (\Throwable $e) {
             self::register_failure($e, $existing->id);
         }
+    }
+
+    /**
+     * Sends the payload to the AI service and logs the transfer.
+     *
+     * Every transfer is logged with {@see \local_assign_ai\event\submission_sent_to_ai}, whether
+     * the service answers or not, so each transfer of a submission can be traced. The event carries
+     * metadata only: the payload and the answer are never logged.
+     *
+     * @param array $payload Payload built by build_payload().
+     * @return array Normalised client response.
+     * @throws \Throwable The client error, rethrown after it is logged.
+     */
+    private function send_to_ai(array $payload): array {
+        try {
+            $response = client::send_to_ai($payload, $this->assign->get_context(), (int) $this->user->id);
+        } catch (\Throwable $e) {
+            $this->log_transfer(event\submission_sent_to_ai::RESULT_FAILURE, self::transfer_errorcode($e));
+            throw $e;
+        }
+        // An answer flagged needs_review is still a completed transfer: the service received the work.
+        $this->log_transfer(event\submission_sent_to_ai::RESULT_SUCCESS);
+        return $response;
+    }
+
+    /**
+     * Triggers the transfer event.
+     *
+     * The actor is the teacher who requested the review, else the configured grader (autograde),
+     * else 0 (system) when neither exists. The student is the related user.
+     *
+     * @param string $result Transfer result (success or failure).
+     * @param string|null $errorcode Error code of a failed transfer.
+     * @return void
+     */
+    private function log_transfer(string $result, ?string $errorcode = null): void {
+        $config = assignment_config::get_effective((int) $this->assigninstance->id);
+        $other = [
+            'endpoint' => client::ENDPOINT,
+            'result' => $result,
+        ];
+        if ($errorcode !== null) {
+            $other['errorcode'] = $errorcode;
+        }
+        event\submission_sent_to_ai::create([
+            'context' => $this->assign->get_context(),
+            'objectid' => (int) $this->submission->id,
+            'userid' => (int) ($this->reviewerid ?: ($config->graderid ?? 0)),
+            'relateduserid' => (int) $this->user->id,
+            'other' => $other,
+        ])->trigger();
+    }
+
+    /**
+     * Error code logged for a failed transfer: the exception error code, or its short class name.
+     *
+     * The exception message is never used because it may carry content or internal details.
+     *
+     * @param \Throwable $e The error.
+     * @return string
+     */
+    private static function transfer_errorcode(\Throwable $e): string {
+        if ($e instanceof \moodle_exception && $e->errorcode !== '') {
+            return clean_param($e->errorcode, PARAM_ALPHANUMEXT) ?: 'moodle_exception';
+        }
+        return (new \ReflectionClass($e))->getShortName();
     }
 
     /**
@@ -896,7 +962,6 @@ class assign_submission {
     private function build_payload(): array {
         $course = $this->assign->get_course();
         $assignment = $this->assigninstance;
-        $cmid = $this->assign->get_course_module()->id;
         $config = assignment_config::get_effective((int)$assignment->id);
 
         $advancedgrading = advanced_grading::get_definition_json($this->assign);
@@ -922,7 +987,6 @@ class assign_submission {
             'course_id' => $course->id,
             'course' => $course->fullname,
             'assignment_id' => $assignment->id,
-            'cmi_id' => $cmid,
             'assignment_title' => $assignment->name,
             'assignment_description' => $assignment->intro,
             'assignment_activity_instructions' => $assignment->activity ?? '',

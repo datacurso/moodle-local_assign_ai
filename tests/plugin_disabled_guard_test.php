@@ -192,7 +192,7 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
         foreach (['review.php', 'history.php'] as $page) {
             $source = file_get_contents($CFG->dirroot . '/local/assign_ai/' . $page);
             $login = strpos($source, 'require_login(');
-            $guard = strpos($source, "plugin_settings::require_enabled('local_assign_ai');");
+            $guard = strpos($source, "provider_dependency::require_enabled();");
             $this->assertNotFalse($guard, $page . ' must call require_enabled.');
             $this->assertGreaterThan($login, $guard, $page . ' must call require_enabled after require_login.');
             $capability = strpos($source, 'has_capability(');
@@ -463,7 +463,7 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
         ]);
         plugin_settings::set_enabled('local_assign_ai', false);
 
-        $this->mark_submission($teacher, $assign, $student, 77.0, [
+        $this->grade_as_teacher($teacher, $assign, $student, 77.0, [
             'assignfeedbackcomments_editor' => [
                 'text' => 'Teacher feedback',
                 'format' => FORMAT_HTML,
@@ -485,5 +485,26 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
         if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
             $this->markTestSkipped('aiprovider_datacurso is not installed.');
         }
+    }
+
+    /**
+     * Grade a submission as the teacher through the mod_assign test generator.
+     *
+     * Moodle 5.3 renamed the generator helper mark_submission() to grade_submission(); Moodle 5.0
+     * to 5.2 only have mark_submission().
+     *
+     * @param \stdClass $teacher The teacher who grades.
+     * @param \assign $assign The assignment.
+     * @param \stdClass $student The student whose submission is graded.
+     * @param float $grade The grade.
+     * @param array $data Extra grading form data, such as feedback comments.
+     * @return void
+     */
+    private function grade_as_teacher(\stdClass $teacher, \assign $assign, \stdClass $student, float $grade, array $data): void {
+        if (method_exists($this, 'grade_submission')) {
+            $this->grade_submission($teacher, $assign, $student, $grade, $data);
+            return;
+        }
+        $this->mark_submission($teacher, $assign, $student, $grade, $data);
     }
 }

@@ -45,7 +45,7 @@ final class amd_dependencies_test extends \advanced_testcase {
 
         $missing = [];
         foreach ($dependencies as $module => $files) {
-            if (!file_exists($this->resolve_core_module_path($module))) {
+            if (!$this->core_module_exists($module)) {
                 $missing[] = $module . ' (used in ' . implode(', ', $files) . ')';
             }
         }
@@ -115,6 +115,29 @@ final class amd_dependencies_test extends \advanced_testcase {
         }
         ksort($dependencies);
         return $dependencies;
+    }
+
+    /**
+     * Whether the running Moodle provides a core module, as an AMD source or as an ES module.
+     *
+     * Moodle 5.3 moved some core modules, such as core/config, from lib/amd/src to the ES module
+     * sources in lib/js/esm/src, and RequireJS still resolves their names through an import map.
+     *
+     * @param string $module Module name such as core/modal or core_user/repository.
+     * @return bool
+     */
+    private function core_module_exists(string $module): bool {
+        global $CFG;
+
+        if (file_exists($this->resolve_core_module_path($module))) {
+            return true;
+        }
+        [$component, $name] = explode('/', $module, 2);
+        if ($component !== 'core') {
+            return false;
+        }
+        $esmdir = $CFG->libdir . '/js/esm/src/';
+        return file_exists($esmdir . $name . '.ts') || file_exists($esmdir . $name . '.tsx');
     }
 
     /**

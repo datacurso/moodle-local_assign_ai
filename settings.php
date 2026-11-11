@@ -45,6 +45,15 @@ if ($hassiteconfig) {
     $settings = new admin_settingpage('local_assign_ai_settings', new lang_string('pluginname', 'local_assign_ai'));
 
     if ($ADMIN->fulltree) {
+        // An older Datacurso AI provider pauses the plugin; tell the administrator what to update.
+        if (!\local_assign_ai\local\provider_dependency::is_available()) {
+            $settings->add(new admin_setting_heading(
+                'local_assign_ai/providerupdaterequired',
+                '',
+                html_writer::div(get_string('providerupdaterequired_admin', 'local_assign_ai'), 'alert alert-warning')
+            ));
+        }
+
         // Disabling this setting pauses all AI functionality at runtime through
         // assignment_config::get_effective(); stored per-assignment configuration is
         // preserved so re-enabling restores every assignment's original behaviour.

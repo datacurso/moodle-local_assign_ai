@@ -25,6 +25,7 @@
 use core_reportbuilder\system_report_factory;
 use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
+use local_assign_ai\local\service\history_service;
 use local_assign_ai\output\header_logo;
 use local_assign_ai\reportbuilder\systemreports\history as history_report;
 
@@ -42,7 +43,7 @@ $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
 $context = context_module::instance($cm->id);
 
 require_login($course, true, $cm);
-\aiprovider_datacurso\local\plugin_settings::require_enabled('local_assign_ai');
+\local_assign_ai\local\provider_dependency::require_enabled();
 
 // Verificar permisos ANTES de configurar la página para evitar conflictos de estado.
 if (!has_capability('local/assign_ai:review', $context)) {
@@ -58,74 +59,26 @@ if (!has_capability('local/assign_ai:review', $context)) {
 $reviewurl = new moodle_url('/local/assign_ai/review.php', ['id' => $cmid]);
 
 // Retry a single review (re-queue as an ad-hoc task). Available on every history row.
+// The record is loaded scoped to this activity: an absent id and an id of another
+// activity fail the same way.
 if ($retry) {
     require_sesskey();
-    $record = $DB->get_record('local_assign_ai_pending', ['id' => $retry], '*', MUST_EXIST);
-    if ((int) $record->assignmentid !== (int) $cm->id) {
-        throw new moodle_exception('invalidrecord', 'error');
-    }
-
-    if ((string) $record->status === assign_submission::STATUS_APPROVED) {
-        // Do not replace a successful record: create a new attempt as a new log row.
-        $newid = assign_submission::create_pending_submission((object) [
-            'courseid' => $record->courseid,
-            'assignmentid' => $record->assignmentid,
-            'userid' => $record->userid,
-            'submissionid' => $record->submissionid,
-            'attemptnumber' => $record->attemptnumber,
-            'submissionmodified' => $record->submissionmodified,
-            'title' => $record->title,
-            'message' => null,
-            'grade' => null,
-            'status' => assign_submission::STATUS_QUEUED,
-        ]);
-        assign_submission::queue_ai_review((int) $cm->id, (int) $course->id, (int) $record->userid, (int) $newid);
-    } else {
-        // Failed (or any other) record: re-queue the same row (manual retry resets the counter).
-        assign_submission::queue_ai_review((int) $cm->id, (int) $course->id, (int) $record->userid, (int) $record->id, true);
-    }
-
+    history_service::retry_review((int) $cm->id, (int) $retry);
     redirect($reviewurl, get_string('retryqueued', 'local_assign_ai'), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
-// Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task).
+// Retry all failed reviews for this assignment (re-queue them, processed by one ad-hoc task
+// that names the current teacher as reviewer).
 if ($retryall) {
     require_sesskey();
-    $failed = $DB->get_records('local_assign_ai_pending', [
-        'assignmentid' => $cm->id,
-        'status' => assign_submission::STATUS_FAILED,
-    ]);
-    $count = count($failed);
-
-    if ($count > 0) {
-        foreach ($failed as $failedrecord) {
-            // Refresh timemodified (so the reaper won't re-fail them) and reset the auto-retry counter.
-            assign_submission::update_pending_submission((int) $failedrecord->id, [
-                'status' => assign_submission::STATUS_QUEUED,
-                'retries' => 0,
-            ]);
-        }
-
-        $task = new \local_assign_ai\task\process_all_submissions();
-        $task->set_custom_data([
-            'cmid' => (int) $cm->id,
-            'courseid' => (int) $course->id,
-            'pendingcount' => $count,
-        ]);
-        \core\task\manager::queue_adhoc_task($task);
-    }
-
+    $count = history_service::retry_all_failed((int) $cm->id);
     redirect($reviewurl, get_string('retryallqueued', 'local_assign_ai', $count), null, \core\output\notification::NOTIFY_SUCCESS);
 }
 
 // View or download a single AI processing log (mirrors /admin/tasklogs.php).
 if ($logid !== null) {
-    $record = $DB->get_record('local_assign_ai_pending', ['id' => $logid], '*', MUST_EXIST);
-
-    // Ensure the record belongs to this assignment to avoid cross-task leakage.
-    if ((int) $record->assignmentid !== (int) $cm->id) {
-        throw new moodle_exception('invalidrecord', 'error');
-    }
+    // Scoped to this activity: an absent id and an id of another activity fail the same way.
+    $record = history_service::get_log_record((int) $cm->id, (int) $logid);
 
     $student = $DB->get_record('user', ['id' => $record->userid]);
     $studentname = $student ? fullname($student) : (string) $record->userid;
