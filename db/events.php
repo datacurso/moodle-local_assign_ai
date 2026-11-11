@@ -67,4 +67,14 @@ $observers = [
         'internal' => false,
         'priority'    => 9999,
     ],
+    [
+        'eventname' => '\core\event\user_deleted',
+        'callback' => '\local_assign_ai\observer\user::user_deleted',
+        'internal' => false,
+    ],
+    [
+        'eventname' => '\core\event\course_reset_ended',
+        'callback' => '\local_assign_ai\observer\course::course_reset_ended',
+        'internal' => false,
+    ],
 ];

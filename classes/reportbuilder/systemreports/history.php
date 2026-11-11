@@ -136,10 +136,27 @@ class history extends system_report {
     }
 
     /**
-     * {@inheritDoc}
+     * Whether the current user may view the report.
+     *
+     * The report parameters come back from the client when the table reloads or is downloaded, so
+     * they must describe the activity of the report context: the context has to be the module
+     * context of the assign activity given as assignmentid, and courseid has to be its course.
+     *
+     * @return bool
      */
     protected function can_view(): bool {
-        return has_capability('local/assign_ai:review', $this->get_context());
+        $context = $this->get_context();
+        $cmid = (int) $this->get_parameter('assignmentid', 0, PARAM_INT);
+        if ($context->contextlevel != CONTEXT_MODULE || (int) $context->instanceid !== $cmid) {
+            return false;
+        }
+
+        $cm = get_coursemodule_from_id('assign', $cmid, 0, false, IGNORE_MISSING);
+        if (!$cm || (int) $cm->course !== (int) $this->get_parameter('courseid', 0, PARAM_INT)) {
+            return false;
+        }
+
+        return has_capability('local/assign_ai:review', $context);
     }
 
     /**
