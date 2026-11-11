@@ -72,6 +72,20 @@ final class activity_access {
     }
 
     /**
+     * Requires the current user to be allowed to grade in the authorised activity.
+     *
+     * Approving an AI review writes the grade, so it needs mod/assign:grade like the
+     * mod_assign grader does.
+     *
+     * @param \stdClass $access Result of require_access().
+     * @return void
+     * @throws \required_capability_exception When the user may not grade the activity.
+     */
+    public static function require_grade_capability(\stdClass $access): void {
+        require_capability('mod/assign:grade', $access->context);
+    }
+
+    /**
      * Loads a pending record of the authorised activity.
      *
      * The query is always scoped to the activity and course returned by require_access(),

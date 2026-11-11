@@ -69,6 +69,8 @@ class approve_all_pending extends external_api {
 
         // The submitted courseid must match the real course of the module; a mismatch would silently approve nothing.
         $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);
+        // Approving writes the grades: the user must be allowed to grade, as in mod_assign.
+        activity_access::require_grade_capability($access);
 
         $assign = new \assign($access->context, $access->cm, $access->course);
 

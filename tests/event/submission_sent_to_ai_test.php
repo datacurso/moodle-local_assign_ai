@@ -289,6 +289,37 @@ final class submission_sent_to_ai_test extends \advanced_testcase {
     }
 
     /**
+     * LAA-AUD-011: "Retry all failed" on the history page logs each transfer with the teacher who
+     * clicked it as actor, not the configured grader.
+     */
+    public function test_retry_all_failed_logs_transfer_with_the_teacher_as_actor(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $this->fake_ai_client(fn() => ['reply' => self::AI_REPLY, 'grade' => 7]);
+
+        [$assign, $student, $grader, $reviewer, $record] = $this->create_scenario(false);
+        $DB->set_field('local_assign_ai_pending', 'status', assign_submission::STATUS_FAILED, ['id' => $record->id]);
+        $this->setUser($reviewer);
+
+        $queued = \local_assign_ai\local\service\history_service::retry_all_failed((int) $assign->get_course_module()->id);
+
+        $this->assertSame(1, $queued);
+        $sink = $this->redirectEvents();
+        ob_start();
+        $this->runAdhocTasks(\local_assign_ai\task\process_all_submissions::class);
+        ob_end_clean();
+        $this->resetDebugging();
+        $events = $this->transfer_events($sink->get_events());
+        $sink->close();
+
+        $this->assertCount(1, $events);
+        $this->assertEquals($reviewer->id, $events[0]->userid);
+        $this->assertNotEquals($grader->id, $events[0]->userid);
+        $this->assertEquals($student->id, $events[0]->relateduserid);
+    }
+
+    /**
      * Without a reviewer or a configured grader the transfer is attributed to the system (user 0).
      */
     public function test_autograde_without_grader_logs_system_actor(): void {
