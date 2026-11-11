@@ -35,7 +35,7 @@ restricts the payload to the documented allowlist (`payload_anonymizer::ALLOWED_
 any other key, replaces `student_name` with the `[STUDENT_NAME]` placeholder and replaces
 `userid` with a pseudonymous site-scoped token derived from the reviewer id. The allowlist and
 the placeholder are plugin-owned; the token comes from the provider's shared helper
-`\aiprovider_datacurso\local\outbound_privacy` (aiprovider_datacurso 1.6.0 or later). The examples below
+`\aiprovider_datacurso\local\outbound_privacy` (aiprovider_datacurso 2.2.2 or later on the Moodle 5.x line). The examples below
 show the payload as it is actually sent. See [privacy.md](./privacy.md) for the justification of
 each field.
 
