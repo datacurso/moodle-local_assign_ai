@@ -106,7 +106,8 @@ final class provider_dependency_test extends \advanced_testcase {
         } catch (\moodle_exception $e) {
             $this->assertSame('providerupdaterequired_admin', $e->errorcode);
             $this->assertSame('local_assign_ai', $e->module);
-            $this->assertStringContainsString('1.7.0', $e->getMessage());
+            $this->assertStringContainsString('2.2.0', $e->getMessage());
+            $this->assertStringNotContainsString('1.7.0', $e->getMessage());
         }
     }
 
@@ -126,7 +127,7 @@ final class provider_dependency_test extends \advanced_testcase {
         } catch (\moodle_exception $e) {
             $this->assertSame('providerupdaterequired', $e->errorcode);
             $this->assertSame('local_assign_ai', $e->module);
-            $this->assertStringNotContainsString('1.7.0', $e->getMessage());
+            $this->assertStringNotContainsString('2.2.0', $e->getMessage());
         }
     }
 
@@ -151,7 +152,7 @@ final class provider_dependency_test extends \advanced_testcase {
     }
 
     /**
-     * Only the guard calls the provider class introduced in 1.7.0.
+     * Only the guard calls the provider class introduced in 2.2.0 on the provider's 5.x line.
      *
      * @return void
      */

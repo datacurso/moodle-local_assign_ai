@@ -20,7 +20,7 @@ namespace local_assign_ai\local;
  * Single point that checks the Datacurso AI provider before the plugin uses it.
  *
  * Assign AI keeps its on/off state in the Datacurso AI provider through
- * `\aiprovider_datacurso\local\plugin_settings`, a class added in the provider 1.7.0. When an
+ * `\aiprovider_datacurso\local\plugin_settings`, a class added on the provider's Moodle 5.x line in 2.2.0. When an
  * older provider is installed the class does not exist; every caller goes through this guard so
  * the site keeps working: hooks, observers, tasks and callbacks do nothing, while the plugin's
  * pages and web services stop with a message asking to update the provider.
@@ -33,7 +33,7 @@ final class provider_dependency {
     /** Frankenstyle name of this plugin in the provider. */
     private const COMPONENT = 'local_assign_ai';
 
-    /** Provider class introduced in aiprovider_datacurso 1.7.0. */
+    /** Provider class introduced in aiprovider_datacurso 2.2.0 (Moodle 5.x line). */
     private const SETTINGS_CLASS = '\\aiprovider_datacurso\\local\\plugin_settings';
 
     /** Methods of the provider class the plugin calls. */
@@ -43,7 +43,7 @@ final class provider_dependency {
     private static ?bool $availabilityoverride = null;
 
     /**
-     * Whether the installed Datacurso AI provider has the API this plugin needs (1.7.0 or later).
+     * Whether the installed Datacurso AI provider has the API this plugin needs (2.2.0 or later).
      *
      * @return bool
      */
