@@ -34,6 +34,19 @@ require_once($CFG->dirroot . '/user/lib.php');
  */
 final class data_retention_test extends \advanced_testcase {
     /**
+     * Runs every test without the rollback transaction.
+     *
+     * The observers are external (they run after the database transaction commits). On PostgreSQL
+     * and SQL Server each test runs inside a rollback transaction, so external observers would only
+     * fire when the test ends; without that transaction they fire as in production.
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        $this->resetAfterTest();
+        $this->preventResetByRollback();
+    }
+
+    /**
      * Inserts a pending AI review.
      *
      * @param int $courseid Course id.
