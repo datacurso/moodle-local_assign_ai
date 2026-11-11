@@ -64,23 +64,39 @@ final class activity_data_cleanup {
     public static function delete_course(int $courseid): void {
         global $DB;
 
-        $cms = $DB->get_records_sql(
-            'SELECT cm.id, cm.instance
+        $assignids = $DB->get_fieldset_select('assign', 'id', 'course = :courseid', ['courseid' => $courseid]);
+        if (!empty($assignids)) {
+            $DB->delete_records_list('local_assign_ai_config', 'assignmentid', $assignids);
+        }
+        self::delete_course_reviews($courseid);
+    }
+
+    /**
+     * Deletes the AI reviews (pending rows and delayed queue entries) of every assignment of a course.
+     *
+     * The per-assignment configuration is kept. Used when the course is deleted and when a course
+     * reset deletes the assignment submissions.
+     *
+     * @param int $courseid Course id.
+     * @return void
+     */
+    public static function delete_course_reviews(int $courseid): void {
+        global $DB;
+
+        $cmids = $DB->get_fieldset_sql(
+            'SELECT cm.id
                FROM {course_modules} cm
                JOIN {modules} m ON m.id = cm.module AND m.name = :modname
               WHERE cm.course = :courseid',
             ['modname' => 'assign', 'courseid' => $courseid]
         );
-        $assignids = $DB->get_fieldset_select('assign', 'id', 'course = :courseid', ['courseid' => $courseid]);
+        $cmids = array_map('intval', $cmids);
 
-        if (!empty($assignids)) {
-            $DB->delete_records_list('local_assign_ai_config', 'assignmentid', $assignids);
-        }
-        if (!empty($cms)) {
-            $DB->delete_records_list('local_assign_ai_pending', 'assignmentid', array_keys($cms));
+        if (!empty($cmids)) {
+            $DB->delete_records_list('local_assign_ai_pending', 'assignmentid', $cmids);
         }
         $DB->delete_records('local_assign_ai_pending', ['courseid' => $courseid]);
-        self::delete_queue_rows(array_map('intval', array_keys($cms)));
+        self::delete_queue_rows($cmids);
     }
 
     /**
