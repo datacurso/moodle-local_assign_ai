@@ -61,6 +61,7 @@ class provider implements
                 'assessment_guide_response' => 'privacy:metadata:local_assign_ai_pending:assessment_guide_response',
                 'errormessage'     => 'privacy:metadata:local_assign_ai_pending:errormessage',
                 'status'           => 'privacy:metadata:local_assign_ai_pending:status',
+                'errornotifiedtime' => 'privacy:metadata:local_assign_ai_pending:errornotifiedtime',
                 'approval_token'   => 'privacy:metadata:local_assign_ai_pending:approval_token',
             ],
             'privacy:metadata:local_assign_ai_pending'
@@ -70,8 +71,16 @@ class provider implements
             'local_assign_ai_config',
             [
                 'assignmentid' => 'privacy:metadata:local_assign_ai_config:assignmentid',
+                'enableai'     => 'privacy:metadata:local_assign_ai_config:enableai',
+                'autograde'    => 'privacy:metadata:local_assign_ai_config:autograde',
                 'graderid'     => 'privacy:metadata:local_assign_ai_config:graderid',
                 'usermodified' => 'privacy:metadata:local_assign_ai_config:usermodified',
+                'usedelay'     => 'privacy:metadata:local_assign_ai_config:usedelay',
+                'delayminutes' => 'privacy:metadata:local_assign_ai_config:delayminutes',
+                'prompt'       => 'privacy:metadata:local_assign_ai_config:prompt',
+                'lang'         => 'privacy:metadata:local_assign_ai_config:lang',
+                'timecreated'  => 'privacy:metadata:local_assign_ai_config:timecreated',
+                'timemodified' => 'privacy:metadata:local_assign_ai_config:timemodified',
             ],
             'privacy:metadata:local_assign_ai_config'
         );

@@ -115,4 +115,39 @@ final class get_token_test extends \advanced_testcase {
         $this->expectException(\required_capability_exception::class);
         get_token::execute($student->id, $cmid);
     }
+
+    /**
+     * Runs a call and returns the exception it throws.
+     *
+     * @param callable $call The call expected to fail.
+     * @return \Throwable The thrown exception.
+     */
+    private function capture(callable $call): \Throwable {
+        try {
+            $call();
+        } catch (\Throwable $e) {
+            return $e;
+        }
+        $this->fail('An exception was expected.');
+    }
+
+    /**
+     * LAA-SEC-006: an unenrolled user cannot tell whether a student has a token.
+     *
+     * @covers ::execute
+     * @runInSeparateProcess
+     */
+    public function test_unenrolled_user_gets_the_same_error_whether_or_not_a_token_exists(): void {
+        $this->resetAfterTest();
+        [$course, $cmid, $student] = $this->create_scenario();
+        $notreviewed = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $existing = $this->capture(fn() => get_token::execute($student->id, $cmid));
+        $absent = $this->capture(fn() => get_token::execute($notreviewed->id, $cmid));
+
+        $this->assertInstanceOf(\require_login_exception::class, $existing);
+        $this->assertSame(get_class($existing), get_class($absent));
+        $this->assertSame($existing->errorcode, $absent->errorcode);
+    }
 }

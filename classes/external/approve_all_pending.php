@@ -20,13 +20,14 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
 use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
+use local_assign_ai\local\activity_access;
 use local_assign_ai\local\tenant_context;
 
 /**
@@ -65,27 +66,27 @@ class approve_all_pending extends external_api {
             'cmid' => $cmid,
         ]);
 
-        $cm = get_coursemodule_from_id('assign', $params['cmid'], 0, false, MUST_EXIST);
-        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
-
-        $context = \context_module::instance($cm->id);
-        $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-
-        self::validate_context($context);
-        require_capability('local/assign_ai:changestatus', $context);
+        provider_dependency::require_enabled(tenant_context::get_current_tenant_id());
 
         // The submitted courseid must match the real course of the module; a mismatch would silently approve nothing.
-        if ((int) $params['courseid'] !== (int) $cm->course) {
-            throw new \moodle_exception('invalidcourseid');
-        }
+        $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);
+        // Approving writes the grades: the user must be allowed to grade, as in mod_assign.
+        activity_access::require_grade_capability($access);
 
-        $assign = new \assign($context, $cm, $course);
+        $assign = new \assign($access->context, $access->cm, $access->course);
 
-        $pendings = $DB->get_records('local_assign_ai_pending', [
-            'courseid' => $params['courseid'],
-            'assignmentid' => $params['cmid'],
-            'status' => \local_assign_ai\assign_submission::STATUS_PENDING,
-        ], 'id ASC');
+        // In separate groups only the reviews of students the user may access are approved.
+        [$groupsql, $groupparams] = activity_access::get_student_filter_sql($access, 'userid');
+        $pendings = $DB->get_records_select(
+            'local_assign_ai_pending',
+            "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}",
+            [
+                'courseid' => (int) $access->cm->course,
+                'cmid' => (int) $access->cm->id,
+                'status' => \local_assign_ai\assign_submission::STATUS_PENDING,
+            ] + $groupparams,
+            'id ASC'
+        );
 
         $approved = 0;
         foreach ($pendings as $record) {

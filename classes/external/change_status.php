@@ -20,13 +20,14 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-use aiprovider_datacurso\local\plugin_settings;
+use local_assign_ai\local\provider_dependency;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
 use local_assign_ai\assign_submission;
 use local_assign_ai\grading\feedback_applier;
+use local_assign_ai\local\activity_access;
 use local_assign_ai\local\tenant_context;
 
 /**
@@ -37,6 +38,12 @@ use local_assign_ai\local\tenant_context;
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class change_status extends external_api {
+    /** @var string[] Actions accepted from the review page. */
+    private const ALLOWED_ACTIONS = [
+        assign_submission::STATUS_APPROVED,
+        assign_submission::STATUS_REJECTED,
+    ];
+
     /**
      * Returns the description of the parameters for this external function.
      *
@@ -70,22 +77,26 @@ class change_status extends external_api {
             'action' => $action,
         ]);
 
-        plugin_settings::require_enabled('local_assign_ai', tenant_context::get_current_tenant_id());
+        if (!in_array($params['action'], self::ALLOWED_ACTIONS, true)) {
+            throw new \invalid_parameter_exception('Invalid action: ' . $params['action']);
+        }
+
+        provider_dependency::require_enabled(tenant_context::get_current_tenant_id());
+
+        // Authorise before looking up the record, so its existence is not revealed to unauthorised callers.
+        $access = activity_access::require_access($params['cmid'], 'local/assign_ai:changestatus', $params['courseid']);
+        if ($params['action'] === assign_submission::STATUS_APPROVED) {
+            // Approving writes the grade: the user must be allowed to grade, as in mod_assign.
+            activity_access::require_grade_capability($access);
+        }
 
         // Target the active record under review (status = pending). A user may also have
         // older approved rows kept as history log entries, so we must filter by status.
-        $record = $DB->get_record('local_assign_ai_pending', [
-            'courseid' => $params['courseid'],
-            'assignmentid' => $params['cmid'],
-            'userid' => $params['userid'],
-            'status' => assign_submission::STATUS_PENDING,
-        ], '*', MUST_EXIST);
-
-        $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
-        $context = \context_module::instance($cm->id);
-
-        self::validate_context($context);
-        require_capability('local/assign_ai:changestatus', $context);
+        $record = activity_access::require_pending_record(
+            $access,
+            userid: $params['userid'],
+            status: assign_submission::STATUS_PENDING
+        );
 
         try {
             $record->status = $params['action'];
@@ -93,11 +104,8 @@ class change_status extends external_api {
             $record->usermodified = $USER->id ?? $record->usermodified;
             $DB->update_record('local_assign_ai_pending', $record);
 
-            if ($params['action'] === 'approve') {
-                $cm = get_coursemodule_from_id('assign', $record->assignmentid, 0, false, MUST_EXIST);
-                $context = \context_module::instance($cm->id);
-                $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-                $assign = new \assign($context, $cm, $course);
+            if ($params['action'] === assign_submission::STATUS_APPROVED) {
+                $assign = new \assign($access->context, $access->cm, $access->course);
                 feedback_applier::apply_ai_feedback($assign, $record, $USER->id);
             }
         } catch (\Throwable $e) {

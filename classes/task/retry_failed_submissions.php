@@ -16,6 +16,7 @@
 
 namespace local_assign_ai\task;
 
+use local_assign_ai\local\provider_dependency;
 use local_assign_ai\assign_submission;
 
 /**
@@ -46,6 +47,11 @@ class retry_failed_submissions extends \core\task\scheduled_task {
      */
     public function execute() {
         global $DB;
+
+        if (!provider_dependency::is_available()) {
+            mtrace(provider_dependency::task_skipped_message());
+            return;
+        }
 
         $failed = $DB->get_records_select(
             'local_assign_ai_pending',

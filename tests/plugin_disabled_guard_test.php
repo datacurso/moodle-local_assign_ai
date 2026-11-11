@@ -193,7 +193,7 @@ final class plugin_disabled_guard_test extends \advanced_testcase {
         foreach (['review.php', 'history.php'] as $page) {
             $source = file_get_contents($CFG->dirroot . '/local/assign_ai/' . $page);
             $login = strpos($source, 'require_login(');
-            $guard = strpos($source, "plugin_settings::require_enabled('local_assign_ai');");
+            $guard = strpos($source, 'provider_dependency::require_enabled(');
             $this->assertNotFalse($guard, $page . ' must call require_enabled.');
             $this->assertGreaterThan($login, $guard, $page . ' must call require_enabled after require_login.');
             $capability = strpos($source, 'has_capability(');

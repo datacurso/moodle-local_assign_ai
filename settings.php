@@ -66,6 +66,15 @@ if ($parentcategory !== null) {
     );
 
     if ($ADMIN->fulltree) {
+        // An older Datacurso AI provider pauses the plugin; tell the administrator what to update.
+        if (!\local_assign_ai\local\provider_dependency::is_available()) {
+            $settings->add(new admin_setting_heading(
+                'local_assign_ai/providerupdaterequired',
+                '',
+                html_writer::div(get_string('providerupdaterequired_admin', 'local_assign_ai'), 'alert alert-warning')
+            ));
+        }
+
         if ($tenantaware) {
             // The Assign AI switch itself is kept by the Datacurso AI provider, per tenant.
             $settings->add(new \local_assign_ai\admin\tenant_notice('local_assign_ai/tenantnotice'));
@@ -112,6 +121,25 @@ if ($parentcategory !== null) {
             3,
             3
         ));
+
+        // The error digest goes to the site administrators: a tenant administrator never edits its recipients.
+        if ($hassiteconfig) {
+            $settings->add(new admin_setting_configcheckbox(
+                'local_assign_ai/errornotifyenabled',
+                get_string('errornotifyenabled', 'local_assign_ai'),
+                get_string('errornotifyenabled_desc', 'local_assign_ai'),
+                1
+            ));
+
+            $settings->add(new \local_assign_ai\admin\setting_emaillist(
+                'local_assign_ai/errornotifyemails',
+                get_string('errornotifyemails', 'local_assign_ai'),
+                get_string('errornotifyemails_desc', 'local_assign_ai'),
+                ''
+            ));
+
+            $settings->hide_if('local_assign_ai/errornotifyemails', 'local_assign_ai/errornotifyenabled', 'eq', 0);
+        }
 
         $settings->hide_if('local_assign_ai/defaultautograde', 'local_assign_ai/defaultenableai', 'eq', 0);
         $settings->hide_if('local_assign_ai/defaultusedelay', 'local_assign_ai/defaultenableai', 'eq', 0);

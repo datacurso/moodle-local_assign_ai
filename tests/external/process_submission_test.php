@@ -170,4 +170,93 @@ final class process_submission_test extends \advanced_testcase {
             $DB->get_field('local_assign_ai_pending', 'status', ['id' => $pendingid])
         );
     }
+
+    /**
+     * Runs a call and returns the exception it throws.
+     *
+     * @param callable $call The call expected to fail.
+     * @return \Throwable The thrown exception.
+     */
+    private function capture(callable $call): \Throwable {
+        try {
+            $call();
+        } catch (\Throwable $e) {
+            return $e;
+        }
+        $this->fail('An exception was expected.');
+    }
+
+    /**
+     * Returns an id that no pending record uses.
+     *
+     * @return int The absent id.
+     */
+    private function absent_pendingid(): int {
+        global $DB;
+        return (int) $DB->get_field_sql('SELECT MAX(id) FROM {local_assign_ai_pending}') + 1000;
+    }
+
+    /**
+     * LAA-SEC-006: an unenrolled user gets the same error for an existing and an absent record.
+     *
+     * @covers ::execute
+     * @runInSeparateProcess
+     */
+    public function test_unenrolled_user_gets_the_same_error_whether_or_not_the_record_exists(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        [, $cmid, $studentid, $pendingid] = $this->create_record();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $existing = $this->capture(fn() => process_submission::execute($cmid, $studentid, false, $pendingid));
+        $absent = $this->capture(fn() => process_submission::execute($cmid, $studentid, false, $this->absent_pendingid()));
+
+        $this->assertInstanceOf(\require_login_exception::class, $existing);
+        $this->assertSame(get_class($existing), get_class($absent));
+        $this->assertSame($existing->errorcode, $absent->errorcode);
+        $this->assertSame(
+            assign_submission::STATUS_INITIAL,
+            $DB->get_field('local_assign_ai_pending', 'status', ['id' => $pendingid])
+        );
+    }
+
+    /**
+     * LAA-SEC-006: a record of another activity and an absent record fail with the same error.
+     *
+     * @covers ::execute
+     * @runInSeparateProcess
+     */
+    public function test_foreign_and_absent_records_fail_the_same_way(): void {
+        $this->resetAfterTest();
+
+        [$coursea, $cmida, $studenta] = $this->create_record();
+        $teacher = $this->getDataGenerator()->create_and_enrol($coursea, 'editingteacher');
+        [, , , $pendingidb] = $this->create_record($studenta);
+        $this->setUser($teacher);
+
+        $other = $this->capture(fn() => process_submission::execute($cmida, $studenta, false, $pendingidb));
+        $absent = $this->capture(fn() => process_submission::execute($cmida, $studenta, false, $this->absent_pendingid()));
+
+        $this->assertSame(get_class($other), get_class($absent));
+        $this->assertSame('invalidpendingrecord', $other->errorcode);
+        $this->assertSame('invalidpendingrecord', $absent->errorcode);
+    }
+
+    /**
+     * LAA-SEC-006: the parameters are validated before they are used.
+     *
+     * @covers ::execute
+     * @runInSeparateProcess
+     */
+    public function test_rejects_invalid_parameters(): void {
+        $this->resetAfterTest();
+
+        [$course, $cmid, , $pendingid] = $this->create_record();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->setUser($teacher);
+
+        $this->expectException(\invalid_parameter_exception::class);
+        process_submission::execute($cmid, 'notanumber', false, $pendingid);
+    }
 }

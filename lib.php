@@ -22,6 +22,8 @@
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use local_assign_ai\local\provider_dependency;
+
 /**
  * Extends assignment navigation to display the "AI Review" button.
  *
@@ -45,7 +47,7 @@ function local_assign_ai_extend_settings_navigation(settings_navigation $nav, co
     // Hide assign AI entries entirely when the provider disabled the plugin for the tenant of the current user.
     // The provider switch always follows the user's tenant, never the tenant owning the course.
     $usertenantid = \local_assign_ai\local\tenant_context::get_current_tenant_id();
-    if (!\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', $usertenantid)) {
+    if (!provider_dependency::is_enabled($usertenantid)) {
         return;
     }
 
@@ -120,7 +122,7 @@ function local_assign_ai_coursemodule_standard_elements($formwrapper, $mform) {
 
     // The provider switch follows the tenant of the current user, never the tenant owning the course.
     $usertenantid = \local_assign_ai\local\tenant_context::get_current_tenant_id();
-    if (!\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', $usertenantid)) {
+    if (!provider_dependency::is_enabled($usertenantid)) {
         return;
     }
 
@@ -307,7 +309,7 @@ function local_assign_ai_coursemodule_edit_post_actions($data, $course) {
 
     // The provider switch follows the tenant of the current user, never the tenant owning the course.
     $usertenantid = \local_assign_ai\local\tenant_context::get_current_tenant_id();
-    if (!\aiprovider_datacurso\local\plugin_settings::is_enabled('local_assign_ai', $usertenantid)) {
+    if (!provider_dependency::is_enabled($usertenantid)) {
         return $data;
     }
 

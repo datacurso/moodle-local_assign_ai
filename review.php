@@ -38,7 +38,7 @@ try {
 
     // Save login state and check permissions.
     require_login($course, true, $cm);
-    \aiprovider_datacurso\local\plugin_settings::require_enabled('local_assign_ai');
+    \local_assign_ai\local\provider_dependency::require_enabled(\local_assign_ai\local\tenant_context::get_current_tenant_id());
 
     // Verify that the user has the capability to review AI suggestions for this assignment.
     if (!has_capability('local/assign_ai:review', $context)) {
@@ -79,19 +79,25 @@ try {
 
     echo $OUTPUT->header();
 
-    $pendingcount = $DB->count_records('local_assign_ai_pending', [
-        'courseid' => $course->id,
-        'assignmentid' => $cm->id,
-        'status' => 'initial',
-    ]);
+    // In separate groups only the students the user may access are counted, as the table lists them.
+    [$groupsql, $groupparams] = \local_assign_ai\local\activity_access::get_student_filter_sql(
+        \local_assign_ai\local\activity_access::from_assign($assign),
+        'userid'
+    );
+    $countselect = "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}";
+    $pendingcount = $DB->count_records_select(
+        'local_assign_ai_pending',
+        $countselect,
+        ['courseid' => $course->id, 'cmid' => $cm->id, 'status' => 'initial'] + $groupparams
+    );
     $allblocked = ($pendingcount === 0);
     $hasinitial = ($pendingcount > 0);
 
-    $pendingforapprove = $DB->count_records('local_assign_ai_pending', [
-        'courseid' => $course->id,
-        'assignmentid' => $cm->id,
-        'status' => 'pending',
-    ]);
+    $pendingforapprove = $DB->count_records_select(
+        'local_assign_ai_pending',
+        $countselect,
+        ['courseid' => $course->id, 'cmid' => $cm->id, 'status' => 'pending'] + $groupparams
+    );
     $haspending = ($pendingforapprove > 0);
 
     // Verify capabilities for this user to control button visibility.
