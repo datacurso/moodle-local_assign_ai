@@ -108,7 +108,9 @@ class get_progress extends external_api {
                 'id' => (int)$r->id,
                 'status' => (string)$r->status,
                 'grade' => $r->grade !== null ? (int)$r->grade : null,
-                'errormessage' => (string)($r->errormessage ?? ''),
+                // The stored message can carry a link to the shop (the messages of the provider do), and the return
+                // type is plain text: with the link the whole answer is rejected and the review page shows an error.
+                'errormessage' => strip_tags((string)($r->errormessage ?? '')),
             ];
         }
         return $out;
