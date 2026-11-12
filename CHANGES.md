@@ -1,3 +1,11 @@
+## [1.2.4-wp] - 2026-11-12
+
+**Compatibility note:** This version is compatible only with **Moodle Workplace 4.5**.
+
+### Fixed
+- **The AI review page no longer fails when a review failed with a message that has a link**  
+  The messages of the Datacurso AI provider (for example the one for a license that is not allowed, or for too few credits) carry a link to the shop. `get_progress` returned the stored message as plain text, so Moodle rejected the whole answer with `invalidresponse` and the page showed an error instead of the state of the reviews. The message is now returned without its tags; the history report still shows the stored message as it was.
+
 ## [1.2.3-wp] - 2026-11-11
 
 **Compatibility note:** This version is compatible only with **Moodle Workplace 4.5**.

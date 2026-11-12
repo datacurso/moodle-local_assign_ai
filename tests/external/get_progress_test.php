@@ -146,4 +146,29 @@ final class get_progress_test extends \advanced_testcase {
         $this->assertSame([], get_progress::execute([$pendingid]));
         $this->assertSame([], get_progress::execute([$absentid]));
     }
+
+    /**
+     * A failed review whose message carries a link (the messages of the provider do) is still a valid answer.
+     *
+     * @covers ::execute
+     * @covers ::execute_returns
+     * @runInSeparateProcess
+     */
+    public function test_a_message_with_a_link_is_returned_as_plain_text(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $student = $this->getDataGenerator()->create_user();
+        [$course, $pendingid] = $this->create_record($student);
+        $DB->set_field('local_assign_ai_pending', 'errormessage', 'Check <a href="https://shop.example.com" target="_blank">credits</a>.', [
+            'id' => $pendingid,
+        ]);
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $this->setUser($teacher);
+
+        $result = get_progress::execute([$pendingid]);
+        $clean = \core_external\external_api::clean_returnvalue(get_progress::execute_returns(), $result);
+
+        $this->assertSame('Check credits.', $clean[0]['errormessage']);
+    }
 }
