@@ -44,11 +44,26 @@ final class active_students_test extends \advanced_testcase {
     private int $requests = 0;
 
     /**
+     * Skip the test when the Datacurso AI provider is missing.
+     *
+     * The web services and the AI pipeline stop through provider_dependency without the provider,
+     * and the CI pipeline does not install declared dependencies.
+     *
+     * @return void
+     */
+    private function require_provider(): void {
+        if (!class_exists(\aiprovider_datacurso\local\plugin_settings::class)) {
+            $this->markTestSkipped('aiprovider_datacurso is not installed.');
+        }
+    }
+
+    /**
      * Replace the AI client with a spy that counts requests and answers a fixed grade.
      *
      * @return void
      */
     private function fake_ai_client(): void {
+        $this->require_provider();
         if (!class_exists(\aiprovider_datacurso\httpclient\ai_services_api::class)) {
             $this->markTestSkipped('aiprovider_datacurso is not installed; the AI pipeline cannot run.');
         }
@@ -213,6 +228,7 @@ final class active_students_test extends \advanced_testcase {
     public function test_review_all_with_only_inactive_students_queues_nothing(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->require_provider();
 
         [$course, $assign, $teacher, $students] = $this->create_scenario(['gone']);
         $this->unenrol($course, $students['gone']);
@@ -232,6 +248,7 @@ final class active_students_test extends \advanced_testcase {
     public function test_single_review_of_inactive_student_is_refused(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->require_provider();
 
         [$course, $assign, $teacher, $students] = $this->create_scenario(['gone']);
         $record = $this->get_record($assign, $students['gone']);
@@ -312,6 +329,7 @@ final class active_students_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
+        $this->require_provider();
 
         [$course, $assign, $teacher, $students] = $this->create_scenario(['active', 'gone']);
         foreach ($students as $student) {
