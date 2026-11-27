@@ -92,8 +92,9 @@ class advanced_grading {
                 $data['criteria'][] = [
                     'id' => $criterionid,
                     'criterion' => $criterion['shortname'],
-                    'description_students' => $criterion['descriptionmarkers'],
-                    'description_evaluators' => $criterion['description'],
+                    // In gradingform_guide 'description' is shown to students and 'descriptionmarkers' to markers.
+                    'description_students' => $criterion['description'],
+                    'description_evaluators' => $criterion['descriptionmarkers'],
                     'maximum_score' => (float) $criterion['maxscore'],
                 ];
             }
