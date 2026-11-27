@@ -100,8 +100,8 @@ class process_submission extends external_api {
         // If processing all submissions → queue background task.
         if ($all) {
             // Pre-check there is something to process to avoid queuing empty tasks.
-            // In separate groups only the students the user may access are queued.
-            [$groupsql, $groupparams] = activity_access::get_student_filter_sql($access, 'userid');
+            // Only active students the user may access (separate groups) are queued.
+            [$groupsql, $groupparams] = activity_access::get_reviewable_student_sql($access, 'userid');
             $select = "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}";
             $selectparams = [
                 'courseid' => $course->id,
@@ -146,6 +146,8 @@ class process_submission extends external_api {
             // to this activity, course and user. A record elsewhere fails exactly like an absent one,
             // so a valid cmid can neither touch nor reveal another activity's record.
             activity_access::require_pending_record($access, pendingid: $pendingid, userid: $userid);
+            // A student who left the course or was suspended is not sent to the AI service.
+            activity_access::require_reviewable_student($access, $userid);
 
             $student = $DB->get_record('user', ['id' => $userid], '*', MUST_EXIST);
 

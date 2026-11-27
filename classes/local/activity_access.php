@@ -218,4 +218,66 @@ final class activity_access {
         [$insql, $params] = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED, $prefix);
         return ["{$useridfield} IN (SELECT gm.userid FROM {groups_members} gm WHERE gm.groupid {$insql})", $params];
     }
+
+    /**
+     * Whether a user is a student that can still be reviewed with AI in the activity.
+     *
+     * The account must be active (not deleted nor suspended) and hold an active enrolment with
+     * mod/assign:submit, as mod_assign requires to list a participant. Students who left the
+     * course or whose enrolment is suspended keep their AI records for the history, but are
+     * not sent to the AI service, listed for review or approved in bulk.
+     *
+     * @param \stdClass $access Result of require_access() or from_assign().
+     * @param int $userid Student user id.
+     * @return bool
+     */
+    public static function is_active_student(\stdClass $access, int $userid): bool {
+        global $DB;
+
+        if (!$DB->record_exists('user', ['id' => $userid, 'deleted' => 0, 'suspended' => 0])) {
+            return false;
+        }
+        return is_enrolled($access->context, $userid, 'mod/assign:submit', true);
+    }
+
+    /**
+     * Requires the current user to be allowed to review a student who is still active in the activity.
+     *
+     * @param \stdClass $access Result of require_access().
+     * @param int $userid Student user id.
+     * @return void
+     * @throws \moodle_exception invalidpendingrecord when the student is outside the allowed groups,
+     *     error_student_inactive when the student is no longer active in the activity.
+     */
+    public static function require_reviewable_student(\stdClass $access, int $userid): void {
+        self::require_student_access($access, $userid);
+        if (!self::is_active_student($access, $userid)) {
+            throw new \moodle_exception('error_student_inactive', 'local_assign_ai');
+        }
+    }
+
+    /**
+     * Returns an SQL condition that keeps only the students the current user may review with AI.
+     *
+     * It combines the group restriction of get_student_filter_sql() with an active account and an
+     * active enrolment with mod/assign:submit (see is_active_student()). The history keeps using
+     * get_student_filter_sql(), so past reviews of students who left the course stay visible.
+     *
+     * @param \stdClass $access Result of require_access() or from_assign().
+     * @param string $useridfield Qualified student user id column, e.g. "p.userid".
+     * @param string $prefix Prefix of the generated named parameters of the group condition.
+     * @return array [SQL condition, named parameters]
+     */
+    public static function get_reviewable_student_sql(
+        \stdClass $access,
+        string $useridfield,
+        string $prefix = 'laagrp'
+    ): array {
+        [$groupsql, $groupparams] = self::get_student_filter_sql($access, $useridfield, $prefix);
+        [$enrolsql, $enrolparams] = get_enrolled_sql($access->context, 'mod/assign:submit', 0, true);
+
+        $sql = "{$groupsql} AND {$useridfield} IN ("
+            . "SELECT laau.id FROM {user} laau WHERE laau.deleted = 0 AND laau.suspended = 0 AND laau.id IN ({$enrolsql}))";
+        return [$sql, $groupparams + $enrolparams];
+    }
 }

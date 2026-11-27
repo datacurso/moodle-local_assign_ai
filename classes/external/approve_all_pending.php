@@ -74,8 +74,8 @@ class approve_all_pending extends external_api {
 
         $assign = new \assign($access->context, $access->cm, $access->course);
 
-        // In separate groups only the reviews of students the user may access are approved.
-        [$groupsql, $groupparams] = activity_access::get_student_filter_sql($access, 'userid');
+        // Only the reviews of active students the user may access (separate groups) are approved.
+        [$groupsql, $groupparams] = activity_access::get_reviewable_student_sql($access, 'userid');
         $pendings = $DB->get_records_select(
             'local_assign_ai_pending',
             "courseid = :courseid AND assignmentid = :cmid AND status = :status AND {$groupsql}",

@@ -87,6 +87,7 @@ $string['error_payload_too_large'] = 'Les fichiers soumis ({$a->total} Mo) dépa
 $string['error_processing_timeout'] = 'Le traitement a expiré sans réponse ; veuillez réessayer.';
 $string['error_rubricmismatch'] = 'La réponse de l’IA ne correspond pas à la grille d’évaluation de ce devoir. La note n’a pas été appliquée. Critères sans correspondance : {$a}';
 $string['error_service_payload_rejected'] = 'Le service d\'IA a rejeté les fichiers soumis car ils sont trop volumineux. Demandez à l\'étudiant d\'en réduire la taille (par exemple, en diminuant la qualité des images ou des PDF) et de les soumettre à nouveau.';
+$string['error_student_inactive'] = 'L\'étudiant n\'est plus actif dans cette activité (non inscrit, ou inscription ou compte suspendu) : le travail n\'a pas été envoyé à l\'IA.';
 $string['error_unreadable_file'] = 'L\'IA n\'a pas pu lire le fichier soumis ; notez la remise manuellement.';
 $string['errordigest_footer'] = 'Vous recevez ce message car votre adresse figure dans les paramètres de notification des erreurs d’Assign AI.';
 $string['errordigest_group'] = '{$a->course} / {$a->activity} - {$a->kind} : {$a->count} remise(s)';
