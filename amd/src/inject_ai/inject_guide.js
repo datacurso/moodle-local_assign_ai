@@ -24,6 +24,42 @@
 import { normalizeString } from './normalize_string';
 
 /**
+ * Selects the guide rows an AI response key refers to.
+ *
+ * The AI service keys each criterion by its Moodle criterion id, which the guide form carries in its
+ * field names ("...[criteria][12][score]"). Responses stored before that keyed it by shortname: those
+ * match the criterion shortname exactly, and only as a last resort any row whose text contains it.
+ *
+ * @param {HTMLElement[]} rows Candidate table rows.
+ * @param {string} key Criterion key in the AI response.
+ * @returns {HTMLElement[]} Matching rows.
+ */
+const findCriterionRows = (rows, key) => {
+    const trimmed = String(key).trim();
+    const isid = /^\d+$/.test(trimmed);
+    if (isid) {
+        const byid = rows.filter(row => row.querySelector(
+            `[name$="[criteria][${trimmed}][score]"], [name$="[criteria][${trimmed}][remark]"]`
+        ));
+        if (byid.length) {
+            return byid;
+        }
+    }
+
+    const wanted = normalizeString(trimmed);
+    const byshortname = rows.filter(row => {
+        const shortname = row.querySelector('.criterionshortname');
+        return shortname && normalizeString(shortname.textContent) === wanted;
+    });
+    if (byshortname.length || isid) {
+        // A bare number is contained in almost any row text, so it never falls back to a text search.
+        return byshortname;
+    }
+
+    return rows.filter(row => normalizeString(row.textContent).includes(wanted));
+};
+
+/**
  * Injects assessment guide grades and comments.
  *
  * @param {Object} guideData The guide data object.
@@ -62,11 +98,8 @@ export const injectGuide = (guideData, options = {}) => {
             return parseInt(userinput.value, 10) === targetUserid;
         }); // Broad search for criteria rows
         const visiblerows = allrows.filter(row => row.offsetParent !== null || row.getClientRects().length > 0);
-        const rows = visiblerows.length ? visiblerows : allrows;
+        const rows = findCriterionRows(visiblerows.length ? visiblerows : allrows, criterionName);
         rows.forEach(row => {
-            if (!normalizeString(row.textContent).includes(normalizeString(criterionName))) {
-                return;
-            }
 
             const scoreInput = row.querySelector('.score input[type="text"]');
             const remarkTextarea = row.querySelector('.remark textarea');

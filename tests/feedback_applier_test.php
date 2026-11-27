@@ -492,6 +492,99 @@ final class feedback_applier_test extends \advanced_testcase {
     }
 
     /**
+     * An AI marking guide response keyed by the Moodle criterion ids sent in the payload (the format the
+     * AI service returns) scores every criterion and totals the grade.
+     *
+     * @covers ::apply_ai_feedback
+     * @covers ::apply_guide_grading
+     * @covers ::resolve_guide_criterion_id
+     */
+    public function test_guide_response_keyed_by_criterion_id_is_applied(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(4036, $course->id);
+        $assign = $this->create_instance($course, [
+            'submissiondrafts' => 0,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
+            'grade' => 40,
+        ]);
+
+        $this->getDataGenerator()->get_plugin_generator('gradingform_guide')->create_instance(
+            $assign->get_context(),
+            'mod_assign',
+            'submissions',
+            'Networks marking guide',
+            'Guide keyed by id',
+            [
+                'P1. Routing' => [
+                    'description' => 'Distinguish static and dynamic routing.',
+                    'descriptionmarkers' => 'Expected: static is manual, dynamic uses a protocol such as OSPF.',
+                    'maxscore' => 20,
+                ],
+                'P2. VLAN' => [
+                    'description' => 'Define a VLAN and give a benefit.',
+                    'descriptionmarkers' => 'Expected: logical layer 2 segmentation; fewer broadcasts.',
+                    'maxscore' => 20,
+                ],
+            ]
+        );
+
+        $gradingmanager = get_grading_manager($assign->get_context(), 'mod_assign', 'submissions');
+        $definition = $gradingmanager->get_controller('guide')->get_definition();
+        $idsbyname = array_flip(array_map(fn($criterion) => $criterion['shortname'], $definition->guide_criteria));
+
+        $this->add_submission($student, $assign, 'My answers');
+
+        $record = $this->create_pending_record($assign, $student, [
+            'grade' => 30,
+            'message' => 'Overall guide feedback',
+            'assessment_guide_response' => json_encode([
+                (string) $idsbyname['P1. Routing'] => ['grade' => 20, 'reply' => 'Correct routing answer'],
+                (string) $idsbyname['P2. VLAN'] => ['grade' => 10, 'reply' => 'Benefit missing'],
+            ]),
+        ]);
+
+        feedback_applier::apply_ai_feedback($assign, $record, (int) $teacher->id);
+
+        $grade = $assign->get_user_grade($student->id, false);
+        $this->assertEquals(30.0, (float) $grade->grade);
+        $this->assertEquals($teacher->id, $grade->grader);
+
+        $fillings = $this->get_fillings($grade, 'gradingform_guide_fillings');
+        $this->assertEquals(20.0, (float) $fillings[$idsbyname['P1. Routing']]->score);
+        $this->assertSame('Correct routing answer', $fillings[$idsbyname['P1. Routing']]->remark);
+        $this->assertEquals(10.0, (float) $fillings[$idsbyname['P2. VLAN']]->score);
+        $this->assertSame('Benefit missing', $fillings[$idsbyname['P2. VLAN']]->remark);
+
+        $this->resetDebugging();
+    }
+
+    /**
+     * A guide response key resolves by criterion id first, then by shortname; an id of another guide does not match.
+     *
+     * @covers ::resolve_guide_criterion_id
+     */
+    public function test_resolve_guide_criterion_id_matches_id_then_shortname(): void {
+        $criteria = [
+            12 => ['shortname' => 'Spelling'],
+            13 => ['shortname' => '<b>Structure</b>'],
+        ];
+
+        $this->assertSame(12, feedback_applier::resolve_guide_criterion_id('12', $criteria));
+        $this->assertSame(13, feedback_applier::resolve_guide_criterion_id(' 13 ', $criteria));
+        $this->assertSame(12, feedback_applier::resolve_guide_criterion_id('spelling', $criteria));
+        $this->assertSame(13, feedback_applier::resolve_guide_criterion_id('Structure', $criteria));
+        $this->assertNull(feedback_applier::resolve_guide_criterion_id('14', $criteria));
+        $this->assertNull(feedback_applier::resolve_guide_criterion_id('Grammar', $criteria));
+        $this->assertNull(feedback_applier::resolve_guide_criterion_id('', $criteria));
+    }
+
+    /**
      * MDL-INT-007: Simple grading clamps the AI grade into the [0, maxgrade] range of the assignment.
      *
      * @covers ::apply_ai_feedback
