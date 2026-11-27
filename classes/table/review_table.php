@@ -92,6 +92,8 @@ class review_table extends \table_sql {
         ]);
         $this->define_columns($columns);
         $this->define_headers($headers);
+        // The progress poller writes the AI grade into this cell when a review finishes.
+        $this->column_class('grade', 'js-grade-cell');
 
         [$insql, $inparams] = $this->build_status_sql();
         // In separate groups only the students the user may access are listed, as in mod_assign.
@@ -346,11 +348,15 @@ class review_table extends \table_sql {
             ]
         );
 
+        // Both buttons are always rendered and the one that does not apply is hidden, so the
+        // progress poller can swap Review for View details when a review finishes without a
+        // reload (the details click handler is bound on page load, so the button must exist).
         // The details modal only exposes the AI feedback message, which cannot be
         // delivered when the comments feedback plugin is disabled.
-        if ($canapproveai && $this->canviewdetails && $this->commentsactive) {
+        if ($this->canviewdetails && $this->commentsactive) {
             $buttons .= html_writer::tag('button', get_string('viewdetails', 'local_assign_ai'), [
-                'class' => 'btn btn-success btn-sm text-nowrap view-details js-btn-details',
+                'class' => 'btn btn-success btn-sm text-nowrap view-details js-btn-details' . ($canapproveai ? '' : ' d-none'),
+                'type' => 'button',
                 'data-courseid' => (int) $row->courseid,
                 'data-cmid' => (int) $row->assignmentid,
                 'data-userid' => (int) $row->userid,
@@ -359,16 +365,14 @@ class review_table extends \table_sql {
             ]);
         }
 
-        if (!$canapproveai) {
-            $buttons .= html_writer::tag('button', get_string('review', 'local_assign_ai'), [
-                'class' => 'btn btn-warning btn-sm text-nowrap js-review-ai js-btn-review',
-                'type' => 'button',
-                'data-cmid' => (int) $row->assignmentid,
-                'data-userid' => (int) $row->userid,
-                'data-pendingid' => (int) $row->id,
-                'disabled' => $disabled ? 'disabled' : null,
-            ]);
-        }
+        $buttons .= html_writer::tag('button', get_string('review', 'local_assign_ai'), [
+            'class' => 'btn btn-warning btn-sm text-nowrap js-review-ai js-btn-review' . ($canapproveai ? ' d-none' : ''),
+            'type' => 'button',
+            'data-cmid' => (int) $row->assignmentid,
+            'data-userid' => (int) $row->userid,
+            'data-pendingid' => (int) $row->id,
+            'disabled' => $disabled ? 'disabled' : null,
+        ]);
 
         // Allow cancelling a stuck review (queued/processing) to free it up without waiting.
         if ($disabled) {

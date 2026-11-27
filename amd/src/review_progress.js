@@ -67,6 +67,15 @@ function hasPendingRows() {
 }
 
 /**
+ * Check if there are rows that can still be sent to review.
+ * Rows updated by the poller carry data-status; rows untouched since page load only carry the class.
+ * @returns {boolean}
+ */
+function hasInitialRows() {
+    return !!document.querySelector('tr[data-status="initial"], tr.js-row-initial:not([data-status])');
+}
+
+/**
  * Apply a grade value (if present) to the grade cell in the given row.
  *
  * @param {HTMLElement} row
@@ -100,7 +109,8 @@ function reflectHeaderButtonsState() {
     const btnApproveAll = document.querySelector('.js-approve-all');
 
     if (btnReviewAll) {
-        btnReviewAll.disabled = anyActive || btnReviewAll.disabled;
+        // Re-enable "Review all" once nothing is running and there are rows left to review.
+        btnReviewAll.disabled = anyActive || !hasInitialRows();
     }
     if (btnApproveAll) {
         const enableApprove = anyPending && !anyActive;
@@ -132,7 +142,8 @@ function updateRow(row, progress, status, grade, errormessage) {
             indicator = document.createElement('div');
             indicator.className = 'small text-warning js-progress-indicator';
             indicator.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>';
-            row.querySelector('td:nth-child(7)')?.appendChild(indicator);
+            // The AI status column shifts when identity columns are shown, so locate it by its badge.
+            badge?.closest('td')?.appendChild(indicator);
         }
         getString('processing', 'local_assign_ai').then(txt => {
             indicator.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' + txt + ' (' + progress + '%)';

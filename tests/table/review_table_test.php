@@ -125,6 +125,45 @@ final class review_table_test extends \advanced_testcase {
     }
 
     /**
+     * An initial row renders the details button hidden next to a visible review button, so the
+     * progress poller can swap them when the review finishes without reloading the page.
+     *
+     * @covers ::col_actions
+     */
+    public function test_initial_row_renders_hidden_details_button(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $table = new review_table('test', $assign);
+        $row = $this->build_pending_row($assign, $student->id);
+        $row->aistatus = assign_submission::STATUS_INITIAL;
+
+        $html = $table->col_actions($row);
+
+        $this->assertMatchesRegularExpression('/class="[^"]*js-btn-details[^"]*\bd-none\b/', $html);
+        $this->assertMatchesRegularExpression('/class="[^"]*js-btn-review(?![^"]*\bd-none\b)[^"]*"/', $html);
+    }
+
+    /**
+     * A pending row shows the details button and keeps the review button hidden.
+     *
+     * @covers ::col_actions
+     */
+    public function test_pending_row_renders_hidden_review_button(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        [$assign, $student] = $this->create_assign_with_student(true);
+        $table = new review_table('test', $assign);
+
+        $html = $table->col_actions($this->build_pending_row($assign, $student->id));
+
+        $this->assertMatchesRegularExpression('/class="[^"]*js-btn-details(?![^"]*\bd-none\b)[^"]*"/', $html);
+        $this->assertMatchesRegularExpression('/class="[^"]*js-btn-review[^"]*\bd-none\b/', $html);
+    }
+
+    /**
      * Without identity fields configured the table shows no email column.
      *
      * @covers ::__construct
