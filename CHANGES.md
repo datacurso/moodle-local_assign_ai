@@ -1,3 +1,11 @@
+## [1.2.4] - 2026-11-27
+
+**Compatibility note:** This version is compatible only with **Moodle 4.5**.
+
+### Fixed
+
+- Students who are no longer active in the assignment are no longer reviewed with AI. A student who left the course, whose enrolment is suspended or whose account is suspended kept the Assign AI record of their submission: it was listed on the review page, queued by "Review all", sent to the AI service (spending credits) and approved by "Approve all", because only the group restriction was checked. The new `activity_access::is_active_student()`, `activity_access::require_reviewable_student()` and `activity_access::get_reviewable_student_sql()` require an active account and an active enrolment with `mod/assign:submit`, as mod_assign does to list participants. The review page counters, the review table, "Review all" and "Approve all" only include active students, and a single review of an inactive student is refused with `error_student_inactive` before anything is queued. The worker checks the student again right before calling the AI service, so a review or delayed autograde queued before the student left fails with `error_student_inactive` without being sent; this error is terminal and is not retried. A missing or suspended account now fails with the same teacher-facing reason instead of a generic database error that was retried three times. The AI history keeps listing past reviews of students who left the course (`active_students_test::test_is_active_student`, `active_students_test::test_review_all_skips_inactive_students`, `active_students_test::test_review_all_with_only_inactive_students_queues_nothing`, `active_students_test::test_single_review_of_inactive_student_is_refused`, `active_students_test::test_queued_review_of_student_who_left_is_not_sent`, `active_students_test::test_suspended_account_fails_with_inactive_reason`, `active_students_test::test_approve_all_skips_inactive_students`, `active_students_test::test_history_filter_keeps_inactive_students`)
+
 ## [1.2.3] - 2026-11-11
 
 **Compatibility note:** This version is compatible only with **Moodle 4.5**.
