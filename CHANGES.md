@@ -1,3 +1,15 @@
+## [1.2.4] - 2026-11-27
+
+**Compatibility note:** This version is compatible only with **Moodle 4.5**.
+
+### Fixed
+
+- Approving an AI review of an assignment graded with a marking guide no longer fails with `error_guidemismatch` ("Unmatched criteria: 1, 2, …"). The AI service keys each guide criterion by the Moodle criterion id sent in the payload, but `feedback_applier::apply_guide_grading()` only matched shortnames. The new `feedback_applier::resolve_guide_criterion_id()` resolves a key by criterion id first and by shortname otherwise, so responses stored before the service returned ids still apply (`feedback_applier_test::test_guide_response_keyed_by_criterion_id_is_applied`, `feedback_applier_test::test_resolve_guide_criterion_id_matches_id_then_shortname`, `feedback_applier_test::test_guide_response_scores_criteria_remarks_and_totals_grade`)
+- The grader page fills a marking guide criterion from an id-keyed AI response through the criterion id in the guide field names; a shortname must match the criterion shortname exactly before falling back to a text search, and a bare id never falls back to it, so a key such as `1` no longer fills every row whose text contains a 1 (`amd/src/inject_ai/inject_guide.js`)
+- The marking guide payload sent to the AI service no longer swaps the descriptions: `description_students` now carries the guide description for students and `description_evaluators` the description for markers (`advanced_grading_test::test_guide_definition_serializes_criteria_descriptions_and_max_scores`)
+- A grading definition mismatch (`error_guidemismatch`, `error_rubricmismatch`) is terminal: the automatic retry task no longer sends the submission to the AI service again for a response that cannot be applied (`feedback_applier_test::test_definition_mismatch_is_not_retried`)
+- On the review page, a row whose AI review finishes while the page is open now swaps Review for View details, shows the AI grade and re-enables "Review all" when rows are left to review, without reloading: both action buttons are always rendered and the one that does not apply is hidden, the grade column carries the `js-grade-cell` class the progress poller writes to, and the processing indicator is placed in the AI status cell even when identity columns are shown (`review_table_test::test_initial_row_renders_hidden_details_button`, `review_table_test::test_pending_row_renders_hidden_review_button`)
+
 ## [1.2.3] - 2026-11-11
 
 **Compatibility note:** This version is compatible only with **Moodle 4.5**.
