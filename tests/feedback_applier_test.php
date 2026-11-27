@@ -585,6 +585,41 @@ final class feedback_applier_test extends \advanced_testcase {
     }
 
     /**
+     * A grading definition mismatch is terminal: the automatic retry task does not send the review to the AI again.
+     *
+     * @covers \local_assign_ai\assign_submission::register_failure
+     */
+    public function test_definition_mismatch_is_not_retried(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $this->bump_assign_sequence(4037, $course->id);
+        $assign = $this->create_instance($course, ['submissiondrafts' => 0, 'assignsubmission_onlinetext_enabled' => 1]);
+        $this->add_submission($student, $assign, 'My answers');
+
+        // A terminal failure may notify the grader at once.
+        $sink = $this->redirectMessages();
+        $retrymax = \local_assign_ai\task\retry_failed_submissions::MAX_RETRIES;
+        foreach (['error_guidemismatch', 'error_rubricmismatch'] as $errorcode) {
+            $record = $this->create_pending_record($assign, $student);
+            $error = new \moodle_exception($errorcode, 'local_assign_ai', '', '1, 2');
+            assign_submission::register_failure($error, (int) $record->id);
+
+            $record = $DB->get_record('local_assign_ai_pending', ['id' => $record->id], '*', MUST_EXIST);
+            $this->assertSame(assign_submission::STATUS_FAILED, $record->status, $errorcode);
+            $this->assertSame($retrymax, (int) $record->retries, $errorcode);
+            $DB->delete_records('local_assign_ai_pending', ['id' => $record->id]);
+        }
+        $sink->close();
+
+        $this->resetDebugging();
+    }
+
+    /**
      * MDL-INT-007: Simple grading clamps the AI grade into the [0, maxgrade] range of the assignment.
      *
      * @covers ::apply_ai_feedback

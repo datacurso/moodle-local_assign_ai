@@ -71,6 +71,10 @@ class assign_submission {
         'error_unreadable_file',
         'error_inconsistent_evaluation',
         'error_needsreview_generic',
+        // The AI response does not fit the grading definition: retrying the review only spends
+        // another AI request on the same mismatch, so the teacher must act on it.
+        'error_guidemismatch',
+        'error_rubricmismatch',
     ];
 
     /**
