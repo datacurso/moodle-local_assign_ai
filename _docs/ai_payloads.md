@@ -204,18 +204,22 @@ matching.
 
 ### Guide response
 
-Keys are criterion shortnames and values include `grade` and `reply`.
+Keys are the Moodle criterion ids sent in the payload (`criteria[].id`) and values include `grade` and
+`reply`. The plugin resolves each key by criterion id first; a key that is not an id of the guide is
+compared with the criterion shortnames, so responses stored before the service returned ids
+(keyed by shortname) still apply. Every guide criterion must be answered, otherwise approving fails
+with `error_guidemismatch`, which is not retried automatically.
 
 ```json
 {
   "reply": "Good effort overall.",
   "grade": 82,
   "assessment_guide": {
-    "Thesis": {
+    "1": {
       "grade": 8,
       "reply": ["Clear thesis", "Could be more specific"]
     },
-    "Evidence": {
+    "2": {
       "grade": 7,
       "reply": "Evidence is relevant but limited."
     }

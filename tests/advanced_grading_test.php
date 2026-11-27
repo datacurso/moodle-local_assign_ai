@@ -136,14 +136,15 @@ final class advanced_grading_test extends \advanced_testcase {
             'Essay marking guide',
             'Guide used to grade the essay',
             [
+                // In gradingform_guide 'description' is the text for students, 'descriptionmarkers' for markers.
                 'Spelling' => [
-                    'description' => 'Deduct one point per spelling mistake.',
-                    'descriptionmarkers' => 'Check your spelling before submitting.',
+                    'description' => 'Check your spelling before submitting.',
+                    'descriptionmarkers' => 'Deduct one point per spelling mistake.',
                     'maxscore' => 25,
                 ],
                 'Structure' => [
-                    'description' => 'Award full marks for a clear introduction, body and conclusion.',
-                    'descriptionmarkers' => 'Organise your essay in introduction, body and conclusion.',
+                    'description' => 'Organise your essay in introduction, body and conclusion.',
+                    'descriptionmarkers' => 'Award full marks for a clear introduction, body and conclusion.',
                     'maxscore' => 15,
                 ],
             ]
@@ -162,6 +163,14 @@ final class advanced_grading_test extends \advanced_testcase {
 
         $this->assertSame('Check your spelling before submitting.', $criteria['Spelling']['description_students']);
         $this->assertSame('Deduct one point per spelling mistake.', $criteria['Spelling']['description_evaluators']);
+        $this->assertSame(
+            'Organise your essay in introduction, body and conclusion.',
+            $criteria['Structure']['description_students']
+        );
+        $this->assertSame(
+            'Award full marks for a clear introduction, body and conclusion.',
+            $criteria['Structure']['description_evaluators']
+        );
         $this->assertSame(25.0, $criteria['Spelling']['maximum_score']);
         $this->assertSame(15.0, $criteria['Structure']['maximum_score']);
     }

@@ -458,45 +458,33 @@ class feedback_applier {
 
         $debugmsg .= "Guidedata keys: " . implode(', ', array_keys($guidedata)) . ".\n";
 
-        // Guidedata is keyed by criterion name: "Criterion A" => ["grade" => 10, "reply" => ["Good", "Comments"]].
-        foreach ($guidedata as $aicriterionname => $item) {
-            $aicriterionclean = trim(strip_tags($aicriterionname));
+        // Guidedata is keyed by the Moodle criterion id sent in the payload ("12" => ["grade" => 10, "reply" => "..."]),
+        // or by the criterion shortname in responses stored before the AI service returned ids.
+        foreach ($guidedata as $aikey => $item) {
+            $aicriterionclean = trim(strip_tags((string) $aikey));
             $debugmsg .= "Procesando criterio AI: {$aicriterionclean}.\n";
             $debugmsg .= "Item AI keys: " .
                 (is_array($item) ? implode(', ', array_keys($item)) : gettype($item)) . ".\n";
-            $matched = false;
 
-            // Find matching Moodle criterion.
-            foreach ($moodlecriteria as $id => $criterion) {
-                $moodlecriterionclean = trim(strip_tags($criterion['shortname']));
-
-                if (strcasecmp($moodlecriterionclean, $aicriterionclean) === 0) {
-                    $matched = true;
-                    $score = (float) ($item['grade'] ?? 0);
-
-                    $remark = '';
-                    if (!empty($item['reply'])) {
-                        if (is_array($item['reply'])) {
-                            $remark = implode(', ', $item['reply']);
-                        } else {
-                            $remark = (string) $item['reply'];
-                        }
-                    }
-
-                    $fillingdata['criteria'][$id] = [
-                        'score' => $score,
-                        'remark' => $remark,
-                        'remarkformat' => FORMAT_HTML,
-                    ];
-                    $debugmsg .= "Match criterio: {$moodlecriterionclean}. score={$score}.\n";
-                    break;
-                }
-            }
-
-            if (!$matched) {
+            $id = is_array($moodlecriteria) ? self::resolve_guide_criterion_id((string) $aikey, $moodlecriteria) : null;
+            if ($id === null) {
                 $debugmsg .= "Sin match para criterio AI: {$aicriterionclean}.\n";
                 $unmatched[] = $aicriterionclean;
+                continue;
             }
+
+            $score = (float) ($item['grade'] ?? 0);
+            $remark = '';
+            if (!empty($item['reply'])) {
+                $remark = is_array($item['reply']) ? implode(', ', $item['reply']) : (string) $item['reply'];
+            }
+
+            $fillingdata['criteria'][$id] = [
+                'score' => $score,
+                'remark' => $remark,
+                'remarkformat' => FORMAT_HTML,
+            ];
+            $debugmsg .= "Match criterio: " . trim(strip_tags($moodlecriteria[$id]['shortname'])) . ". score={$score}.\n";
         }
 
         // Every guide criterion must be filled: unmatched AI criteria or Moodle
@@ -528,6 +516,35 @@ class feedback_applier {
             debugging($debugmsg, DEBUG_DEVELOPER);
             throw new \moodle_exception('unexpectederror', 'local_assign_ai', '', $e->getMessage());
         }
+    }
+
+    /**
+     * Resolves the Moodle marking guide criterion an AI response key refers to.
+     *
+     * The AI service keys each criterion by the Moodle criterion id sent in the payload; responses
+     * stored before that keyed it by shortname. An id that belongs to the guide wins; otherwise the key
+     * is compared with the criterion shortnames, ignoring case and tags.
+     *
+     * @param string $aikey Key of the criterion in the AI response.
+     * @param array $moodlecriteria Guide definition criteria indexed by criterion id (guide_criteria).
+     * @return int|null The Moodle criterion id, or null when the key matches no criterion.
+     */
+    public static function resolve_guide_criterion_id(string $aikey, array $moodlecriteria): ?int {
+        $key = trim(strip_tags($aikey));
+        if ($key === '') {
+            return null;
+        }
+
+        if (ctype_digit($key) && isset($moodlecriteria[(int) $key])) {
+            return (int) $key;
+        }
+
+        foreach ($moodlecriteria as $id => $criterion) {
+            if (strcasecmp(trim(strip_tags((string) ($criterion['shortname'] ?? ''))), $key) === 0) {
+                return (int) $id;
+            }
+        }
+        return null;
     }
 
     /**
