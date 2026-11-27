@@ -20,6 +20,7 @@ use local_assign_ai\api\client;
 use local_assign_ai\config\assignment_config;
 use local_assign_ai\grading\advanced_grading;
 use local_assign_ai\grading\feedback_applier;
+use local_assign_ai\local\activity_access;
 use stdClass;
 
 /**
@@ -71,6 +72,8 @@ class assign_submission {
         'error_unreadable_file',
         'error_inconsistent_evaluation',
         'error_needsreview_generic',
+        // The student is no longer active in the activity: retrying cannot change that.
+        'error_student_inactive',
     ];
 
     /**
@@ -130,7 +133,13 @@ class assign_submission {
     public function __construct(int $userid, \assign $assign, ?int $submissionid = null) {
         global $DB;
         $this->assign = $assign;
-        $this->user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0, 'suspended' => 0], '*', MUST_EXIST);
+        $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0, 'suspended' => 0]);
+        if (!$user) {
+            // A missing, deleted or suspended account cannot be reviewed: fail with a terminal,
+            // teacher-facing reason instead of a generic database error that would be retried.
+            throw new \moodle_exception('error_student_inactive', 'local_assign_ai');
+        }
+        $this->user = $user;
 
         $this->submission = false;
         if (!empty($submissionid)) {
@@ -208,6 +217,8 @@ class assign_submission {
         // parsing, record creation and feedback application) into the log.
         $recordid = null;
         try {
+            // A delayed autograde can run after the student left the course: do not send it.
+            $this->require_active_student();
             $payload = $this->build_payload();
             $response = $this->send_to_ai($payload);
             self::assert_gradable($response);
@@ -320,6 +331,8 @@ class assign_submission {
         // Capture any error across the whole pipeline (payload/files, AI call, response
         // parsing and record update) into the log.
         try {
+            // A student who left the course since the review was queued is not sent to the AI service.
+            $this->require_active_student();
             $payload = $this->build_payload();
             $response = $this->send_to_ai($payload);
             self::assert_gradable($response);
@@ -360,6 +373,19 @@ class assign_submission {
             self::update_pending_submission($existing->id, $data);
         } catch (\Throwable $e) {
             self::register_failure($e, $existing->id);
+        }
+    }
+
+    /**
+     * Requires the student to still be active in the activity before sending anything to the AI service.
+     *
+     * @return void
+     * @throws \moodle_exception error_student_inactive when the student left the course, has a
+     *     suspended enrolment or account, or lost mod/assign:submit.
+     */
+    private function require_active_student(): void {
+        if (!activity_access::is_active_student(activity_access::from_assign($this->assign), (int) $this->user->id)) {
+            throw new \moodle_exception('error_student_inactive', 'local_assign_ai');
         }
     }
 

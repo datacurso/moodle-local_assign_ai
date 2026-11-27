@@ -87,6 +87,7 @@ $string['error_payload_too_large'] = 'Os arquivos enviados ({$a->total} MB) exce
 $string['error_processing_timeout'] = 'O processamento expirou sem resposta; tente novamente.';
 $string['error_rubricmismatch'] = 'A resposta da IA não corresponde à rúbrica desta tarefa. A nota não foi aplicada. Critérios sem correspondência: {$a}';
 $string['error_service_payload_rejected'] = 'O serviço de IA rejeitou os arquivos enviados porque são grandes demais. Peça ao aluno que reduza o tamanho (por exemplo, diminuindo a qualidade das imagens ou dos PDFs) e envie novamente.';
+$string['error_student_inactive'] = 'O estudante não está mais ativo nesta atividade (sem inscrição, ou com inscrição ou conta suspensa), por isso o envio não foi encaminhado à IA.';
 $string['error_unreadable_file'] = 'A IA não conseguiu ler o arquivo enviado; avalie o envio manualmente.';
 $string['errordigest_footer'] = 'Você recebe esta mensagem porque seu endereço consta nas configurações de notificação de erros do Assign AI.';
 $string['errordigest_group'] = '{$a->course} / {$a->activity} - {$a->kind}: {$a->count} envio(s)';

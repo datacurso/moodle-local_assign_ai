@@ -94,8 +94,8 @@ class review_table extends \table_sql {
         $this->define_headers($headers);
 
         [$insql, $inparams] = $this->build_status_sql();
-        // In separate groups only the students the user may access are listed, as in mod_assign.
-        [$groupsql, $groupparams] = \local_assign_ai\local\activity_access::get_student_filter_sql(
+        // Only active students the user may access (separate groups) are listed, as in mod_assign.
+        [$groupsql, $groupparams] = \local_assign_ai\local\activity_access::get_reviewable_student_sql(
             \local_assign_ai\local\activity_access::from_assign($assign),
             'p.userid'
         );

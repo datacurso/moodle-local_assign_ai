@@ -87,6 +87,7 @@ $string['error_payload_too_large'] = 'Berkas yang dikirim ({$a->total} MB) meleb
 $string['error_processing_timeout'] = 'Pemrosesan melebihi batas waktu tanpa respons; silakan coba lagi.';
 $string['error_rubricmismatch'] = 'Respons AI tidak cocok dengan rubrik tugas ini. Nilai tidak diterapkan. Kriteria yang tidak cocok: {$a}';
 $string['error_service_payload_rejected'] = 'Layanan AI menolak berkas yang dikirim karena terlalu besar. Minta siswa untuk memperkecil ukurannya (misalnya, menurunkan kualitas gambar atau PDF) dan mengirimkannya kembali.';
+$string['error_student_inactive'] = 'Siswa tidak lagi aktif dalam aktivitas ini (tidak terdaftar, atau pendaftaran maupun akunnya ditangguhkan), sehingga kiriman tidak dikirim ke AI.';
 $string['error_unreadable_file'] = 'AI tidak dapat membaca berkas yang dikirim; tinjau secara manual.';
 $string['errordigest_footer'] = 'Anda menerima pesan ini karena alamat Anda tercantum dalam pengaturan notifikasi kesalahan Assign AI.';
 $string['errordigest_group'] = '{$a->course} / {$a->activity} - {$a->kind}: {$a->count} kiriman';

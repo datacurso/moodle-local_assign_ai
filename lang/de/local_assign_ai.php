@@ -87,6 +87,7 @@ $string['error_payload_too_large'] = 'Die eingereichten Dateien ({$a->total} MB)
 $string['error_processing_timeout'] = 'Die Verarbeitung hat das Zeitlimit ohne Antwort überschritten; bitte erneut versuchen.';
 $string['error_rubricmismatch'] = 'Die KI-Antwort stimmt nicht mit der Rubrik dieser Aufgabe überein. Die Bewertung wurde nicht übernommen. Nicht übereinstimmende Kriterien: {$a}';
 $string['error_service_payload_rejected'] = 'Der KI-Dienst hat die eingereichten Dateien abgelehnt, weil sie zu groß sind. Bitten Sie die Studierenden, die Dateigröße zu verringern (z. B. durch geringere Qualität von Bildern oder PDFs), und erneut einzureichen.';
+$string['error_student_inactive'] = 'Die/der Lernende ist in dieser Aktivität nicht mehr aktiv (nicht eingeschrieben oder Einschreibung bzw. Konto gesperrt), daher wurde die Abgabe nicht an die KI gesendet.';
 $string['error_unreadable_file'] = 'Die KI konnte die eingereichte Datei nicht lesen; bewerten Sie die Abgabe manuell.';
 $string['errordigest_footer'] = 'Sie erhalten diese Nachricht, weil Ihre Adresse in den Einstellungen für Assign-AI-Fehlerbenachrichtigungen eingetragen ist.';
 $string['errordigest_group'] = '{$a->course} / {$a->activity} - {$a->kind}: {$a->count} Abgabe(n)';

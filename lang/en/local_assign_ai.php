@@ -87,6 +87,7 @@ $string['error_payload_too_large'] = 'The submitted files ({$a->total} MB) excee
 $string['error_processing_timeout'] = 'Processing timed out without a response; please retry.';
 $string['error_rubricmismatch'] = 'The AI response does not match the rubric of this assignment. The grade was not applied. Unmatched criteria: {$a}';
 $string['error_service_payload_rejected'] = 'The AI service rejected the submitted files because they are too large. Ask the student to reduce their size (for example, lower the quality of images or PDFs) and submit them again.';
+$string['error_student_inactive'] = 'The student is no longer active in this activity (not enrolled, enrolment or account suspended), so the submission was not sent to the AI.';
 $string['error_unreadable_file'] = 'The AI could not read the submitted file; grade it manually.';
 $string['errordigest_footer'] = 'You receive this message because your address is listed in the Assign AI error notification settings.';
 $string['errordigest_group'] = '{$a->course} / {$a->activity} - {$a->kind}: {$a->count} submission(s)';
